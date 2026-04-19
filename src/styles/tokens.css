@@ -1,0 +1,103 @@
+/* ============================================================
+   Cockpit — design tokens
+   Mirrors design/cockpit.css. Single source of truth for theme.
+   ============================================================ */
+
+:root {
+  --font-sans: var(--font-inter), system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-brand: var(--font-poppins), var(--font-sans);
+
+  --state-running: #4a9eff;
+  --state-tool: #a78bfa;
+  --state-approval: #f5a524;
+  --state-error: #ef4444;
+  --state-idle: #6b7280;
+  --state-done: #22c55e;
+
+  --brand: #d97757;
+  --brand-hover: #c46744;
+
+  --row-sm: 28px;
+  --row-md: 32px;
+  --radius: 4px;
+  --radius-lg: 6px;
+
+  --gap-1: 4px;
+  --gap-2: 8px;
+  --gap-3: 12px;
+  --gap-4: 16px;
+  --gap-5: 20px;
+  --gap-6: 24px;
+}
+
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0a0a0a;
+  --bg-elev: #0f0f0f;
+  --bg-tile: #141414;
+  --bg-tile-hover: #181818;
+  --bg-overlay: rgba(10, 10, 10, 0.72);
+  --bg-input: #0a0a0a;
+
+  --border: rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.12);
+  --border-focus: rgba(255, 255, 255, 0.24);
+
+  --fg: #ededed;
+  --fg-dim: #9a9a9a;
+  --fg-muted: #6b6b6b;
+  --fg-faint: #454545;
+
+  --grid-line: rgba(255, 255, 255, 0.04);
+
+  --tint-approval: rgba(245, 165, 36, 0.05);
+  --tint-error: rgba(239, 68, 68, 0.04);
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+  --bg: #faf9f5;
+  --bg-elev: #f3f1ea;
+  --bg-tile: #ffffff;
+  --bg-tile-hover: #fbfaf5;
+  --bg-overlay: rgba(250, 249, 245, 0.8);
+  --bg-input: #ffffff;
+
+  --border: rgba(20, 18, 10, 0.08);
+  --border-strong: rgba(20, 18, 10, 0.16);
+  --border-focus: rgba(20, 18, 10, 0.28);
+
+  --fg: #1a1916;
+  --fg-dim: #5c5a52;
+  --fg-muted: #86847b;
+  --fg-faint: #b4b2a8;
+
+  --grid-line: rgba(20, 18, 10, 0.05);
+
+  --tint-approval: rgba(245, 165, 36, 0.08);
+  --tint-error: rgba(239, 68, 68, 0.05);
+}
+
+[data-density='compact'] {
+  --gap-1: 3px;
+  --gap-2: 6px;
+  --gap-3: 9px;
+  --gap-4: 12px;
+  --gap-5: 16px;
+  --gap-6: 20px;
+  --row-sm: 24px;
+  --row-md: 28px;
+}
+
+[data-density='cozy'] {
+  --gap-1: 5px;
+  --gap-2: 10px;
+  --gap-3: 14px;
+  --gap-4: 18px;
+  --gap-5: 24px;
+  --gap-6: 32px;
+  --row-sm: 32px;
+  --row-md: 36px;
+}

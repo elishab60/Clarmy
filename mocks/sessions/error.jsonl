@@ -1,0 +1,5 @@
+{"kind":"system.init","payload":{"id":"s_f03c","project":"scraper","name":"crawl product catalog","model":"sonnet-4.6"}}
+{"kind":"assistant.text","payload":{"line":{"t":"gt","v":"fetching catalog feed"}}}
+{"kind":"assistant.text","payload":{"line":{"t":"warn","v":"connection refused, retrying…"}}}
+{"kind":"result.error","payload":{"message":"ECONNREFUSED — upstream api.shop.local:8443 unreachable after 3 retries. Circuit breaker open.","retryIn":8}}
+{"kind":"cost.update","payload":{"delta":0.03}}

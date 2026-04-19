@@ -1,0 +1,2868 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Cockpit — pilot Claude Code sessions in parallel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600&family=JetBrains+Mono:wght@400;500&family=Poppins:wght@500;600&display=swap" rel="stylesheet">
+  <style>
+/* ============================================================
+   Cockpit — design tokens
+   ============================================================ */
+
+:root {
+  /* type */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-brand: 'Poppins', var(--font-sans);
+
+  /* state colors — identical in both themes */
+  --state-running: #4a9eff;
+  --state-tool: #a78bfa;
+  --state-approval: #f5a524;
+  --state-error: #ef4444;
+  --state-idle: #6b7280;
+  --state-done: #22c55e;
+
+  /* brand */
+  --brand: #d97757;
+  --brand-hover: #c46744;
+
+  /* density */
+  --row-sm: 28px;
+  --row-md: 32px;
+  --radius: 4px;
+  --radius-lg: 6px;
+
+  /* density scale — overridden by [data-density] */
+  --gap-1: 4px;
+  --gap-2: 8px;
+  --gap-3: 12px;
+  --gap-4: 16px;
+  --gap-5: 20px;
+  --gap-6: 24px;
+}
+
+/* DARK (default) */
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0a0a0a;
+  --bg-elev: #0f0f0f;
+  --bg-tile: #141414;
+  --bg-tile-hover: #181818;
+  --bg-overlay: rgba(10, 10, 10, 0.72);
+  --bg-input: #0a0a0a;
+
+  --border: rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.12);
+  --border-focus: rgba(255, 255, 255, 0.24);
+
+  --fg: #ededed;
+  --fg-dim: #9a9a9a;
+  --fg-muted: #6b6b6b;
+  --fg-faint: #454545;
+
+  --grid-line: rgba(255, 255, 255, 0.04);
+
+  /* soft state tints */
+  --tint-approval: rgba(245, 165, 36, 0.05);
+  --tint-error: rgba(239, 68, 68, 0.04);
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+  --bg: #faf9f5;
+  --bg-elev: #f3f1ea;
+  --bg-tile: #ffffff;
+  --bg-tile-hover: #fbfaf5;
+  --bg-overlay: rgba(250, 249, 245, 0.8);
+  --bg-input: #ffffff;
+
+  --border: rgba(20, 18, 10, 0.08);
+  --border-strong: rgba(20, 18, 10, 0.16);
+  --border-focus: rgba(20, 18, 10, 0.28);
+
+  --fg: #1a1916;
+  --fg-dim: #5c5a52;
+  --fg-muted: #86847b;
+  --fg-faint: #b4b2a8;
+
+  --grid-line: rgba(20, 18, 10, 0.05);
+
+  --tint-approval: rgba(245, 165, 36, 0.08);
+  --tint-error: rgba(239, 68, 68, 0.05);
+}
+
+[data-density='compact'] {
+  --gap-1: 3px;
+  --gap-2: 6px;
+  --gap-3: 9px;
+  --gap-4: 12px;
+  --gap-5: 16px;
+  --gap-6: 20px;
+  --row-sm: 24px;
+  --row-md: 28px;
+}
+[data-density='cozy'] {
+  --gap-1: 5px;
+  --gap-2: 10px;
+  --gap-3: 14px;
+  --gap-4: 18px;
+  --gap-5: 24px;
+  --gap-6: 32px;
+  --row-sm: 32px;
+  --row-md: 36px;
+}
+
+/* ============================================================
+   Reset / base
+   ============================================================ */
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.45;
+  font-feature-settings: 'ss01', 'cv11';
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; padding: 0; }
+input, textarea, select { font: inherit; color: inherit; }
+kbd, code, .mono { font-family: var(--font-mono); font-feature-settings: 'zero', 'cv02'; }
+::selection { background: var(--brand); color: #0a0a0a; }
+
+/* scrollbars */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 10px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-focus); background-clip: padding-box; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ============================================================
+   App shell
+   ============================================================ */
+
+.app {
+  display: grid;
+  grid-template-columns: 212px 1fr;
+  grid-template-rows: 40px 1fr 26px;
+  grid-template-areas:
+    'sidebar topbar'
+    'sidebar main'
+    'sidebar statusbar';
+  height: 100vh;
+  width: 100vw;
+}
+
+/* TOPBAR */
+.topbar {
+  grid-area: topbar;
+  display: flex;
+  align-items: center;
+  gap: var(--gap-5);
+  padding: 0 var(--gap-5);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+.topbar .title {
+  font-size: 12px;
+  color: var(--fg-dim);
+  letter-spacing: 0.01em;
+}
+.topbar .title strong { color: var(--fg); font-weight: 500; }
+.topbar .sep { color: var(--fg-faint); }
+.topbar .meta {
+  display: flex;
+  gap: var(--gap-5);
+  margin-left: auto;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-dim);
+}
+.topbar .meta .k { color: var(--fg-muted); margin-right: 6px; }
+.topbar .meta .v { color: var(--fg); }
+
+.view-tabs { display: flex; gap: 2px; margin-left: var(--gap-4); }
+.view-tabs button {
+  padding: 4px 10px;
+  font-size: 11.5px;
+  color: var(--fg-muted);
+  border-radius: var(--radius);
+  letter-spacing: 0.005em;
+}
+.view-tabs button:hover { color: var(--fg-dim); background: var(--bg-elev); }
+.view-tabs button.active {
+  color: var(--fg);
+  background: var(--bg-elev);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.cmdk-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 11px;
+  color: var(--fg-muted);
+  background: var(--bg-elev);
+  min-width: 200px;
+}
+.cmdk-trigger:hover { border-color: var(--border-strong); color: var(--fg-dim); }
+.cmdk-trigger .kbd {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--fg-dim);
+}
+
+.theme-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.theme-toggle button {
+  padding: 3px 8px;
+  font-size: 10.5px;
+  color: var(--fg-muted);
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+}
+.theme-toggle button.on { background: var(--bg-elev); color: var(--fg); }
+
+/* SIDEBAR */
+.sidebar {
+  grid-area: sidebar;
+  background: var(--bg);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.sidebar-head {
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+  height: 40px;
+}
+.wordmark {
+  font-family: var(--font-brand);
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  color: var(--fg);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.wordmark .dot {
+  width: 6px; height: 6px; border-radius: 1px;
+  background: var(--brand);
+  transform: rotate(45deg);
+}
+.new-session {
+  margin: 12px 10px;
+  padding: 7px 10px;
+  background: var(--brand);
+  color: #0a0a0a;
+  font-weight: 500;
+  font-size: 11.5px;
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: 0.005em;
+  transition: background 0.1s ease;
+}
+.new-session:hover { background: var(--brand-hover); }
+.new-session .plus { font-family: var(--font-mono); opacity: 0.7; }
+.new-session .kbd { margin-left: auto; font-family: var(--font-mono); font-size: 9.5px; opacity: 0.6; }
+
+.nav-group {
+  padding: 6px 0 10px;
+  border-bottom: 1px solid var(--border);
+}
+.nav-label {
+  padding: 10px 14px 6px;
+  font-size: 9.5px;
+  color: var(--fg-faint);
+  font-family: var(--font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 14px;
+  font-size: 12px;
+  color: var(--fg-dim);
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  position: relative;
+}
+.nav-item:hover { color: var(--fg); background: var(--bg-elev); }
+.nav-item.active { color: var(--fg); }
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 4px; bottom: 4px;
+  width: 2px;
+  background: var(--fg);
+}
+.nav-item .ico { width: 12px; height: 12px; flex-shrink: 0; opacity: 0.7; }
+.nav-item .badge {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-muted);
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--bg-elev);
+  min-width: 18px;
+  text-align: center;
+}
+.nav-item .badge.amber {
+  color: var(--state-approval);
+  background: rgba(245, 165, 36, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(245, 165, 36, 0.2);
+}
+
+.sidebar-alerts {
+  margin-top: auto;
+  padding: 10px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.alert-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 8px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--fg-muted);
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+}
+.alert-row .v { color: var(--fg-dim); }
+.alert-row.amber {
+  border-color: rgba(245, 165, 36, 0.2);
+  background: rgba(245, 165, 36, 0.04);
+  color: var(--state-approval);
+}
+.alert-row.amber .v { color: var(--state-approval); }
+.alert-row.amber::before {
+  content: '';
+  display: inline-block;
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--state-approval);
+  margin-right: 6px;
+  align-self: center;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+/* STATUSBAR */
+.statusbar {
+  grid-area: statusbar;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--gap-4);
+  gap: var(--gap-5);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-muted);
+  letter-spacing: 0.02em;
+}
+.sb-group { display: flex; align-items: center; gap: 10px; }
+.sb-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.sb-pill .sdot {
+  width: 6px; height: 6px; border-radius: 50%;
+}
+.sb-sep { width: 1px; height: 12px; background: var(--border); }
+.sb-right { margin-left: auto; display: flex; gap: var(--gap-5); align-items: center; }
+.ws-indicator {
+  display: inline-flex; align-items: center; gap: 6px;
+  color: var(--state-done);
+}
+.ws-indicator .rdot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--state-done);
+  box-shadow: 0 0 0 0 currentColor;
+  animation: pulse-ring 2s ease-in-out infinite;
+}
+
+/* MAIN */
+.main {
+  grid-area: main;
+  overflow: auto;
+  position: relative;
+  background:
+    linear-gradient(var(--grid-line) 1px, transparent 1px) 0 0 / 100% 40px,
+    var(--bg);
+  background-size: 100% 40px;
+  background-position: 0 -1px;
+}
+
+/* ============================================================
+   Tiles — compact mode
+   ============================================================ */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr));
+  gap: 1px;
+  background: var(--border);
+  padding: 1px;
+}
+.grid > .tile { background: var(--bg-tile); }
+
+.tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 260px;
+  border-left: 3px solid var(--state-color, var(--state-idle));
+  transition: background 0.12s ease;
+  cursor: pointer;
+}
+.tile:hover { background: var(--bg-tile-hover); }
+.tile.s-approval { background: linear-gradient(var(--tint-approval), var(--tint-approval)), var(--bg-tile); }
+.tile.s-approval:hover { background: linear-gradient(var(--tint-approval), var(--tint-approval)), var(--bg-tile-hover); }
+.tile.s-error { background: linear-gradient(var(--tint-error), var(--tint-error)), var(--bg-tile); }
+
+.tile-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px 8px;
+}
+.tile-head .sdot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--state-color);
+  flex-shrink: 0;
+}
+.tile.s-running .sdot { animation: pulse 1.6s ease-in-out infinite; }
+.tile.s-approval .sdot { animation: pulse 1.2s ease-in-out infinite; }
+.tile-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tile-title .path {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--fg-muted);
+  margin-right: 6px;
+}
+.tile-model {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--fg-muted);
+  padding: 2px 5px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.tile-kebab {
+  margin-left: auto;
+  color: var(--fg-faint);
+  padding: 2px 4px;
+  font-family: var(--font-mono);
+  letter-spacing: 2px;
+}
+.tile-kebab:hover { color: var(--fg); }
+
+.tile-status {
+  padding: 0 12px 8px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--fg-muted);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.tile-status .state { color: var(--state-color); text-transform: lowercase; }
+.tile-status .dot-sep { color: var(--fg-faint); }
+.tile-status .tool { color: var(--fg-dim); }
+.tile-status .elapsed { margin-left: auto; color: var(--fg-dim); }
+
+.tile-body {
+  flex: 1;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+  overflow: hidden;
+  position: relative;
+  min-height: 0;
+}
+
+.tile-foot {
+  border-top: 1px solid var(--border);
+  padding: 7px 12px;
+  display: flex;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-muted);
+  gap: 12px;
+}
+.tile-foot .cost { margin-left: auto; color: var(--fg-dim); }
+
+/* ============================================================
+   Tile body variants
+   ============================================================ */
+
+/* Running — terminal stream */
+.term-stream {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 1.55;
+  color: var(--fg-dim);
+  white-space: pre;
+  overflow: hidden;
+  position: relative;
+  height: 100%;
+  mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 100%);
+}
+.term-stream .ln { display: block; }
+.term-stream .gt { color: var(--state-running); }
+.term-stream .muted { color: var(--fg-muted); }
+.term-stream .ok { color: var(--state-done); }
+.term-stream .warn { color: var(--state-approval); }
+.term-stream .cursor {
+  display: inline-block;
+  width: 6px; height: 11px;
+  background: var(--fg);
+  vertical-align: text-bottom;
+  animation: blink 1s steps(2) infinite;
+  margin-left: 2px;
+}
+
+/* Tool — diff preview */
+.diff {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 1.55;
+  height: 100%;
+  overflow: hidden;
+}
+.diff-header {
+  display: flex;
+  gap: 8px;
+  color: var(--fg-muted);
+  margin-bottom: 4px;
+  font-size: 10px;
+}
+.diff-header .chip {
+  padding: 1px 5px;
+  border-radius: 2px;
+  background: rgba(167, 139, 250, 0.1);
+  color: var(--state-tool);
+  font-size: 9.5px;
+}
+.diff .row {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  padding: 0 4px;
+}
+.diff .row .ln { color: var(--fg-faint); text-align: right; padding-right: 6px; user-select: none; }
+.diff .row.add { background: rgba(34, 197, 94, 0.06); color: #a7e8b8; }
+.diff .row.add .ln { color: rgba(34, 197, 94, 0.5); }
+.diff .row.add .txt::before { content: '+ '; color: var(--state-done); }
+.diff .row.del { background: rgba(239, 68, 68, 0.05); color: #f4b1b1; }
+.diff .row.del .ln { color: rgba(239, 68, 68, 0.5); }
+.diff .row.del .txt::before { content: '- '; color: var(--state-error); }
+.diff .row.ctx { color: var(--fg-muted); }
+[data-theme='light'] .diff .row.add { color: #226d37; }
+[data-theme='light'] .diff .row.del { color: #9a2020; }
+
+/* Idle — todos */
+.todos { display: flex; flex-direction: column; gap: 3px; font-size: 11px; }
+.todos .todo { display: flex; gap: 8px; align-items: flex-start; padding: 2px 0; }
+.todos .todo .mark {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-muted);
+  flex-shrink: 0;
+  width: 12px;
+  line-height: 1.45;
+}
+.todos .todo.done .mark { color: var(--state-done); }
+.todos .todo.done .label { color: var(--fg-muted); text-decoration: line-through; text-decoration-color: var(--fg-faint); }
+.todos .todo.active .mark { color: var(--state-running); }
+.todos .todo.active .label { color: var(--fg); }
+.todos .todo .label {
+  color: var(--fg-dim);
+  font-size: 11px;
+  line-height: 1.45;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Pending approval */
+.approval-preview {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 1.55;
+}
+.approval-preview .tool-name {
+  color: var(--state-approval);
+  margin-bottom: 4px;
+  font-size: 11px;
+}
+.approval-preview pre {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  color: var(--fg-dim);
+  max-height: 70px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.approval-preview .arg-k { color: var(--fg-muted); }
+.approval-preview .arg-s { color: #8cc8ff; }
+[data-theme='light'] .approval-preview .arg-s { color: #2d5ea8; }
+.approval-actions { display: flex; gap: 6px; }
+.approval-actions button {
+  flex: 1;
+  padding: 6px 10px;
+  font-size: 11px;
+  border-radius: var(--radius);
+  font-family: var(--font-sans);
+  border: 1px solid transparent;
+}
+.approval-actions .allow {
+  background: var(--state-approval);
+  color: #1a1200;
+  font-weight: 500;
+}
+.approval-actions .allow:hover { filter: brightness(1.08); }
+.approval-actions .deny {
+  background: var(--bg);
+  color: var(--fg-dim);
+  border-color: var(--border-strong);
+}
+.approval-actions .deny:hover { border-color: var(--border-focus); color: var(--fg); }
+
+/* Error */
+.err-body { font-size: 11px; }
+.err-msg {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--state-error);
+  background: rgba(239, 68, 68, 0.06);
+  border: 1px solid rgba(239, 68, 68, 0.15);
+  border-radius: var(--radius);
+  padding: 6px 8px;
+  margin-bottom: 8px;
+  line-height: 1.45;
+}
+.err-retry {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-muted);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.err-retry .bar {
+  flex: 1;
+  height: 2px;
+  background: var(--border);
+  margin: 0 10px;
+  overflow: hidden;
+  border-radius: 2px;
+}
+.err-retry .bar > span {
+  display: block; height: 100%;
+  background: var(--state-error);
+  width: 50%;
+  animation: retry-fill 8s linear infinite;
+}
+
+/* Completed */
+.done-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 11px;
+}
+.done-summary {
+  color: var(--fg-dim);
+  line-height: 1.55;
+}
+.done-artifacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.done-artifacts .art {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-dim);
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg);
+}
+.done-artifacts .art::before { content: '↗ '; color: var(--fg-muted); }
+
+/* ============================================================
+   Expanded / focus view
+   ============================================================ */
+
+.focus-shell {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 1px;
+  background: var(--border);
+  height: 100%;
+  padding: 1px;
+}
+.focus-main, .focus-side {
+  background: var(--bg-tile);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.focus-header {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: var(--gap-3);
+}
+.focus-header .sdot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--state-running);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+.focus-header h2 { margin: 0; font-size: 14px; font-weight: 500; letter-spacing: -0.005em; }
+.focus-header .path {
+  font-family: var(--font-mono);
+  color: var(--fg-muted);
+  font-size: 11px;
+  margin-right: 8px;
+}
+.focus-header .actions {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+}
+.focus-header .actions button {
+  padding: 4px 8px;
+  font-size: 10.5px;
+  color: var(--fg-dim);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.focus-header .actions button:hover { color: var(--fg); border-color: var(--border-strong); }
+.focus-header .actions .close { color: var(--fg-muted); }
+
+.focus-body {
+  flex: 1;
+  overflow: auto;
+  padding: 0;
+  display: grid;
+  grid-template-rows: 1fr auto;
+}
+.focus-term {
+  padding: 16px 20px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: var(--fg-dim);
+  overflow: auto;
+  white-space: pre-wrap;
+}
+.focus-term .gt { color: var(--state-running); }
+.focus-term .ok { color: var(--state-done); }
+.focus-term .warn { color: var(--state-approval); }
+.focus-term .muted { color: var(--fg-muted); }
+.focus-term .head { color: var(--fg); font-weight: 500; }
+.focus-term .cursor {
+  display: inline-block; width: 7px; height: 13px;
+  background: var(--fg); vertical-align: text-bottom;
+  animation: blink 1s steps(2) infinite;
+  margin-left: 2px;
+}
+
+.focus-timeline {
+  border-top: 1px solid var(--border);
+  padding: 12px 20px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--fg-muted);
+}
+.focus-timeline .tl-title {
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+  margin-bottom: 8px;
+}
+.focus-timeline .tl-bar {
+  display: flex;
+  height: 18px;
+  border-radius: 2px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.focus-timeline .tl-bar span { display: block; height: 100%; }
+.focus-timeline .tl-legend {
+  display: flex;
+  gap: 14px;
+  margin-top: 8px;
+  font-size: 10px;
+  color: var(--fg-dim);
+}
+.focus-timeline .tl-legend .sw {
+  display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; vertical-align: middle;
+}
+
+.focus-side {
+  padding: 0;
+}
+.focus-side-group {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.focus-side-group h3 {
+  margin: 0 0 10px;
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+  font-weight: 500;
+  font-family: var(--font-mono);
+}
+.kv-list { display: flex; flex-direction: column; gap: 6px; }
+.kv-list .kv {
+  display: flex; justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.kv-list .kv .k { color: var(--fg-muted); }
+.kv-list .kv .v { color: var(--fg); }
+
+.cost-chart {
+  height: 80px;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+.cost-chart .bar {
+  flex: 1;
+  background: var(--border-strong);
+  border-radius: 1px;
+  min-height: 2px;
+  transition: background 0.15s;
+}
+.cost-chart .bar.hi { background: var(--brand); }
+
+/* ============================================================
+   MCP page
+   ============================================================ */
+
+.cfg-shell {
+  padding: var(--gap-6);
+  max-width: 1100px;
+  margin: 0 auto;
+}
+.cfg-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+}
+.cfg-header h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+}
+.cfg-header .sub {
+  margin: 6px 0 0;
+  color: var(--fg-muted);
+  font-size: 12px;
+  max-width: 520px;
+}
+.cfg-header .right { display: flex; gap: 8px; }
+.btn {
+  padding: 6px 12px;
+  font-size: 11.5px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  color: var(--fg);
+  background: var(--bg);
+}
+.btn:hover { border-color: var(--border-strong); }
+.btn.primary {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #0a0a0a;
+  font-weight: 500;
+}
+.btn.primary:hover { background: var(--brand-hover); border-color: var(--brand-hover); }
+.btn.ghost { border-color: transparent; color: var(--fg-dim); }
+.btn.ghost:hover { background: var(--bg-elev); color: var(--fg); }
+
+.mcp-grid {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  min-height: 520px;
+}
+.mcp-list {
+  background: var(--bg-tile);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mcp-list .search {
+  padding: 6px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 11.5px;
+  color: var(--fg);
+  margin-bottom: 6px;
+  width: 100%;
+}
+.mcp-list .search::placeholder { color: var(--fg-muted); }
+.mcp-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+}
+.mcp-item:hover { background: var(--bg-elev); }
+.mcp-item.active { background: var(--bg-elev); box-shadow: inset 0 0 0 1px var(--border-strong); }
+.mcp-item .mcp-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.mcp-item .mcp-dot.on { background: var(--state-done); }
+.mcp-item .mcp-dot.off { background: var(--fg-faint); }
+.mcp-item .mcp-dot.err { background: var(--state-error); }
+.mcp-item .meta {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.mcp-item .name { font-size: 12px; color: var(--fg); }
+.mcp-item .desc { font-family: var(--font-mono); font-size: 10px; color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mcp-item .tool-count {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--fg-muted);
+}
+
+.mcp-detail {
+  background: var(--bg-tile);
+  padding: 24px 28px;
+  overflow: auto;
+}
+.mcp-detail .row-h {
+  display: flex; align-items: center; gap: 10px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+}
+.mcp-detail h2 {
+  margin: 0; font-size: 17px; font-weight: 500; letter-spacing: -0.01em;
+}
+.mcp-detail .status-pill {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 3px;
+  color: var(--state-done);
+  background: rgba(34, 197, 94, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.2);
+}
+.mcp-detail .id {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+.mcp-detail .right-actions { margin-left: auto; display: flex; gap: 6px; }
+
+.field-grid {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 12px 20px;
+  margin-bottom: 28px;
+}
+.field-grid .k {
+  font-size: 11px;
+  color: var(--fg-muted);
+  padding-top: 7px;
+}
+.field-grid .v input, .field-grid .v select {
+  width: 100%;
+  padding: 6px 10px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg);
+}
+.field-grid .v input:focus, .field-grid .v select:focus {
+  outline: none; border-color: var(--border-focus);
+}
+.field-grid .v .hint {
+  font-size: 10.5px;
+  color: var(--fg-muted);
+  margin-top: 4px;
+}
+
+.toggle {
+  display: inline-flex; align-items: center; gap: 8px;
+  cursor: pointer;
+  font-size: 11.5px;
+}
+.toggle .sw {
+  width: 28px; height: 16px;
+  border-radius: 8px;
+  background: var(--border-strong);
+  position: relative;
+  transition: background 0.15s;
+}
+.toggle .sw::after {
+  content: '';
+  position: absolute; top: 2px; left: 2px;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: var(--fg);
+  transition: left 0.15s;
+}
+.toggle.on .sw { background: var(--state-done); }
+.toggle.on .sw::after { left: 14px; background: #fff; }
+
+.tools-table {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  font-size: 11.5px;
+}
+.tools-table .trow {
+  display: grid;
+  grid-template-columns: 200px 1fr 80px 80px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  align-items: center;
+}
+.tools-table .trow:first-child { border-top: 0; }
+.tools-table .trow.head {
+  background: var(--bg-elev);
+  color: var(--fg-muted);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.tools-table .trow .tname { color: var(--fg); }
+.tools-table .trow .tdesc { color: var(--fg-muted); font-family: var(--font-sans); font-size: 11px; }
+.tools-table .trow .ncalls { color: var(--fg-dim); text-align: right; }
+.tools-table .trow .tperm {
+  justify-self: end;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  color: var(--state-done);
+  background: rgba(34, 197, 94, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.2);
+}
+.tools-table .trow .tperm.ask {
+  color: var(--state-approval);
+  background: rgba(245, 165, 36, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(245, 165, 36, 0.2);
+}
+
+/* ============================================================
+   Command palette
+   ============================================================ */
+
+.overlay {
+  position: fixed; inset: 0;
+  background: var(--bg-overlay);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 100;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 14vh;
+}
+.cmdk {
+  width: 580px;
+  max-width: 92vw;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 70vh;
+}
+.cmdk-input {
+  padding: 14px 18px;
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  font-size: 14px;
+  font-family: var(--font-sans);
+  border-bottom: 1px solid var(--border);
+  outline: none;
+}
+.cmdk-input::placeholder { color: var(--fg-muted); }
+.cmdk-list {
+  overflow: auto;
+  padding: 4px;
+  max-height: 460px;
+}
+.cmdk-group-label {
+  padding: 10px 12px 4px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--fg-faint);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.cmdk-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 12px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 12.5px;
+}
+.cmdk-row.active { background: var(--bg-tile); }
+.cmdk-row .sdot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.cmdk-row .name { color: var(--fg); }
+.cmdk-row .sub {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--fg-muted);
+  margin-left: 8px;
+}
+.cmdk-row .arrow { margin-left: auto; color: var(--fg-muted); font-family: var(--font-mono); font-size: 10px; }
+.cmdk-row .ico {
+  width: 14px; text-align: center;
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--fg-muted);
+}
+.cmdk-foot {
+  padding: 8px 14px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 14px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-muted);
+}
+.cmdk-foot .kbd {
+  font-size: 9.5px;
+  padding: 1px 4px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  margin-right: 4px;
+}
+.cmdk-empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+
+/* ============================================================
+   Approval modal
+   ============================================================ */
+
+.modal {
+  width: 560px;
+  max-width: 92vw;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  overflow: hidden;
+  border-left: 3px solid var(--state-approval);
+}
+.modal-head {
+  padding: 14px 18px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.modal-head .sdot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--state-approval);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+.modal-head h3 { margin: 0; font-size: 13px; font-weight: 500; }
+.modal-head .sub {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+.modal-body {
+  padding: 18px;
+  max-height: 60vh;
+  overflow: auto;
+}
+.modal-body .tool-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--state-approval);
+  margin-bottom: 10px;
+}
+.modal-body pre.cmd {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--fg);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+pre.cmd .key { color: var(--state-tool); }
+pre.cmd .str { color: #8cc8ff; }
+[data-theme='light'] pre.cmd .str { color: #2d5ea8; }
+pre.cmd .num { color: var(--state-approval); }
+pre.cmd .comment { color: var(--fg-muted); }
+
+.modal-body .context-row {
+  display: flex; justify-content: space-between;
+  font-family: var(--font-mono); font-size: 10.5px;
+  color: var(--fg-muted);
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+}
+.modal-body .context-row:first-of-type { border-top: 0; }
+.modal-body .context-row .v { color: var(--fg-dim); }
+
+.modal-foot {
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.modal-foot .opt {
+  font-size: 11.5px;
+  color: var(--fg-dim);
+  margin-right: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.modal-foot .opt input { accent-color: var(--brand); }
+.btn.allow {
+  background: var(--state-approval);
+  border-color: var(--state-approval);
+  color: #1a1200;
+  font-weight: 500;
+}
+.btn.allow:hover { filter: brightness(1.08); }
+.btn.deny { color: var(--fg-dim); }
+
+/* ============================================================
+   New session (empty state form)
+   ============================================================ */
+
+.new-session-view {
+  padding: var(--gap-6);
+  max-width: 720px;
+  margin: 20px auto;
+}
+.new-session-view h1 {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+}
+.new-session-view .lede {
+  color: var(--fg-muted);
+  font-size: 13px;
+  margin-bottom: 24px;
+}
+.form-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-tile);
+  overflow: hidden;
+}
+.form-section {
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--border);
+}
+.form-section:last-child { border-bottom: 0; }
+.form-section h4 {
+  margin: 0 0 12px;
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+  font-weight: 500;
+  font-family: var(--font-mono);
+}
+.form-row { display: flex; gap: 12px; margin-bottom: 10px; }
+.form-row:last-child { margin-bottom: 0; }
+.form-row label {
+  width: 110px;
+  color: var(--fg-muted);
+  font-size: 11.5px;
+  padding-top: 7px;
+  flex-shrink: 0;
+}
+.form-row .ctrl { flex: 1; }
+.form-row input, .form-row select, .form-row textarea {
+  width: 100%;
+  padding: 7px 10px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--fg);
+  resize: vertical;
+}
+.form-row textarea { font-family: var(--font-mono); min-height: 90px; line-height: 1.55; }
+.form-row input:focus, .form-row textarea:focus, .form-row select:focus {
+  outline: none; border-color: var(--border-focus);
+}
+.form-row input::placeholder, .form-row textarea::placeholder { color: var(--fg-muted); }
+.tool-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.tool-chips .chip {
+  padding: 3px 9px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  color: var(--fg-muted);
+  cursor: pointer;
+  background: var(--bg);
+}
+.tool-chips .chip.on {
+  color: var(--fg);
+  border-color: var(--border-focus);
+  background: var(--bg-elev);
+}
+.tool-chips .chip.on::before { content: '✓ '; color: var(--state-done); }
+.model-picker { display: flex; gap: 4px; }
+.model-picker button {
+  padding: 6px 12px;
+  font-size: 11.5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--fg-dim);
+  font-family: var(--font-mono);
+  background: var(--bg);
+}
+.model-picker button.on {
+  color: var(--fg);
+  border-color: var(--border-focus);
+  background: var(--bg-elev);
+}
+.form-foot {
+  padding: 14px 22px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  background: var(--bg-elev);
+}
+.form-foot .hint {
+  margin-right: auto;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--fg-muted);
+}
+
+/* ============================================================
+   Theme comparison view
+   ============================================================ */
+
+.compare-shell {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+  height: 100%;
+}
+.compare-pane {
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.compare-pane .pane-label {
+  padding: 8px 14px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.compare-pane .pane-body { flex: 1; overflow: auto; background: var(--bg); }
+.compare-pane[data-nested-theme='dark'] { background: #0a0a0a; color: #ededed; }
+.compare-pane[data-nested-theme='light'] { background: #faf9f5; color: #1a1916; }
+
+/* ============================================================
+   Tweaks panel
+   ============================================================ */
+
+.tweaks-panel {
+  position: fixed;
+  right: 16px;
+  bottom: 46px;
+  width: 240px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 14px;
+  z-index: 90;
+  font-size: 11.5px;
+  display: none;
+}
+.tweaks-panel.open { display: block; }
+.tweaks-panel h4 {
+  margin: 0 0 12px;
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-family: var(--font-mono);
+  color: var(--fg-faint);
+  font-weight: 500;
+  display: flex; justify-content: space-between;
+}
+.tweaks-panel .tw-row { margin-bottom: 10px; }
+.tweaks-panel .tw-row .lbl { font-size: 11px; color: var(--fg-muted); margin-bottom: 4px; }
+.tweaks-panel .seg { display: flex; gap: 2px; }
+.tweaks-panel .seg button {
+  flex: 1;
+  padding: 4px 6px;
+  font-size: 10.5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+}
+.tweaks-panel .seg button.on { color: var(--fg); background: var(--bg-tile); border-color: var(--border-focus); }
+.tweaks-panel .accents { display: flex; gap: 6px; }
+.tweaks-panel .accents button {
+  width: 22px; height: 22px; border-radius: 4px; border: 1px solid var(--border);
+}
+.tweaks-panel .accents button.on { box-shadow: 0 0 0 2px var(--fg); }
+
+/* ============================================================
+   Animations
+   ============================================================ */
+
+@keyframes blink { 0%,50% { opacity: 1; } 50.01%,100% { opacity: 0; } }
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.9); }
+}
+@keyframes pulse-ring {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
+  50% { box-shadow: 0 0 0 4px rgba(34, 197, 94, 0); }
+}
+@keyframes retry-fill {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+/* Focus rings */
+:focus-visible {
+  outline: 1px solid var(--brand);
+  outline-offset: 1px;
+}
+
+</style>
+</head>
+<body data-screen-label="Cockpit">
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script>
+// Cockpit — mock session data
+window.SESSIONS = [
+  {
+    id: 's_47a2',
+    project: 'acme-api',
+    name: 'refactor auth middleware',
+    model: 'opus-4.7',
+    state: 'running',
+    tool: 'Bash',
+    elapsed: '02:14',
+    toolsUsed: 14,
+    todos: 5,
+    todosDone: 2,
+    cost: 0.42,
+    logs: [
+      { t: 'muted', v: '$ pnpm test auth.spec.ts' },
+      { t: 'plain', v: ' RUN  src/middleware/auth.spec.ts' },
+      { t: 'ok',    v: ' PASS  validates bearer tokens (18ms)' },
+      { t: 'ok',    v: ' PASS  rejects expired jwt (4ms)' },
+      { t: 'ok',    v: ' PASS  refresh token rotation (22ms)' },
+      { t: 'plain', v: ' RUNS  handles concurrent requests' },
+      { t: 'muted', v: ' › executing assertion...' },
+    ],
+  },
+  {
+    id: 's_91ef',
+    project: 'monorepo',
+    name: 'migrate packages to vitest',
+    model: 'sonnet-4.6',
+    state: 'tool',
+    tool: 'Edit',
+    elapsed: '04:38',
+    toolsUsed: 28,
+    todos: 8,
+    todosDone: 4,
+    cost: 0.18,
+    editPath: 'packages/core/vitest.config.ts',
+    diff: [
+      { type: 'ctx', ln: '12', txt: "export default defineConfig({" },
+      { type: 'del', ln: '13', txt: "  test: { environment: 'node' }," },
+      { type: 'add', ln: '13', txt: "  test: {" },
+      { type: 'add', ln: '14', txt: "    environment: 'happy-dom'," },
+      { type: 'add', ln: '15', txt: "    globals: true," },
+      { type: 'add', ln: '16', txt: "    setupFiles: ['./test/setup.ts']," },
+      { type: 'add', ln: '17', txt: "  }," },
+      { type: 'ctx', ln: '18', txt: "  resolve: { alias: {" },
+    ],
+  },
+  {
+    id: 's_2bf1',
+    project: 'dashboard',
+    name: 'add dark mode toggle',
+    model: 'opus-4.7',
+    state: 'approval',
+    tool: 'Bash',
+    elapsed: '01:02',
+    toolsUsed: 7,
+    todos: 4,
+    todosDone: 3,
+    cost: 0.07,
+    approvalTool: 'Bash',
+    approvalArgs: {
+      command: 'rm -rf node_modules && pnpm install --frozen-lockfile',
+      cwd: '~/code/dashboard',
+      timeout: 120000,
+    },
+  },
+  {
+    id: 's_f03c',
+    project: 'scraper',
+    name: 'crawl product catalog',
+    model: 'sonnet-4.6',
+    state: 'error',
+    tool: 'WebFetch',
+    elapsed: '00:47',
+    toolsUsed: 3,
+    todos: 2,
+    todosDone: 0,
+    cost: 0.03,
+    error: 'ECONNREFUSED — upstream api.shop.local:8443 unreachable after 3 retries. Circuit breaker open.',
+    retryIn: 8,
+  },
+  {
+    id: 's_c1d9',
+    project: 'infra',
+    name: 'provision staging cluster',
+    model: 'opus-4.7',
+    state: 'idle',
+    tool: null,
+    elapsed: '—',
+    toolsUsed: 22,
+    todos: 6,
+    todosDone: 2,
+    cost: 0.91,
+    todoList: [
+      { status: 'done',   text: 'audit existing terraform modules' },
+      { status: 'done',   text: 'write vpc + subnet config' },
+      { status: 'active', text: 'configure eks node groups' },
+      { status: 'todo',   text: 'set up rds postgres replica' },
+      { status: 'todo',   text: 'wire up cloudwatch alarms' },
+      { status: 'todo',   text: 'validate with terraform plan' },
+    ],
+  },
+  {
+    id: 's_78aa',
+    project: 'acme-web',
+    name: 'improve LCP on product pages',
+    model: 'sonnet-4.6',
+    state: 'done',
+    tool: null,
+    elapsed: '12:41',
+    toolsUsed: 41,
+    todos: 7,
+    todosDone: 7,
+    cost: 1.24,
+    summary: 'Reduced LCP from 3.1s → 1.6s by preloading hero image, inlining critical CSS, and deferring the analytics bundle.',
+    artifacts: ['PR #2847', 'lighthouse.json', 'perf-report.md'],
+  },
+];
+
+window.MCP_SERVERS = [
+  { id: 'gh',      name: 'github',        desc: 'github.com/modelcontextprotocol', status: 'on',  tools: 14, active: true },
+  { id: 'linear',  name: 'linear',        desc: 'linear.app workspace',             status: 'on',  tools: 8 },
+  { id: 'sentry',  name: 'sentry',        desc: 'sentry.io/acme',                    status: 'on',  tools: 6 },
+  { id: 'pg',      name: 'postgres',      desc: 'staging replica · ro',             status: 'on',  tools: 4 },
+  { id: 'fs',      name: 'filesystem',    desc: '~/code',                            status: 'on',  tools: 11 },
+  { id: 'slack',   name: 'slack',         desc: 'acme.slack.com',                    status: 'off', tools: 5 },
+  { id: 'fig',     name: 'figma',         desc: 'figma.com/files',                   status: 'err', tools: 0 },
+  { id: 'browser', name: 'browser',       desc: 'playwright-controlled',             status: 'on',  tools: 9 },
+];
+
+window.CMDK_ITEMS = [
+  { group: 'Sessions', name: 'acme-api · refactor auth middleware', sub: 's_47a2', state: 'running', arrow: '→ open' },
+  { group: 'Sessions', name: 'monorepo · migrate packages to vitest', sub: 's_91ef', state: 'tool', arrow: '→ open' },
+  { group: 'Sessions', name: 'dashboard · add dark mode toggle', sub: 's_2bf1', state: 'approval', arrow: '→ open' },
+  { group: 'Sessions', name: 'scraper · crawl product catalog', sub: 's_f03c', state: 'error', arrow: '→ open' },
+  { group: 'Sessions', name: 'infra · provision staging cluster', sub: 's_c1d9', state: 'idle', arrow: '→ open' },
+  { group: 'Sessions', name: 'acme-web · improve LCP', sub: 's_78aa', state: 'done', arrow: '→ open' },
+
+  { group: 'Actions', name: 'New session', sub: '⌘N', ico: '+', arrow: '↵' },
+  { group: 'Actions', name: 'Kill selected session', sub: '⌘⌫', ico: '×', arrow: '↵' },
+  { group: 'Actions', name: 'Pause all running', sub: '⌘.', ico: '||', arrow: '↵' },
+  { group: 'Actions', name: 'Fork session', sub: '⌘F', ico: 'ƒ', arrow: '↵' },
+  { group: 'Actions', name: 'Rename session', sub: '⌘R', ico: 'ab', arrow: '↵' },
+  { group: 'Actions', name: 'Tag session', sub: '#', ico: '#', arrow: '↵' },
+  { group: 'Actions', name: 'Open in terminal', sub: '⌘T', ico: '›_', arrow: '↵' },
+  { group: 'Actions', name: 'Approve pending tool call', sub: '⌘↵', ico: '✓', arrow: '↵' },
+
+  { group: 'Navigate', name: 'Sessions',    sub: '⌘1', ico: '▦', arrow: '→' },
+  { group: 'Navigate', name: 'Projects',    sub: '⌘2', ico: '▤', arrow: '→' },
+  { group: 'Navigate', name: 'History',     sub: '⌘3', ico: '↻', arrow: '→' },
+  { group: 'Navigate', name: 'Skills',      sub: '⌘4', ico: '◇', arrow: '→' },
+  { group: 'Navigate', name: 'MCP servers', sub: '⌘5', ico: '◈', arrow: '→' },
+  { group: 'Navigate', name: 'Plugins',     sub: '⌘6', ico: '◉', arrow: '→' },
+  { group: 'Navigate', name: 'Hooks',       sub: '⌘7', ico: '⌥', arrow: '→' },
+  { group: 'Navigate', name: 'Settings',    sub: '⌘,', ico: '⚙', arrow: '→' },
+
+  { group: 'Theme', name: 'Toggle dark / light', sub: '⌘⇧L', ico: '◐', arrow: '↵' },
+  { group: 'Theme', name: 'Density: compact', sub: '', ico: '—', arrow: '↵' },
+  { group: 'Theme', name: 'Density: cozy', sub: '', ico: '≡', arrow: '↵' },
+];
+
+// Sample cost-over-time (per-minute bars) for the focus view
+window.COST_BARS = [0.02,0.01,0.03,0.02,0.04,0.06,0.05,0.03,0.04,0.07,0.09,0.06,0.05,0.08,0.04,0.06,0.08,0.11,0.09,0.07,0.05,0.08,0.12,0.10];
+
+</script>
+  <script type="text/babel" data-presets="react">
+/* global React */
+const { useState, useEffect, useRef, useMemo } = React;
+
+// ============================================================
+// Icons — tiny inline SVGs (sentence-case, no emoji)
+// ============================================================
+const Icon = ({ name, size = 12 }) => {
+  const s = size;
+  const stroke = { stroke: 'currentColor', strokeWidth: 1.4, fill: 'none', strokeLinecap: 'round', strokeLinejoin: 'round' };
+  const paths = {
+    sessions:  <><rect x="1.5" y="1.5" width="4" height="4" {...stroke}/><rect x="7.5" y="1.5" width="4" height="4" {...stroke}/><rect x="1.5" y="7.5" width="4" height="4" {...stroke}/><rect x="7.5" y="7.5" width="4" height="4" {...stroke}/></>,
+    projects:  <><path d="M1.5 3.5h4l1 1h4.5v6.5h-9.5z" {...stroke}/></>,
+    history:   <><circle cx="6.5" cy="6.5" r="5" {...stroke}/><path d="M6.5 3.5v3l2 1.5" {...stroke}/></>,
+    skills:    <><path d="M6.5 1.5l2 2 2.5 .5-1.5 2 .5 2.5-2.5-.5-1 2-1-2-2.5.5.5-2.5-1.5-2 2.5-.5z" {...stroke}/></>,
+    mcp:       <><rect x="2" y="2" width="9" height="9" {...stroke}/><path d="M2 5.5h9M5.5 2v9" {...stroke}/></>,
+    plugins:   <><path d="M3 2v3H1.5v3h1.5v3h7v-3h1.5v-3h-1.5v-3" {...stroke}/></>,
+    hooks:     <><path d="M3 2v5a3 3 0 0 0 6 0v-1" {...stroke}/></>,
+    settings:  <><circle cx="6.5" cy="6.5" r="2" {...stroke}/><path d="M6.5 1v2M6.5 10v2M1 6.5h2M10 6.5h2M3 3l1.5 1.5M8.5 8.5L10 10M3 10l1.5-1.5M8.5 4.5L10 3" {...stroke}/></>,
+  };
+  return (
+    <svg width={s} height={s} viewBox="0 0 13 13" className="ico" aria-hidden="true">
+      {paths[name]}
+    </svg>
+  );
+};
+
+const STATE_META = {
+  running:  { label: 'running',  color: 'var(--state-running)' },
+  tool:     { label: 'tool use', color: 'var(--state-tool)' },
+  approval: { label: 'approval', color: 'var(--state-approval)' },
+  error:    { label: 'error',    color: 'var(--state-error)' },
+  idle:     { label: 'idle',     color: 'var(--state-idle)' },
+  done:     { label: 'done',     color: 'var(--state-done)' },
+};
+
+// ============================================================
+// Sidebar
+// ============================================================
+function Sidebar({ activeNav, onNav, onNewSession }) {
+  const nav1 = [
+    { k: 'sessions',  label: 'Sessions',    badge: '6',   icon: 'sessions' },
+    { k: 'projects',  label: 'Projects',    badge: '11',  icon: 'projects' },
+    { k: 'history',   label: 'History',     badge: '284', icon: 'history' },
+  ];
+  const nav2 = [
+    { k: 'skills',    label: 'Skills',      badge: '23', icon: 'skills' },
+    { k: 'mcp',       label: 'MCP servers', badge: '8',  icon: 'mcp' },
+    { k: 'plugins',   label: 'Plugins',     badge: '4',  icon: 'plugins' },
+    { k: 'hooks',     label: 'Hooks',       badge: '6',  icon: 'hooks' },
+    { k: 'settings',  label: 'Settings',    icon: 'settings' },
+  ];
+  return (
+    <aside className="sidebar">
+      <div className="sidebar-head">
+        <div className="wordmark"><span className="dot"/>Cockpit</div>
+      </div>
+      <button className="new-session" onClick={onNewSession}>
+        <span className="plus">+</span> New session
+        <span className="kbd">⌘N</span>
+      </button>
+
+      <div className="nav-group">
+        <div className="nav-label">Navigation</div>
+        {nav1.map(n => (
+          <button key={n.k} className={`nav-item ${activeNav === n.k ? 'active' : ''}`} onClick={() => onNav(n.k)}>
+            <Icon name={n.icon}/>{n.label}{n.badge && <span className="badge">{n.badge}</span>}
+          </button>
+        ))}
+      </div>
+
+      <div className="nav-group">
+        <div className="nav-label">Config</div>
+        {nav2.map(n => (
+          <button key={n.k} className={`nav-item ${activeNav === n.k ? 'active' : ''}`} onClick={() => onNav(n.k)}>
+            <Icon name={n.icon}/>{n.label}{n.badge && <span className="badge">{n.badge}</span>}
+          </button>
+        ))}
+      </div>
+
+      <div className="sidebar-alerts">
+        <div className="nav-label" style={{padding: '4px 4px 6px'}}>Alerts</div>
+        <div className="alert-row amber">
+          <span>Pending approvals</span>
+          <span className="v">1</span>
+        </div>
+        <div className="alert-row">
+          <span>Tokens today</span>
+          <span className="v">2.4M</span>
+        </div>
+        <div className="alert-row">
+          <span>p95 duration</span>
+          <span className="v">08:12</span>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+// ============================================================
+// Topbar
+// ============================================================
+function Topbar({ view, onView, title, sessionCount, totalCost, theme, onToggleTheme, onOpenCmdk, tweaksOpen, onToggleTweaks }) {
+  const views = [
+    { k: 'dashboard',  label: 'Dashboard' },
+    { k: 'focus',      label: 'Focus' },
+    { k: 'mcp',        label: 'MCP' },
+    { k: 'new',        label: 'New session' },
+    { k: 'compare',    label: 'Theme A/B' },
+  ];
+  return (
+    <header className="topbar">
+      <div className="title">
+        <strong>{title}</strong>
+      </div>
+      <div className="view-tabs">
+        {views.map(v => (
+          <button key={v.k} className={view === v.k ? 'active' : ''} onClick={() => onView(v.k)}>{v.label}</button>
+        ))}
+      </div>
+
+      <div className="meta">
+        <span><span className="k">sessions</span><span className="v">{sessionCount}</span></span>
+        <span><span className="k">cost today</span><span className="v">${totalCost.toFixed(2)}</span></span>
+        <button className="cmdk-trigger" onClick={onOpenCmdk}>
+          <span>Search or run a command</span>
+          <span className="kbd">⌘K</span>
+        </button>
+        <div className="theme-toggle" role="tablist">
+          <button className={theme === 'dark' ? 'on' : ''} onClick={() => onToggleTheme('dark')}>dark</button>
+          <button className={theme === 'light' ? 'on' : ''} onClick={() => onToggleTheme('light')}>light</button>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+// ============================================================
+// Statusbar
+// ============================================================
+function Statusbar({ sessions }) {
+  const counts = sessions.reduce((acc, s) => { acc[s.state] = (acc[s.state] || 0) + 1; return acc; }, {});
+  const order = ['running','tool','approval','error','idle','done'];
+  return (
+    <footer className="statusbar">
+      <div className="sb-group">
+        {order.map(k => (
+          <span key={k} className="sb-pill">
+            <span className="sdot" style={{ background: STATE_META[k].color }}/>
+            <span>{STATE_META[k].label} {counts[k] || 0}</span>
+          </span>
+        ))}
+      </div>
+      <div className="sb-sep"/>
+      <span className="sb-pill"><span>claude-code v1.42.0</span></span>
+      <span className="sb-sep"/>
+      <span className="sb-pill"><span>orchestrator · port 9782</span></span>
+      <div className="sb-right">
+        <span>↑ 1.2kb/s · ↓ 4.8kb/s</span>
+        <span className="sb-sep"/>
+        <span className="ws-indicator"><span className="rdot"/>websocket · connected</span>
+      </div>
+    </footer>
+  );
+}
+
+window.CockpitShell = { Sidebar, Topbar, Statusbar, Icon, STATE_META };
+
+</script>
+  <script type="text/babel" data-presets="react">
+/* global React */
+const { useState: useStateT, useEffect: useEffectT, useRef: useRefT } = React;
+
+// ============================================================
+// Streaming terminal (running state)
+// ============================================================
+function StreamTerm({ logs, liveLines = [] }) {
+  const [tick, setTick] = useStateT(0);
+  useEffectT(() => {
+    const t = setInterval(() => setTick(x => x + 1), 1400);
+    return () => clearInterval(t);
+  }, []);
+
+  // append a fake live line every tick
+  const extras = [];
+  const liveSet = [
+    { t: 'muted', v: ' › evaluating middleware chain…' },
+    { t: 'ok',    v: ' PASS  rate limiter integration (31ms)' },
+    { t: 'muted', v: ' › hydrating fixture: user_admin' },
+    { t: 'plain', v: ' RUNS  handles concurrent requests' },
+    { t: 'ok',    v: ' PASS  propagates trace context (7ms)' },
+    { t: 'muted', v: ' › resolving 14 assertions…' },
+  ];
+  const n = 2 + (tick % 3);
+  for (let i = 0; i < n; i++) extras.push(liveSet[(tick + i) % liveSet.length]);
+  const all = [...logs, ...extras];
+  return (
+    <div className="term-stream">
+      {all.map((l, i) => (
+        <span key={i} className={`ln ${l.t}`}>
+          {l.t === 'gt' ? '› ' : ''}{l.v}
+        </span>
+      ))}
+      <span className="cursor" />
+    </div>
+  );
+}
+
+// ============================================================
+// Diff preview (tool state)
+// ============================================================
+function DiffView({ path, rows }) {
+  return (
+    <div className="diff">
+      <div className="diff-header">
+        <span className="chip">Edit</span>
+        <span style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{path}</span>
+      </div>
+      {rows.map((r, i) => (
+        <div key={i} className={`row ${r.type}`}>
+          <span className="ln">{r.ln}</span>
+          <span className="txt">{r.txt}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ============================================================
+// Todos (idle)
+// ============================================================
+function Todos({ items }) {
+  const mark = { done: '✓', active: '◐', todo: '○' };
+  return (
+    <div className="todos">
+      {items.map((t, i) => (
+        <div key={i} className={`todo ${t.status}`}>
+          <span className="mark">{mark[t.status]}</span>
+          <span className="label">{t.text}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ============================================================
+// Approval body
+// ============================================================
+function ApprovalBody({ tool, args, onAllow, onDeny }) {
+  const preview = Object.entries(args).map(([k, v]) => (
+    <div key={k}><span className="arg-k">{k}</span>: <span className="arg-s">{JSON.stringify(v)}</span></div>
+  ));
+  return (
+    <div className="approval-preview">
+      <div className="tool-name">{tool} · awaiting approval</div>
+      <pre>{preview}</pre>
+      <div className="approval-actions">
+        <button className="allow" onClick={onAllow}>Allow</button>
+        <button className="deny" onClick={onDeny}>Deny</button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Error body
+// ============================================================
+function ErrorBody({ msg, retryIn }) {
+  return (
+    <div className="err-body">
+      <div className="err-msg">{msg}</div>
+      <div className="err-retry">
+        <span>auto-retry</span>
+        <span className="bar"><span/></span>
+        <span>{retryIn}s</span>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Done body
+// ============================================================
+function DoneBody({ summary, artifacts }) {
+  return (
+    <div className="done-body">
+      <div className="done-summary">{summary}</div>
+      <div className="done-artifacts">
+        {artifacts.map((a, i) => <span key={i} className="art">{a}</span>)}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Tile — compact card
+// ============================================================
+function Tile({ s, onOpen, onApprove, onDeny }) {
+  const meta = window.CockpitShell.STATE_META[s.state];
+  const elapsedRef = useRefT({ base: s.elapsed, tick: 0 });
+  const [, force] = useStateT(0);
+  useEffectT(() => {
+    if (s.state !== 'running' && s.state !== 'tool' && s.state !== 'approval') return;
+    const t = setInterval(() => { elapsedRef.current.tick++; force(x => x + 1); }, 1000);
+    return () => clearInterval(t);
+  }, [s.state]);
+
+  // tick the elapsed display upward for live sessions
+  let elapsed = s.elapsed;
+  if ((s.state === 'running' || s.state === 'tool') && /^\d\d:\d\d$/.test(s.elapsed)) {
+    const [m, sec] = s.elapsed.split(':').map(Number);
+    const total = m * 60 + sec + elapsedRef.current.tick;
+    elapsed = `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+  }
+
+  return (
+    <div
+      className={`tile s-${s.state}`}
+      style={{ '--state-color': meta.color }}
+      onClick={onOpen}
+    >
+      <div className="tile-head">
+        <span className="sdot"/>
+        <div className="tile-title">
+          <span className="path">{s.project}/</span>{s.name}
+        </div>
+        <span className="tile-model">{s.model}</span>
+        <button className="tile-kebab" onClick={e => e.stopPropagation()}>⋯</button>
+      </div>
+
+      <div className="tile-status">
+        <span className="state">{meta.label}</span>
+        {s.tool && <><span className="dot-sep">·</span><span className="tool">{s.tool}</span></>}
+        <span className="elapsed">{elapsed}</span>
+      </div>
+
+      <div className="tile-body">
+        {s.state === 'running' && <StreamTerm logs={s.logs} />}
+        {s.state === 'tool' && <DiffView path={s.editPath} rows={s.diff} />}
+        {s.state === 'approval' && (
+          <ApprovalBody
+            tool={s.approvalTool}
+            args={s.approvalArgs}
+            onAllow={(e) => { e.stopPropagation(); onApprove && onApprove(s); }}
+            onDeny={(e) => { e.stopPropagation(); onDeny && onDeny(s); }}
+          />
+        )}
+        {s.state === 'error' && <ErrorBody msg={s.error} retryIn={s.retryIn} />}
+        {s.state === 'idle' && <Todos items={s.todoList} />}
+        {s.state === 'done' && <DoneBody summary={s.summary} artifacts={s.artifacts} />}
+      </div>
+
+      <div className="tile-foot">
+        <span>⟳ {s.toolsUsed} tools</span>
+        <span>✓ {s.todosDone}/{s.todos} todos</span>
+        <span className="cost">${s.cost.toFixed(2)}</span>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Dashboard grid
+// ============================================================
+function Dashboard({ sessions, cols, onOpen, onApprove, onDeny }) {
+  return (
+    <div className="grid" style={{ '--cols': cols }}>
+      {sessions.map(s => (
+        <Tile key={s.id} s={s} onOpen={() => onOpen(s)} onApprove={onApprove} onDeny={onDeny} />
+      ))}
+    </div>
+  );
+}
+
+window.CockpitTiles = { Tile, Dashboard };
+
+</script>
+  <script type="text/babel" data-presets="react">
+/* global React */
+const { useState: useStateV, useEffect: useEffectV, useMemo: useMemoV, useRef: useRefV } = React;
+
+// ============================================================
+// Focus / expanded view
+// ============================================================
+function FocusView({ session, onClose }) {
+  const s = session;
+  const meta = window.CockpitShell.STATE_META[s.state];
+  const bars = window.COST_BARS;
+  const max = Math.max(...bars);
+
+  // tool timeline segments (percent widths)
+  const segments = [
+    { label: 'Read',   pct: 18, color: 'var(--fg-faint)' },
+    { label: 'Bash',   pct: 26, color: 'var(--state-running)' },
+    { label: 'Edit',   pct: 22, color: 'var(--state-tool)' },
+    { label: 'Read',   pct: 8,  color: 'var(--fg-faint)' },
+    { label: 'Bash',   pct: 14, color: 'var(--state-running)' },
+    { label: 'Approval', pct: 4, color: 'var(--state-approval)' },
+    { label: 'Edit',   pct: 8,  color: 'var(--state-tool)' },
+  ];
+
+  return (
+    <div className="focus-shell">
+      <section className="focus-main">
+        <div className="focus-header">
+          <span className="sdot" style={{ background: meta.color }}/>
+          <span className="path">{s.project}/</span>
+          <h2>{s.name}</h2>
+          <div className="actions">
+            <button>Pause</button>
+            <button>Fork</button>
+            <button>Open in terminal</button>
+            <button className="close" onClick={onClose}>esc ✕</button>
+          </div>
+        </div>
+
+        <div className="focus-body">
+          <div className="focus-term">
+            <div className="head">› refactor auth middleware</div>
+            <div className="muted">session s_47a2 · started 14:22:03 · model opus-4.7</div>
+            <br/>
+            <div><span className="gt">›</span> reading <span>src/middleware/auth.ts</span> <span className="muted">(182 lines)</span></div>
+            <div><span className="gt">›</span> reading <span>src/middleware/auth.spec.ts</span> <span className="muted">(94 lines)</span></div>
+            <div><span className="gt">›</span> running <span className="warn">Bash</span>: <span className="muted">pnpm test auth.spec.ts</span></div>
+            <br/>
+            <div className="muted"> RUN  src/middleware/auth.spec.ts</div>
+            <div className="ok"> PASS  validates bearer tokens (18ms)</div>
+            <div className="ok"> PASS  rejects expired jwt (4ms)</div>
+            <div className="ok"> PASS  refresh token rotation (22ms)</div>
+            <div className="ok"> PASS  rate limiter integration (31ms)</div>
+            <div className="ok"> PASS  propagates trace context (7ms)</div>
+            <div className="muted"> RUNS  handles concurrent requests</div>
+            <div><span className="muted"> › evaluating middleware chain…</span></div>
+            <div><span className="muted"> › hydrating fixture: user_admin</span></div>
+            <div><span className="muted"> › resolving 14 assertions…</span><span className="cursor"/></div>
+          </div>
+
+          <div className="focus-timeline">
+            <div className="tl-title">Tool timeline · last 2:14</div>
+            <div className="tl-bar">
+              {segments.map((seg, i) => (
+                <span key={i} title={`${seg.label} — ${seg.pct}%`} style={{ width: `${seg.pct}%`, background: seg.color }}/>
+              ))}
+            </div>
+            <div className="tl-legend">
+              <span><span className="sw" style={{background:'var(--state-running)'}}/>Bash</span>
+              <span><span className="sw" style={{background:'var(--state-tool)'}}/>Edit</span>
+              <span><span className="sw" style={{background:'var(--fg-faint)'}}/>Read</span>
+              <span><span className="sw" style={{background:'var(--state-approval)'}}/>Approval</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside className="focus-side">
+        <div className="focus-side-group">
+          <h3>Session</h3>
+          <div className="kv-list">
+            <div className="kv"><span className="k">id</span><span className="v">{s.id}</span></div>
+            <div className="kv"><span className="k">model</span><span className="v">{s.model}</span></div>
+            <div className="kv"><span className="k">branch</span><span className="v">feat/auth-refactor</span></div>
+            <div className="kv"><span className="k">started</span><span className="v">14:22:03</span></div>
+            <div className="kv"><span className="k">elapsed</span><span className="v">{s.elapsed}</span></div>
+            <div className="kv"><span className="k">tokens</span><span className="v">412k / 200k ctx</span></div>
+          </div>
+        </div>
+
+        <div className="focus-side-group">
+          <h3>Cost · last 24m</h3>
+          <div className="cost-chart">
+            {bars.map((v, i) => (
+              <span key={i} className={`bar ${v === max ? 'hi' : ''}`} style={{ height: `${(v / max) * 100}%` }}/>
+            ))}
+          </div>
+          <div className="kv-list">
+            <div className="kv"><span className="k">so far</span><span className="v">${s.cost.toFixed(2)}</span></div>
+            <div className="kv"><span className="k">rate</span><span className="v">$0.19 / min</span></div>
+            <div className="kv"><span className="k">est. total</span><span className="v">$0.68</span></div>
+          </div>
+        </div>
+
+        <div className="focus-side-group">
+          <h3>Todos · 2 / 5</h3>
+          <div className="todos">
+            <div className="todo done"><span className="mark">✓</span><span className="label">audit current middleware</span></div>
+            <div className="todo done"><span className="mark">✓</span><span className="label">extract token verifier</span></div>
+            <div className="todo active"><span className="mark">◐</span><span className="label">add refresh rotation</span></div>
+            <div className="todo"><span className="mark">○</span><span className="label">migrate callers to v2</span></div>
+            <div className="todo"><span className="mark">○</span><span className="label">write migration notes</span></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+// ============================================================
+// MCP config page
+// ============================================================
+function McpPage() {
+  const servers = window.MCP_SERVERS;
+  const [activeId, setActiveId] = useStateV(servers.find(s => s.active)?.id || servers[0].id);
+  const [query, setQuery] = useStateV('');
+  const [enabled, setEnabled] = useStateV(true);
+  const filtered = servers.filter(s => s.name.includes(query.toLowerCase()) || s.desc.toLowerCase().includes(query.toLowerCase()));
+  const active = servers.find(s => s.id === activeId);
+
+  const tools = [
+    { name: 'create_issue',     desc: 'Open a new issue in a repo',     calls: 42, perm: 'auto' },
+    { name: 'list_issues',      desc: 'Query issues by filters',        calls: 118, perm: 'auto' },
+    { name: 'comment_on_issue', desc: 'Add a comment to an issue',      calls: 27, perm: 'auto' },
+    { name: 'create_pr',        desc: 'Open a pull request',            calls: 9,  perm: 'ask' },
+    { name: 'merge_pr',         desc: 'Merge an approved pull request', calls: 3,  perm: 'ask' },
+    { name: 'close_issue',      desc: 'Close an issue as resolved',     calls: 14, perm: 'auto' },
+  ];
+
+  return (
+    <div className="cfg-shell">
+      <div className="cfg-header">
+        <div>
+          <h1>MCP servers</h1>
+          <p className="sub">Configure Model Context Protocol servers available to your sessions. Servers expose tools that Claude can call on your behalf.</p>
+        </div>
+        <div className="right">
+          <button className="btn">Import config</button>
+          <button className="btn primary">Add server</button>
+        </div>
+      </div>
+
+      <div className="mcp-grid">
+        <div className="mcp-list">
+          <input className="search" placeholder="Filter servers…" value={query} onChange={e => setQuery(e.target.value)}/>
+          {filtered.map(s => (
+            <button key={s.id} className={`mcp-item ${s.id === activeId ? 'active' : ''}`} onClick={() => setActiveId(s.id)}>
+              <span className={`mcp-dot ${s.status}`}/>
+              <div className="meta">
+                <span className="name">{s.name}</span>
+                <span className="desc">{s.desc}</span>
+              </div>
+              <span className="tool-count">{s.tools}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="mcp-detail">
+          <div className="row-h">
+            <h2>{active.name}</h2>
+            <span className="id">mcp-{active.id}-{active.id === 'gh' ? 'v0.4.1' : 'v0.2.0'}</span>
+            {active.status === 'on' && <span className="status-pill">connected</span>}
+            {active.status === 'err' && <span className="status-pill" style={{color:'var(--state-error)', background:'rgba(239,68,68,0.08)', boxShadow:'inset 0 0 0 1px rgba(239,68,68,0.2)'}}>auth error</span>}
+            {active.status === 'off' && <span className="status-pill" style={{color:'var(--fg-muted)', background:'rgba(255,255,255,0.04)', boxShadow:'inset 0 0 0 1px var(--border)'}}>disabled</span>}
+            <div className="right-actions">
+              <button className="btn">Restart</button>
+              <button className="btn">View logs</button>
+            </div>
+          </div>
+
+          <div className="field-grid">
+            <div className="k">Enabled</div>
+            <div className="v">
+              <button className={`toggle ${enabled ? 'on' : ''}`} onClick={() => setEnabled(e => !e)}>
+                <span className="sw"/>
+                <span>{enabled ? 'on' : 'off'}</span>
+              </button>
+            </div>
+
+            <div className="k">Command</div>
+            <div className="v">
+              <input defaultValue={`npx @modelcontextprotocol/server-${active.name}`} />
+              <div className="hint">Launched in the session's working directory.</div>
+            </div>
+
+            <div className="k">Transport</div>
+            <div className="v">
+              <select defaultValue="stdio">
+                <option>stdio</option>
+                <option>sse</option>
+                <option>websocket</option>
+              </select>
+            </div>
+
+            <div className="k">Env</div>
+            <div className="v">
+              <input defaultValue={active.name === 'github' ? 'GITHUB_TOKEN=••••••••••••••cKp2' : 'API_KEY=••••••••••'} />
+              <div className="hint">Loaded from ~/.config/cockpit/secrets.toml</div>
+            </div>
+
+            <div className="k">Timeout</div>
+            <div className="v">
+              <input defaultValue="30s" style={{maxWidth:'120px'}}/>
+            </div>
+
+            <div className="k">Allow-list scope</div>
+            <div className="v">
+              <input defaultValue="org:acme-inc, repo:acme-inc/*" />
+              <div className="hint">Comma-separated. Leave blank to allow all.</div>
+            </div>
+          </div>
+
+          <h3 style={{margin:'0 0 10px', fontSize:'9.5px', letterSpacing:'0.12em', textTransform:'uppercase', color:'var(--fg-faint)', fontFamily:'var(--font-mono)', fontWeight:500}}>Tools · {tools.length}</h3>
+          <div className="tools-table">
+            <div className="trow head">
+              <span>name</span><span>description</span><span style={{textAlign:'right'}}>calls</span><span style={{textAlign:'right'}}>perm</span>
+            </div>
+            {tools.map(t => (
+              <div key={t.name} className="trow">
+                <span className="tname">{t.name}</span>
+                <span className="tdesc">{t.desc}</span>
+                <span className="ncalls">{t.calls}</span>
+                <span className={`tperm ${t.perm}`}>{t.perm}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// New session (empty state form)
+// ============================================================
+function NewSessionView({ onCancel, onCreate }) {
+  const [model, setModel] = useStateV('opus-4.7');
+  const ALL_TOOLS = ['Bash','Read','Edit','Write','Grep','Glob','WebFetch','WebSearch','TodoWrite','Task'];
+  const [tools, setTools] = useStateV(['Bash','Read','Edit','Write','Grep','TodoWrite']);
+  const toggleTool = (t) => setTools(ts => ts.includes(t) ? ts.filter(x => x !== t) : [...ts, t]);
+
+  return (
+    <div className="new-session-view">
+      <h1>New session</h1>
+      <p className="lede">Spawn a Claude Code session in a project directory. You can approve tool calls individually or let a set of them run unattended.</p>
+
+      <div className="form-card">
+        <div className="form-section">
+          <h4>Workspace</h4>
+          <div className="form-row">
+            <label>Project dir</label>
+            <div className="ctrl">
+              <input defaultValue="~/code/acme-api" placeholder="~/code/…"/>
+            </div>
+          </div>
+          <div className="form-row">
+            <label>Branch</label>
+            <div className="ctrl">
+              <input defaultValue="main" placeholder="main"/>
+            </div>
+          </div>
+          <div className="form-row">
+            <label>Session name</label>
+            <div className="ctrl">
+              <input placeholder="refactor auth middleware"/>
+            </div>
+          </div>
+        </div>
+
+        <div className="form-section">
+          <h4>Model</h4>
+          <div className="form-row">
+            <label>Model</label>
+            <div className="ctrl">
+              <div className="model-picker">
+                {['opus-4.7','sonnet-4.6','haiku-4.5'].map(m => (
+                  <button key={m} className={model === m ? 'on' : ''} onClick={() => setModel(m)}>{m}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="form-row">
+            <label>Context</label>
+            <div className="ctrl">
+              <select defaultValue="200k">
+                <option>200k</option><option>500k</option><option>1M</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div className="form-section">
+          <h4>Allowed tools</h4>
+          <div className="form-row">
+            <label>Built-in</label>
+            <div className="ctrl">
+              <div className="tool-chips">
+                {ALL_TOOLS.map(t => (
+                  <button key={t} className={`chip ${tools.includes(t) ? 'on' : ''}`} onClick={() => toggleTool(t)}>{t}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="form-row">
+            <label>MCP servers</label>
+            <div className="ctrl">
+              <div className="tool-chips">
+                {window.MCP_SERVERS.filter(s => s.status === 'on').map(s => (
+                  <span key={s.id} className="chip on">{s.name}</span>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="form-row">
+            <label>Approval</label>
+            <div className="ctrl">
+              <select defaultValue="prompt">
+                <option value="auto">auto — run all tools without asking</option>
+                <option value="prompt">prompt — ask before destructive tools</option>
+                <option value="strict">strict — ask for every tool call</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div className="form-section">
+          <h4>Initial prompt</h4>
+          <div className="form-row">
+            <label>Prompt</label>
+            <div className="ctrl">
+              <textarea placeholder="Describe the task. The agent will read the repo, plan with todos, and begin work."
+                defaultValue="Refactor the auth middleware to support refresh-token rotation. Keep the public API backwards-compatible and update tests."/>
+            </div>
+          </div>
+        </div>
+
+        <div className="form-foot">
+          <span className="hint">⌘↵ to launch · esc to cancel</span>
+          <button className="btn ghost" onClick={onCancel}>Cancel</button>
+          <button className="btn primary" onClick={onCreate}>Launch session</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+window.CockpitViews = { FocusView, McpPage, NewSessionView };
+
+</script>
+  <script type="text/babel" data-presets="react">
+/* global React */
+const { useState: useStateO, useEffect: useEffectO, useMemo: useMemoO, useRef: useRefO } = React;
+
+// ============================================================
+// Command palette
+// ============================================================
+function CmdK({ onClose, onNav, onOpenSession, onToggleTheme }) {
+  const [q, setQ] = useStateO('');
+  const [idx, setIdx] = useStateO(0);
+  const inputRef = useRefO(null);
+
+  useEffectO(() => { inputRef.current && inputRef.current.focus(); }, []);
+
+  const items = window.CMDK_ITEMS;
+  const filtered = useMemoO(() => {
+    if (!q) return items;
+    const ql = q.toLowerCase();
+    return items.filter(i => i.name.toLowerCase().includes(ql) || (i.sub || '').toLowerCase().includes(ql) || i.group.toLowerCase().includes(ql));
+  }, [q]);
+
+  // group filtered
+  const grouped = useMemoO(() => {
+    const g = {};
+    filtered.forEach(i => { (g[i.group] = g[i.group] || []).push(i); });
+    return g;
+  }, [filtered]);
+
+  // flat index list for keyboard nav
+  const flat = useMemoO(() => {
+    const out = [];
+    Object.keys(grouped).forEach(grp => grouped[grp].forEach(i => out.push(i)));
+    return out;
+  }, [grouped]);
+
+  useEffectO(() => { setIdx(0); }, [q]);
+
+  const runItem = (it) => {
+    if (!it) return;
+    if (it.group === 'Sessions') {
+      const sid = it.sub;
+      const s = window.SESSIONS.find(x => x.id === sid);
+      if (s) { onOpenSession(s); onClose(); return; }
+    }
+    if (it.group === 'Theme' && it.name.includes('dark / light')) { onToggleTheme(); onClose(); return; }
+    if (it.group === 'Navigate') {
+      const map = { 'Sessions':'dashboard', 'Projects':'dashboard', 'History':'dashboard', 'MCP servers':'mcp' };
+      const v = map[it.name];
+      if (v) { onNav(v); onClose(); return; }
+    }
+    onClose();
+  };
+
+  const onKey = (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setIdx(i => Math.min(i + 1, flat.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setIdx(i => Math.max(i - 1, 0)); }
+    else if (e.key === 'Enter') { e.preventDefault(); runItem(flat[idx]); }
+    else if (e.key === 'Escape') { e.preventDefault(); onClose(); }
+  };
+
+  let flatCounter = -1;
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="cmdk" onClick={e => e.stopPropagation()}>
+        <input
+          ref={inputRef}
+          className="cmdk-input"
+          placeholder="Search sessions, run a command…"
+          value={q}
+          onChange={e => setQ(e.target.value)}
+          onKeyDown={onKey}
+        />
+        <div className="cmdk-list">
+          {Object.keys(grouped).length === 0 && <div className="cmdk-empty">No matches</div>}
+          {Object.keys(grouped).map(grp => (
+            <div key={grp}>
+              <div className="cmdk-group-label">{grp}</div>
+              {grouped[grp].map(it => {
+                flatCounter++;
+                const active = flatCounter === idx;
+                const dotColor = it.state ? window.CockpitShell.STATE_META[it.state].color : null;
+                return (
+                  <div key={it.name} className={`cmdk-row ${active ? 'active' : ''}`} onClick={() => runItem(it)} onMouseEnter={() => setIdx(flatCounter)}>
+                    {dotColor ? <span className="sdot" style={{background: dotColor}}/> : <span className="ico">{it.ico || '›'}</span>}
+                    <span className="name">{it.name}</span>
+                    {it.sub && <span className="sub">{it.sub}</span>}
+                    <span className="arrow">{it.arrow || '↵'}</span>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+        <div className="cmdk-foot">
+          <span><span className="kbd">↑↓</span>navigate</span>
+          <span><span className="kbd">↵</span>run</span>
+          <span><span className="kbd">esc</span>close</span>
+          <span style={{marginLeft:'auto'}}>{flat.length} results</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Approval modal (tool-call review)
+// ============================================================
+function ApprovalModal({ session, onClose, onAllow, onDeny }) {
+  const s = session;
+  if (!s) return null;
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-head">
+          <span className="sdot"/>
+          <h3>Approve tool call</h3>
+          <span className="sub">{s.project}/ · {s.id}</span>
+        </div>
+        <div className="modal-body">
+          <div className="tool-label">{s.approvalTool}</div>
+          <pre className="cmd">
+{`{
+  `}<span className="key">"command"</span>: <span className="str">"{s.approvalArgs.command}"</span>,{`
+  `}<span className="key">"cwd"</span>: <span className="str">"{s.approvalArgs.cwd}"</span>,{`
+  `}<span className="key">"timeout"</span>: <span className="num">{s.approvalArgs.timeout}</span>{`
+}`}
+          </pre>
+          <div className="context-row"><span>Session</span><span className="v">{s.name}</span></div>
+          <div className="context-row"><span>Model</span><span className="v">{s.model}</span></div>
+          <div className="context-row"><span>Branch</span><span className="v">feat/dark-mode</span></div>
+          <div className="context-row"><span>Touched by this session</span><span className="v">3 files · 7 tools</span></div>
+          <div className="context-row"><span>Destructive</span><span className="v" style={{color:'var(--state-error)'}}>yes — removes node_modules</span></div>
+        </div>
+        <div className="modal-foot">
+          <label className="opt"><input type="checkbox"/>Remember for this session</label>
+          <button className="btn deny" onClick={onDeny}>Deny</button>
+          <button className="btn allow" onClick={onAllow}>Allow once</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Tweaks panel
+// ============================================================
+function TweaksPanel({ open, onClose, tweaks, setTweaks }) {
+  if (!open) return null;
+  const set = (k, v) => setTweaks(t => ({ ...t, [k]: v }));
+
+  return (
+    <div className="tweaks-panel open">
+      <h4><span>Tweaks</span><button onClick={onClose} style={{color:'var(--fg-muted)', fontFamily:'var(--font-mono)'}}>✕</button></h4>
+
+      <div className="tw-row">
+        <div className="lbl">Theme</div>
+        <div className="seg">
+          {['dark','light'].map(v => (
+            <button key={v} className={tweaks.theme === v ? 'on' : ''} onClick={() => set('theme', v)}>{v}</button>
+          ))}
+        </div>
+      </div>
+
+      <div className="tw-row">
+        <div className="lbl">Density</div>
+        <div className="seg">
+          {['compact','default','cozy'].map(v => (
+            <button key={v} className={tweaks.density === v ? 'on' : ''} onClick={() => set('density', v)}>{v}</button>
+          ))}
+        </div>
+      </div>
+
+      <div className="tw-row">
+        <div className="lbl">Grid columns</div>
+        <div className="seg">
+          {[2,3,4].map(v => (
+            <button key={v} className={tweaks.cols === v ? 'on' : ''} onClick={() => set('cols', v)}>{v}</button>
+          ))}
+        </div>
+      </div>
+
+      <div className="tw-row">
+        <div className="lbl">Accent</div>
+        <div className="accents">
+          {[
+            { k:'#d97757', n:'orange' },
+            { k:'#4a9eff', n:'blue' },
+            { k:'#a78bfa', n:'purple' },
+            { k:'#22c55e', n:'green' },
+            { k:'#e5e5e5', n:'mono' },
+          ].map(a => (
+            <button key={a.k} className={tweaks.accent === a.k ? 'on' : ''} style={{background:a.k}} onClick={() => set('accent', a.k)} title={a.n}/>
+          ))}
+        </div>
+      </div>
+
+      <div className="tw-row">
+        <div className="lbl">Tile variant</div>
+        <div className="seg">
+          {['card','strip'].map(v => (
+            <button key={v} className={tweaks.tileVariant === v ? 'on' : ''} onClick={() => set('tileVariant', v)}>{v}</button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+window.CockpitOverlays = { CmdK, ApprovalModal, TweaksPanel };
+
+</script>
+  <script type="text/babel" data-presets="react">
+/* global React, ReactDOM */
+const { useState: useStateA, useEffect: useEffectA, useMemo: useMemoA } = React;
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "theme": "dark",
+  "density": "cozy",
+  "cols": 4,
+  "accent": "#22c55e",
+  "tileVariant": "strip"
+}/*EDITMODE-END*/;
+
+// ============================================================
+// Theme helpers
+// ============================================================
+function applyRoot(tweaks) {
+  const root = document.documentElement;
+  root.setAttribute('data-theme', tweaks.theme);
+  root.setAttribute('data-density', tweaks.density);
+  root.style.setProperty('--brand', tweaks.accent);
+  // darken hover
+  root.style.setProperty('--brand-hover', tweaks.accent);
+}
+
+// ============================================================
+// Nested pane — renders a whole cockpit dashboard inside a div
+// that scopes theme variables. Used by compare view.
+// ============================================================
+function NestedPane({ theme, label, sessions, cols }) {
+  const { Dashboard } = window.CockpitTiles;
+  const { STATE_META } = window.CockpitShell;
+  // Count per state
+  const counts = sessions.reduce((a, s) => { a[s.state] = (a[s.state] || 0) + 1; return a; }, {});
+  const order = ['running','tool','approval','error','idle','done'];
+  return (
+    <div className="compare-pane" data-nested-theme={theme} data-theme={theme}>
+      <div className="pane-label">
+        <span>{label}</span>
+        <span style={{marginLeft:'auto', color:'var(--fg-muted)'}}>6 tiles · {theme}</span>
+      </div>
+      <div className="pane-body">
+        <Dashboard sessions={sessions} cols={cols} onOpen={()=>{}} onApprove={()=>{}} onDeny={()=>{}}/>
+      </div>
+      <div className="statusbar" style={{gridArea:'unset'}}>
+        <div className="sb-group">
+          {order.map(k => (
+            <span key={k} className="sb-pill">
+              <span className="sdot" style={{width:6,height:6,borderRadius:'50%',background: STATE_META[k].color}}/>
+              <span>{STATE_META[k].label} {counts[k] || 0}</span>
+            </span>
+          ))}
+        </div>
+        <div className="sb-right">
+          <span className="ws-indicator"><span className="rdot"/>connected</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// App
+// ============================================================
+function App() {
+  const [tweaks, setTweaks] = useStateA(() => {
+    try { return { ...TWEAK_DEFAULTS, ...(JSON.parse(localStorage.getItem('cockpit.tweaks') || '{}')) }; }
+    catch { return TWEAK_DEFAULTS; }
+  });
+  const [tweaksOpen, setTweaksOpen] = useStateA(false);
+  const [view, setView] = useStateA(() => localStorage.getItem('cockpit.view') || 'dashboard');
+  const [activeNav, setActiveNav] = useStateA(() => localStorage.getItem('cockpit.nav') || 'sessions');
+  const [cmdkOpen, setCmdkOpen] = useStateA(false);
+  const [approvalFor, setApprovalFor] = useStateA(null);
+  const [focusSession, setFocusSession] = useStateA(null);
+  const [sessions, setSessions] = useStateA(window.SESSIONS);
+
+  useEffectA(() => { applyRoot(tweaks); localStorage.setItem('cockpit.tweaks', JSON.stringify(tweaks)); }, [tweaks]);
+  useEffectA(() => { localStorage.setItem('cockpit.view', view); }, [view]);
+  useEffectA(() => { localStorage.setItem('cockpit.nav', activeNav); }, [activeNav]);
+
+  // Global key shortcuts
+  useEffectA(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setCmdkOpen(v => !v); }
+      else if (e.key === 'Escape') { setCmdkOpen(false); setApprovalFor(null); if (view === 'focus') setView('dashboard'); }
+      else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'n') { e.preventDefault(); setView('new'); }
+      else if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'l') { e.preventDefault(); toggleTheme(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [view]);
+
+  const toggleTheme = () => setTweaks(t => ({ ...t, theme: t.theme === 'dark' ? 'light' : 'dark' }));
+
+  // Edit-mode protocol
+  useEffectA(() => {
+    const onMsg = (e) => {
+      const d = e.data || {};
+      if (d.type === '__activate_edit_mode') setTweaksOpen(true);
+      else if (d.type === '__deactivate_edit_mode') setTweaksOpen(false);
+    };
+    window.addEventListener('message', onMsg);
+    try { window.parent.postMessage({ type: '__edit_mode_available' }, '*'); } catch {}
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
+  // Persist edits through host
+  useEffectA(() => {
+    try { window.parent.postMessage({ type: '__edit_mode_set_keys', edits: tweaks }, '*'); } catch {}
+  }, [tweaks]);
+
+  const openSessionFocus = (s) => { setFocusSession(s); setView('focus'); };
+  const onApprove = (s) => setApprovalFor(s);
+  const onDeny = (s) => { setSessions(ss => ss.map(x => x.id === s.id ? { ...x, state: 'idle', tool: null } : x)); };
+  const applyApproval = (allow) => {
+    if (!approvalFor) return;
+    setSessions(ss => ss.map(x => x.id === approvalFor.id ? { ...x, state: allow ? 'running' : 'idle', tool: allow ? 'Bash' : null } : x));
+    setApprovalFor(null);
+  };
+
+  const totalCost = sessions.reduce((a, s) => a + s.cost, 0);
+  const { Sidebar, Topbar, Statusbar } = window.CockpitShell;
+  const { Dashboard } = window.CockpitTiles;
+  const { FocusView, McpPage, NewSessionView } = window.CockpitViews;
+  const { CmdK, ApprovalModal, TweaksPanel } = window.CockpitOverlays;
+
+  // View title for topbar
+  const titleFor = {
+    dashboard: 'Sessions · dashboard',
+    focus: `${focusSession?.project || ''}/${focusSession?.name || 'session'}`,
+    mcp: 'Config · MCP servers',
+    new: 'Sessions · new',
+    compare: 'Theme A/B',
+  };
+
+  return (
+    <div className="app">
+      <Sidebar
+        activeNav={activeNav}
+        onNav={(k) => {
+          setActiveNav(k);
+          if (k === 'mcp') setView('mcp');
+          else if (k === 'sessions' || k === 'projects' || k === 'history') setView('dashboard');
+          else setView('mcp'); // stub — skills/plugins/hooks show the same config chrome
+        }}
+        onNewSession={() => setView('new')}
+      />
+      <Topbar
+        view={view}
+        onView={setView}
+        title={titleFor[view] || 'Cockpit'}
+        sessionCount={sessions.length}
+        totalCost={totalCost}
+        theme={tweaks.theme}
+        onToggleTheme={(t) => setTweaks(tw => ({ ...tw, theme: t }))}
+        onOpenCmdk={() => setCmdkOpen(true)}
+      />
+      <main className="main">
+        {view === 'dashboard' && (
+          <Dashboard
+            sessions={sessions}
+            cols={tweaks.cols}
+            onOpen={openSessionFocus}
+            onApprove={onApprove}
+            onDeny={onDeny}
+          />
+        )}
+        {view === 'focus' && focusSession && (
+          <FocusView session={focusSession} onClose={() => setView('dashboard')} />
+        )}
+        {view === 'mcp' && <McpPage/>}
+        {view === 'new' && <NewSessionView onCancel={() => setView('dashboard')} onCreate={() => setView('dashboard')} />}
+        {view === 'compare' && (
+          <div className="compare-shell">
+            <NestedPane theme="dark" label="Dark · default" sessions={sessions} cols={2}/>
+            <NestedPane theme="light" label="Light · warm off-white" sessions={sessions} cols={2}/>
+          </div>
+        )}
+      </main>
+      <Statusbar sessions={sessions}/>
+
+      {cmdkOpen && (
+        <CmdK
+          onClose={() => setCmdkOpen(false)}
+          onNav={(v) => setView(v)}
+          onOpenSession={openSessionFocus}
+          onToggleTheme={toggleTheme}
+        />
+      )}
+
+      {approvalFor && (
+        <ApprovalModal
+          session={approvalFor}
+          onClose={() => setApprovalFor(null)}
+          onAllow={() => applyApproval(true)}
+          onDeny={() => applyApproval(false)}
+        />
+      )}
+
+      <TweaksPanel open={tweaksOpen} onClose={() => setTweaksOpen(false)} tweaks={tweaks} setTweaks={setTweaks}/>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+
+</script>
+</body>
+</html>
