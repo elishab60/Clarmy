@@ -1,15 +1,8 @@
 "use client";
 
-import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useCockpit } from "@/lib/client/store";
-
-const TABS = [
-  { href: "/", label: "Dashboard" },
-  { href: "/new", label: "New session" },
-  { href: "/mcp", label: "MCP" },
-  { href: "/theme-ab", label: "Theme A/B" },
-];
 
 function titleFor(pathname: string): string {
   if (pathname === "/") return "Sessions · dashboard";
@@ -20,38 +13,65 @@ function titleFor(pathname: string): string {
   return "Cockpit";
 }
 
+interface MetricsPayload {
+  metrics: {
+    lastSevenDays: Array<{ day: string; costUsd: number }>;
+  };
+}
+
+function fmtCost(n: number): string {
+  if (!n) return "$0.00";
+  if (n >= 10_000) return `$${(n / 1_000).toFixed(1)}k`;
+  if (n >= 100) return `$${n.toFixed(0)}`;
+  if (n >= 1) return `$${n.toFixed(2)}`;
+  return `$${n.toFixed(3)}`;
+}
+
 export function Topbar() {
   const pathname = usePathname();
   const sessions = useCockpit((s) => s.sessions);
   const tweaks = useCockpit((s) => s.tweaks);
   const setTweaks = useCockpit((s) => s.setTweaks);
   const setCmdkOpen = useCockpit((s) => s.setCmdkOpen);
+  const [todayCost, setTodayCost] = useState<number | null>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      try {
+        const res = await fetch("/api/metrics", { cache: "no-store" });
+        if (!res.ok) return;
+        const j = (await res.json()) as MetricsPayload;
+        if (!alive) return;
+        const today = new Date().toISOString().slice(0, 10);
+        const row = j.metrics.lastSevenDays.find((d) => d.day === today);
+        setTodayCost(row?.costUsd ?? 0);
+      } catch {}
+    };
+    void load();
+    const id = setInterval(() => void load(), 15_000);
+    return () => { alive = false; clearInterval(id); };
+  }, []);
 
   const count = Object.keys(sessions).length;
-  const total = Object.values(sessions).reduce((a, s) => a + s.cost, 0);
 
   return (
     <header className="topbar">
       <div className="title">
         <strong>{titleFor(pathname)}</strong>
       </div>
-      <div className="view-tabs">
-        {TABS.map((t) => (
-          <Link key={t.href} href={t.href} className={pathname === t.href ? "active" : ""}>
-            {t.label}
-          </Link>
-        ))}
-      </div>
       <div className="meta">
         <span><span className="k">sessions</span><span className="v">{count}</span></span>
-        <span><span className="k">cost today</span><span className="v">${total.toFixed(2)}</span></span>
+        <span><span className="k">cost today</span><span className="v">{todayCost === null ? "…" : fmtCost(todayCost)}</span></span>
         <button className="cmdk-trigger" onClick={() => setCmdkOpen(true)}>
           <span>Search or run a command</span>
           <span className="kbd">⌘K</span>
         </button>
         <div className="theme-toggle" role="tablist">
-          <button className={tweaks.theme === "dark" ? "on" : ""} onClick={() => setTweaks({ theme: "dark" })}>dark</button>
-          <button className={tweaks.theme === "light" ? "on" : ""} onClick={() => setTweaks({ theme: "light" })}>light</button>
+          <button suppressHydrationWarning className={mounted && tweaks.theme === "dark" ? "on" : ""} onClick={() => setTweaks({ theme: "dark" })}>dark</button>
+          <button suppressHydrationWarning className={mounted && tweaks.theme === "light" ? "on" : ""} onClick={() => setTweaks({ theme: "light" })}>light</button>
         </div>
       </div>
     </header>

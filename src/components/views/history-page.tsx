@@ -37,6 +37,8 @@ const MODEL_ALIAS: Record<string, ModelId> = {
   "claude-haiku-4-5-20251001": "haiku-4.5",
 };
 
+const COLS = "minmax(280px, 2fr) 120px 110px 60px 80px 80px 70px 90px";
+
 export function HistoryPage() {
   const router = useRouter();
   const [rows, setRows] = useState<CCSessionRow[]>([]);
@@ -153,56 +155,58 @@ export function HistoryPage() {
 
       {resumeErr && <div style={{ color: "var(--state-error)", fontSize: 11.5, marginBottom: 10 }}>Resume failed: {resumeErr}</div>}
 
-      <div className="tools-table">
-        <div className="trow head" style={{ gridTemplateColumns: "2fr 140px 110px 70px 80px 90px 70px 80px" }}>
-          <span>prompt · project</span>
-          <span>model</span>
-          <span>branch</span>
-          <span style={{ textAlign: "right" }}>msgs</span>
-          <span style={{ textAlign: "right" }}>tokens</span>
-          <span style={{ textAlign: "right" }}>when</span>
-          <span style={{ textAlign: "right" }}>state</span>
-          <span style={{ textAlign: "right" }}>action</span>
-        </div>
-        {loading && (
-          <div className="trow" style={{ gridTemplateColumns: "1fr", color: "var(--fg-muted)", justifyContent: "center" }}>
-            <span style={{ textAlign: "center" }}>Scanning your Claude Code sessions…</span>
+      <div className="table-scroll">
+        <div className="tools-table" style={{ minWidth: 960 }}>
+          <div className="trow head" style={{ gridTemplateColumns: COLS }}>
+            <span>prompt · project</span>
+            <span>model</span>
+            <span data-col="branch">branch</span>
+            <span style={{ textAlign: "right" }}>msgs</span>
+            <span style={{ textAlign: "right" }}>tokens</span>
+            <span style={{ textAlign: "right" }}>when</span>
+            <span style={{ textAlign: "right" }}>state</span>
+            <span style={{ textAlign: "right" }}>action</span>
           </div>
-        )}
-        {!loading && filtered.slice(0, 400).map((r) => {
-          const busy = resumingId === r.id;
-          return (
-            <div key={r.file} className="trow" style={{ gridTemplateColumns: "2fr 140px 110px 70px 80px 90px 70px 80px" }}>
-              <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-                <span className="tname" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.firstPrompt}</span>
-                <span className="tdesc" style={{ fontFamily: "var(--font-mono)", fontSize: 10 }}>{r.project} · {fmtDuration(r.durationMs)}</span>
-              </span>
-              <span className="tdesc" style={{ fontFamily: "var(--font-mono)", fontSize: 10.5 }}>{r.model ?? "—"}</span>
-              <span className="tdesc" style={{ fontFamily: "var(--font-mono)", fontSize: 10.5 }}>{r.branch ?? "—"}</span>
-              <span className="ncalls">{r.messageCount}</span>
-              <span className="ncalls">{fmtTokens(r.inputTokens + r.outputTokens)}</span>
-              <span className="ncalls">{fmtRel(r.endedAt)}</span>
-              <span className={`tperm ${r.state === "done" ? "" : "ask"}`}
-                    style={r.state === "error" ? { color: "var(--state-error)", background: "rgba(239,68,68,0.08)", boxShadow: "inset 0 0 0 1px rgba(239,68,68,0.2)" } : undefined}>
-                {r.state}
-              </span>
-              <button
-                className="btn"
-                style={{ justifySelf: "end", padding: "3px 10px", fontSize: 10.5, opacity: busy ? 0.5 : 1 }}
-                disabled={busy}
-                onClick={(e) => { e.stopPropagation(); void resume(r); }}
-                title={`claude --resume ${r.id}`}
-              >
-                {busy ? "…" : "↺ resume"}
-              </button>
+          {loading && (
+            <div className="trow" style={{ gridTemplateColumns: "1fr", color: "var(--fg-muted)", justifyContent: "center" }}>
+              <span style={{ textAlign: "center" }}>Scanning your Claude Code sessions…</span>
             </div>
-          );
-        })}
-        {!loading && filtered.length === 0 && (
-          <div className="trow" style={{ gridTemplateColumns: "1fr", color: "var(--fg-muted)", justifyContent: "center" }}>
-            <span style={{ textAlign: "center" }}>No sessions match these filters.</span>
-          </div>
-        )}
+          )}
+          {!loading && filtered.slice(0, 400).map((r) => {
+            const busy = resumingId === r.id;
+            return (
+              <div key={r.file} className="trow" style={{ gridTemplateColumns: COLS }}>
+                <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0, maxWidth: 400 }}>
+                  <span className="tname cell-ellipsis" title={r.firstPrompt}>{r.firstPrompt}</span>
+                  <span className="tdesc cell-ellipsis" style={{ fontFamily: "var(--font-mono)", fontSize: 10 }} title={`${r.project} · ${r.cwd}`}>{r.project} · {fmtDuration(r.durationMs)}</span>
+                </span>
+                <span className="tdesc cell-ellipsis" style={{ fontFamily: "var(--font-mono)", fontSize: 10.5 }} title={r.model ?? "—"}>{r.model ?? "—"}</span>
+                <span className="tdesc cell-ellipsis" data-col="branch" style={{ fontFamily: "var(--font-mono)", fontSize: 10.5 }} title={r.branch ?? "—"}>{r.branch ?? "—"}</span>
+                <span className="ncalls">{r.messageCount}</span>
+                <span className="ncalls">{fmtTokens(r.inputTokens + r.outputTokens)}</span>
+                <span className="ncalls">{fmtRel(r.endedAt)}</span>
+                <span className={`tperm ${r.state === "done" ? "" : "ask"}`}
+                      style={r.state === "error" ? { color: "var(--state-error)", background: "rgba(239,68,68,0.08)", boxShadow: "inset 0 0 0 1px rgba(239,68,68,0.2)" } : undefined}>
+                  {r.state}
+                </span>
+                <button
+                  className="btn"
+                  style={{ justifySelf: "end", padding: "3px 10px", fontSize: 10.5, opacity: busy ? 0.5 : 1 }}
+                  disabled={busy}
+                  onClick={(e) => { e.stopPropagation(); void resume(r); }}
+                  title={`claude --resume ${r.id}`}
+                >
+                  {busy ? "…" : "↺ resume"}
+                </button>
+              </div>
+            );
+          })}
+          {!loading && filtered.length === 0 && (
+            <div className="trow" style={{ gridTemplateColumns: "1fr", color: "var(--fg-muted)", justifyContent: "center" }}>
+              <span style={{ textAlign: "center" }}>No sessions match these filters.</span>
+            </div>
+          )}
+        </div>
       </div>
       {filtered.length > 400 && (
         <p style={{ textAlign: "center", color: "var(--fg-muted)", fontSize: 11, marginTop: 10 }}>Showing 400 of {filtered.length} — narrow filters to see more.</p>

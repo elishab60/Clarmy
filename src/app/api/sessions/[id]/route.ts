@@ -5,10 +5,16 @@ import { getManager } from "@/lib/orchestrator/manager";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ActionSchema = z.object({
-  action: z.enum(["fork"]),
-  prompt: z.string().min(1).max(50_000).optional(),
-});
+const ActionSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("fork"),
+    prompt: z.string().min(1).max(50_000).optional(),
+  }),
+  z.object({
+    action: z.literal("set_effort"),
+    effort: z.enum(["low", "medium", "high", "xhigh", "max"]),
+  }),
+]);
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -34,6 +40,11 @@ export async function POST(req: Request, ctx: Ctx) {
     const next = await getManager().fork(id, parsed.data.prompt ?? "continue");
     if (!next) return NextResponse.json({ error: "not_found" }, { status: 404 });
     return NextResponse.json({ id: next }, { status: 201 });
+  }
+  if (parsed.data.action === "set_effort") {
+    const ok = getManager().setEffort(id, parsed.data.effort);
+    if (!ok) return NextResponse.json({ error: "not_found" }, { status: 404 });
+    return NextResponse.json({ ok: true });
   }
   return NextResponse.json({ error: "unknown_action" }, { status: 400 });
 }

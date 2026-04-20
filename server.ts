@@ -6,7 +6,7 @@ import { getManager } from "./src/lib/orchestrator/manager.ts";
 import { createLogger } from "./src/lib/util/logger.ts";
 
 const log = createLogger("server");
-const port = Number(process.env.COCKPIT_PORT ?? process.env.PORT ?? 3000);
+const port = Number(process.env.COCKPIT_PORT ?? process.env.PORT ?? 3010);
 const dev = process.env.NODE_ENV !== "production";
 
 const app = next({ dev });

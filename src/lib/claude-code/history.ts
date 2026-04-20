@@ -5,6 +5,17 @@ import { createLogger } from "../util/logger.ts";
 
 const log = createLogger("cc-history");
 
+export interface CCUsageRecord {
+  readonly key: string | null;
+  readonly ts: number;
+  readonly model?: string;
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+  readonly cacheReadTokens: number;
+  readonly cacheCreate5mTokens: number;
+  readonly cacheCreate1hTokens: number;
+}
+
 export interface CCSession {
   readonly id: string;
   readonly cwd: string;
@@ -23,8 +34,11 @@ export interface CCSession {
   readonly outputTokens: number;
   readonly cacheReadTokens: number;
   readonly cacheCreateTokens: number;
+  readonly cacheCreate5mTokens: number;
+  readonly cacheCreate1hTokens: number;
   readonly state: "done" | "error" | "ongoing";
   readonly file: string;
+  readonly usage: readonly CCUsageRecord[];
 }
 
 export interface CCProject {
@@ -39,6 +53,8 @@ export interface CCProject {
   readonly outputTokens: number;
   readonly cacheReadTokens: number;
   readonly cacheCreateTokens: number;
+  readonly cacheCreate5mTokens: number;
+  readonly cacheCreate1hTokens: number;
   readonly lastRunAt: number;
   readonly firstRunAt: number;
   readonly branches: readonly string[];
@@ -133,6 +149,8 @@ export function projectsFromSessions(sessions: readonly CCSession[]): CCProject[
       outputTokens: (prev?.outputTokens ?? 0) + s.outputTokens,
       cacheReadTokens: (prev?.cacheReadTokens ?? 0) + s.cacheReadTokens,
       cacheCreateTokens: (prev?.cacheCreateTokens ?? 0) + s.cacheCreateTokens,
+      cacheCreate5mTokens: (prev?.cacheCreate5mTokens ?? 0) + s.cacheCreate5mTokens,
+      cacheCreate1hTokens: (prev?.cacheCreate1hTokens ?? 0) + s.cacheCreate1hTokens,
       lastRunAt: Math.max(prev?.lastRunAt ?? 0, s.endedAt),
       firstRunAt: prev ? Math.min(prev.firstRunAt, s.startedAt) : s.startedAt,
       branches: Array.from(branches),
@@ -158,6 +176,9 @@ function parseSession(file: string, projectDir: string): CCSession | null {
     let output = 0;
     let cacheRead = 0;
     let cacheCreate = 0;
+    let cacheCreate5m = 0;
+    let cacheCreate1h = 0;
+    const usage: CCUsageRecord[] = [];
     let sawError = false;
     let sawInterrupt = false;
 
@@ -187,14 +208,37 @@ function parseSession(file: string, projectDir: string): CCSession | null {
         if (msg && typeof msg === "object") {
           const m = msg as Record<string, unknown>;
           if (typeof m.model === "string") model = m.model;
-          const usage = m.usage;
-          if (usage && typeof usage === "object") {
-            const u = usage as Record<string, unknown>;
-            if (typeof u.input_tokens === "number") input += u.input_tokens;
-            if (typeof u.output_tokens === "number") output += u.output_tokens;
-            if (typeof u.cache_read_input_tokens === "number") cacheRead += u.cache_read_input_tokens;
-            if (typeof u.cache_creation_input_tokens === "number") cacheCreate += u.cache_creation_input_tokens;
+          const uObj = m.usage;
+          let inTok = 0, outTok = 0, crTok = 0, c5m = 0, c1h = 0;
+          if (uObj && typeof uObj === "object") {
+            const u = uObj as Record<string, unknown>;
+            if (typeof u.input_tokens === "number") inTok = u.input_tokens;
+            if (typeof u.output_tokens === "number") outTok = u.output_tokens;
+            if (typeof u.cache_read_input_tokens === "number") crTok = u.cache_read_input_tokens;
+            const cc = u.cache_creation;
+            if (cc && typeof cc === "object") {
+              const c = cc as Record<string, unknown>;
+              if (typeof c.ephemeral_5m_input_tokens === "number") c5m = c.ephemeral_5m_input_tokens;
+              if (typeof c.ephemeral_1h_input_tokens === "number") c1h = c.ephemeral_1h_input_tokens;
+            } else if (typeof u.cache_creation_input_tokens === "number") {
+              c5m = u.cache_creation_input_tokens;
+            }
           }
+          input += inTok; output += outTok; cacheRead += crTok;
+          cacheCreate5m += c5m; cacheCreate1h += c1h;
+          cacheCreate += c5m + c1h;
+          const msgId = typeof m.id === "string" ? m.id : null;
+          const reqId = typeof rec.requestId === "string" ? rec.requestId : null;
+          usage.push({
+            key: msgId && reqId ? `${msgId}:${reqId}` : null,
+            ts: Number.isNaN(ts) ? 0 : ts,
+            model,
+            inputTokens: inTok,
+            outputTokens: outTok,
+            cacheReadTokens: crTok,
+            cacheCreate5mTokens: c5m,
+            cacheCreate1hTokens: c1h,
+          });
           const content = m.content;
           if (Array.isArray(content)) {
             for (const b of content) {
@@ -251,13 +295,118 @@ function parseSession(file: string, projectDir: string): CCSession | null {
       outputTokens: output,
       cacheReadTokens: cacheRead,
       cacheCreateTokens: cacheCreate,
+      cacheCreate5mTokens: cacheCreate5m,
+      cacheCreate1hTokens: cacheCreate1h,
       state,
       file,
+      usage,
     };
   } catch (err) {
     log.error("parse failed", { file, err: String(err) });
     return null;
   }
+}
+
+export interface UsageTotals {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreate5mTokens: number;
+  cacheCreate1hTokens: number;
+  messages: number;
+}
+
+export interface AggregatedUsage {
+  readonly totals: UsageTotals & { costUsd: number };
+  readonly perCwd: Map<string, UsageTotals & { costUsd: number }>;
+  readonly perModel: Map<string, UsageTotals & { sessions: number; costUsd: number }>;
+  readonly perDay: Map<string, UsageTotals & { sessions: number; toolUses: number; costUsd: number }>;
+  readonly dedupedMessages: number;
+  readonly duplicateMessages: number;
+}
+
+export type CostFn = (model: string | undefined, r: CCUsageRecord) => number;
+
+function emptyTotals(): UsageTotals {
+  return { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreate5mTokens: 0, cacheCreate1hTokens: 0, messages: 0 };
+}
+
+function addUsage(t: UsageTotals, r: CCUsageRecord): void {
+  t.inputTokens += r.inputTokens;
+  t.outputTokens += r.outputTokens;
+  t.cacheReadTokens += r.cacheReadTokens;
+  t.cacheCreate5mTokens += r.cacheCreate5mTokens;
+  t.cacheCreate1hTokens += r.cacheCreate1hTokens;
+  t.messages += 1;
+}
+
+export function aggregateUsage(sessions: readonly CCSession[], costFn: CostFn = () => 0): AggregatedUsage {
+  const seen = new Set<string>();
+  const totals = { ...emptyTotals(), costUsd: 0 };
+  const perCwd = new Map<string, UsageTotals & { costUsd: number }>();
+  const perModel = new Map<string, UsageTotals & { sessions: number; costUsd: number }>();
+  const perDay = new Map<string, UsageTotals & { sessions: number; toolUses: number; costUsd: number }>();
+
+  const sessionsByModel = new Map<string, Set<string>>();
+  const sessionsByDay = new Map<string, Set<string>>();
+  const toolUsesByDay = new Map<string, number>();
+
+  let duplicates = 0, deduped = 0;
+
+  for (const s of sessions) {
+    if (s.endedAt) {
+      const day = new Date(s.endedAt).toISOString().slice(0, 10);
+      toolUsesByDay.set(day, (toolUsesByDay.get(day) ?? 0) + s.toolUses);
+      let set = sessionsByDay.get(day);
+      if (!set) { set = new Set(); sessionsByDay.set(day, set); }
+      set.add(s.id);
+    }
+
+    for (const rec of s.usage) {
+      if (rec.key) {
+        if (seen.has(rec.key)) { duplicates++; continue; }
+        seen.add(rec.key);
+      }
+      deduped++;
+      const mLabel = rec.model ?? s.model ?? "unknown";
+      const cost = costFn(mLabel, rec);
+
+      addUsage(totals, rec); totals.costUsd += cost;
+
+      const cwdT = perCwd.get(s.cwd) ?? { ...emptyTotals(), costUsd: 0 };
+      addUsage(cwdT, rec); cwdT.costUsd += cost;
+      perCwd.set(s.cwd, cwdT);
+
+      const mT = perModel.get(mLabel) ?? { ...emptyTotals(), sessions: 0, costUsd: 0 };
+      addUsage(mT, rec); mT.costUsd += cost;
+      perModel.set(mLabel, mT);
+      let mS = sessionsByModel.get(mLabel);
+      if (!mS) { mS = new Set(); sessionsByModel.set(mLabel, mS); }
+      mS.add(s.id);
+
+      if (rec.ts) {
+        const day = new Date(rec.ts).toISOString().slice(0, 10);
+        const dT = perDay.get(day) ?? { ...emptyTotals(), sessions: 0, toolUses: 0, costUsd: 0 };
+        addUsage(dT, rec); dT.costUsd += cost;
+        perDay.set(day, dT);
+      }
+    }
+  }
+
+  for (const [m, set] of sessionsByModel) {
+    const t = perModel.get(m); if (t) t.sessions = set.size;
+  }
+  for (const [day, t] of perDay) {
+    t.sessions = sessionsByDay.get(day)?.size ?? 0;
+    t.toolUses = toolUsesByDay.get(day) ?? 0;
+  }
+  for (const [day, set] of sessionsByDay) {
+    if (!perDay.has(day)) {
+      perDay.set(day, { ...emptyTotals(), sessions: set.size, toolUses: toolUsesByDay.get(day) ?? 0, costUsd: 0 });
+    }
+  }
+
+  return { totals, perCwd, perModel, perDay, dedupedMessages: deduped, duplicateMessages: duplicates };
 }
 
 function slug(s: string): string {

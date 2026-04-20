@@ -2,6 +2,7 @@ import { query, type Options, type PermissionResult, type SDKMessage } from "@an
 import { createLogger } from "../util/logger.ts";
 import { RingBuffer } from "../util/ring-buffer.ts";
 import { findClaudeCliPath } from "../claude-code/history.ts";
+import { estimateCost, refreshPricing } from "../claude-code/pricing.ts";
 import type { EventBus } from "./events.ts";
 import { reduce, initialSnapshot, type StateAction } from "./state-machine.ts";
 import type { SessionEvent, SessionSnapshot, SpawnConfig, PendingApproval, LogLine, DiffRow } from "../shared/types.ts";
@@ -25,6 +26,9 @@ export class SessionRunner {
   private readonly logs = new RingBuffer<LogLine>(500);
   private readonly abort = new AbortController();
   private running = false;
+  private rawModel: string | undefined;
+  private usage = { input: 0, output: 0, cacheRead: 0, cacheCreate5m: 0, cacheCreate1h: 0 };
+  private seenMsgKeys = new Set<string>();
 
   constructor(
     public readonly id: string,
@@ -51,6 +55,7 @@ export class SessionRunner {
   start(): void {
     if (this.running) return;
     this.running = true;
+    void refreshPricing().catch(() => { /* fallback table used */ });
     this.bus.emit({ kind: "init", at: Date.now(), snapshot: this.snapshot });
     void this.consume().catch((err: unknown) => {
       log.error("runner crashed", { id: this.id, err: String(err) });
@@ -131,6 +136,36 @@ export class SessionRunner {
         return;
 
       case "assistant": {
+        const apiMsg = msg.message as { id?: string; model?: string; usage?: Record<string, unknown> };
+        if (typeof apiMsg.model === "string") this.rawModel = apiMsg.model;
+        const key = typeof apiMsg.id === "string" ? apiMsg.id : null;
+        if (apiMsg.usage && (!key || !this.seenMsgKeys.has(key))) {
+          if (key) this.seenMsgKeys.add(key);
+          const u = apiMsg.usage;
+          this.usage.input        += numOr0(u.input_tokens);
+          this.usage.output       += numOr0(u.output_tokens);
+          this.usage.cacheRead    += numOr0(u.cache_read_input_tokens);
+          const cc = u.cache_creation as Record<string, unknown> | undefined;
+          if (cc) {
+            this.usage.cacheCreate5m += numOr0(cc.ephemeral_5m_input_tokens);
+            this.usage.cacheCreate1h += numOr0(cc.ephemeral_1h_input_tokens);
+          } else {
+            this.usage.cacheCreate5m += numOr0(u.cache_creation_input_tokens);
+          }
+          const cost = estimateCost(this.rawModel ?? this.snapshot.model, {
+            input: this.usage.input,
+            output: this.usage.output,
+            cacheRead: this.usage.cacheRead,
+            cacheCreate5m: this.usage.cacheCreate5m,
+            cacheCreate1h: this.usage.cacheCreate1h,
+          });
+          this.apply({
+            type: "usage.update",
+            cost,
+            inputTokens: this.usage.input,
+            outputTokens: this.usage.output,
+          });
+        }
         for (const block of msg.message.content) {
           if (block.type === "text") {
             for (const ln of block.text.split("\n").filter(Boolean)) {
@@ -202,6 +237,10 @@ export class SessionRunner {
 
     this.bus.emit({ kind: "patch", at: Date.now(), id: this.id, patch: snapshotDiff(prev, next) });
   }
+}
+
+function numOr0(v: unknown): number {
+  return typeof v === "number" && Number.isFinite(v) ? v : 0;
 }
 
 function isDestructive(tool: string, args: Record<string, unknown>): boolean {

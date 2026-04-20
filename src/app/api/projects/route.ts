@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getManager } from "@/lib/orchestrator/manager";
-import { scanAll, projectsFromSessions } from "@/lib/claude-code/history";
+import { scanAll, projectsFromSessions, aggregateUsage } from "@/lib/claude-code/history";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,9 +16,18 @@ export async function GET() {
   }
 
   const sessions = scanAll();
-  const projects = projectsFromSessions(sessions).map((p) => ({
-    ...p,
-    liveSessions: (liveByCwd[p.cwd] ?? 0) + (liveByName[p.name] ?? 0),
-  }));
+  const agg = aggregateUsage(sessions);
+  const projects = projectsFromSessions(sessions).map((p) => {
+    const t = agg.perCwd.get(p.cwd);
+    return {
+      ...p,
+      inputTokens: t?.inputTokens ?? 0,
+      outputTokens: t?.outputTokens ?? 0,
+      cacheReadTokens: t?.cacheReadTokens ?? 0,
+      cacheCreateTokens: (t?.cacheCreate5mTokens ?? 0) + (t?.cacheCreate1hTokens ?? 0),
+      messages: t?.messages ?? p.messages,
+      liveSessions: (liveByCwd[p.cwd] ?? 0) + (liveByName[p.name] ?? 0),
+    };
+  });
   return NextResponse.json({ projects });
 }

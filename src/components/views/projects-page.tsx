@@ -22,6 +22,8 @@ interface ProjectRow {
   liveSessions: number;
 }
 
+const COLS = "minmax(280px, 2fr) 120px 110px 60px 80px 80px 70px 90px";
+
 export function ProjectsPage() {
   const router = useRouter();
   const [rows, setRows] = useState<ProjectRow[]>([]);
@@ -83,51 +85,64 @@ export function ProjectsPage() {
         {err && <span style={{ fontSize: 11, color: "var(--state-error)" }}>{err}</span>}
       </div>
 
-      <div className="tools-table">
-        <div className="trow head" style={{ gridTemplateColumns: "1fr 90px 100px 100px 110px 110px" }}>
-          <span>project · cwd</span>
-          <span style={{ textAlign: "right" }}>sessions</span>
-          <span style={{ textAlign: "right" }}>msgs</span>
-          <span style={{ textAlign: "right" }}>tools</span>
-          <span style={{ textAlign: "right" }}>tokens</span>
-          <span style={{ textAlign: "right" }}>last run</span>
-        </div>
-        {loading && (
-          <div className="trow" style={{ gridTemplateColumns: "1fr", color: "var(--fg-muted)", justifyContent: "center" }}>
-            <span style={{ textAlign: "center" }}>Scanning ~/.claude/projects…</span>
+      <div className="table-scroll">
+        <div className="tools-table" style={{ minWidth: 960 }}>
+          <div className="trow head" style={{ gridTemplateColumns: COLS }}>
+            <span>project · cwd</span>
+            <span>sessions</span>
+            <span data-col="branch">branch</span>
+            <span style={{ textAlign: "right" }}>msgs</span>
+            <span style={{ textAlign: "right" }}>tokens</span>
+            <span style={{ textAlign: "right" }}>when</span>
+            <span style={{ textAlign: "right" }}>state</span>
+            <span style={{ textAlign: "right" }}>action</span>
           </div>
-        )}
-        {!loading && filtered.map((p) => (
-          <button
-            key={p.cwd}
-            className="trow"
-            style={{ gridTemplateColumns: "1fr 90px 100px 100px 110px 110px", textAlign: "left", cursor: "pointer" }}
-            onClick={() => router.push(`/new?cwd=${encodeURIComponent(p.cwd)}`)}
-          >
-            <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-              <span className="tname" style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                {p.name}
-                {p.liveSessions > 0 && <span className="status-pill" style={{ fontSize: 9 }}>live · {p.liveSessions}</span>}
-                {p.branches.slice(0, 2).map((b) => (
-                  <span key={b} style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--fg-muted)" }}>⎇ {b}</span>
-                ))}
+          {loading && (
+            <div className="trow" style={{ gridTemplateColumns: "1fr", color: "var(--fg-muted)", justifyContent: "center" }}>
+              <span style={{ textAlign: "center" }}>Scanning ~/.claude/projects…</span>
+            </div>
+          )}
+          {!loading && filtered.map((p) => {
+            const branch = p.branches[0];
+            const live = p.liveSessions > 0;
+            return (
+              <div key={p.cwd} className="trow" style={{ gridTemplateColumns: COLS }}>
+                <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0, maxWidth: 400 }}>
+                  <span className="tname cell-ellipsis" title={p.name}>{p.name}</span>
+                  <span className="tdesc cell-ellipsis" style={{ fontFamily: "var(--font-mono)", fontSize: 10 }} title={p.cwd}>{p.cwd}</span>
+                </span>
+                <span className="tdesc cell-ellipsis" style={{ fontFamily: "var(--font-mono)", fontSize: 10.5 }} title={`${p.sessions} sessions · ${p.toolUses} tools`}>
+                  {p.sessions} · {p.toolUses} tools
+                </span>
+                <span className="tdesc cell-ellipsis" data-col="branch" style={{ fontFamily: "var(--font-mono)", fontSize: 10.5 }} title={branch ?? "—"}>
+                  {branch ? `⎇ ${branch}` : "—"}
+                </span>
+                <span className="ncalls">{p.messages}</span>
+                <span className="ncalls">{fmtTokens(p.inputTokens + p.outputTokens)}</span>
+                <span className="ncalls">{fmtRel(p.lastRunAt)}</span>
+                <span className={`tperm ${live ? "" : "ask"}`}
+                      style={!live ? { color: "var(--fg-muted)", background: "transparent", boxShadow: "inset 0 0 0 1px var(--border)" } : undefined}>
+                  {live ? `live · ${p.liveSessions}` : "idle"}
+                </span>
+                <button
+                  className="btn"
+                  style={{ justifySelf: "end", padding: "3px 10px", fontSize: 10.5 }}
+                  onClick={(e) => { e.stopPropagation(); router.push(`/new?cwd=${encodeURIComponent(p.cwd)}`); }}
+                  title={`new session in ${p.cwd}`}
+                >
+                  ↗ new
+                </button>
+              </div>
+            );
+          })}
+          {!loading && filtered.length === 0 && (
+            <div className="trow" style={{ gridTemplateColumns: "1fr", color: "var(--fg-muted)", justifyContent: "center" }}>
+              <span style={{ textAlign: "center" }}>
+                {rows.length === 0 ? "No Claude Code projects found — run a session with the CLI first." : `No projects match “${q}”.`}
               </span>
-              <span className="tdesc" style={{ fontFamily: "var(--font-mono)", fontSize: 10.5 }}>{p.cwd}</span>
-            </span>
-            <span className="ncalls">{p.sessions}</span>
-            <span className="ncalls">{p.messages}</span>
-            <span className="ncalls">{p.toolUses}</span>
-            <span className="ncalls">{fmtTokens(p.inputTokens + p.outputTokens)}</span>
-            <span className="ncalls">{fmtRel(p.lastRunAt)}</span>
-          </button>
-        ))}
-        {!loading && filtered.length === 0 && (
-          <div className="trow" style={{ gridTemplateColumns: "1fr", color: "var(--fg-muted)", justifyContent: "center" }}>
-            <span style={{ textAlign: "center" }}>
-              {rows.length === 0 ? "No Claude Code projects found — run a session with the CLI first." : `No projects match “${q}”.`}
-            </span>
-          </div>
-        )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

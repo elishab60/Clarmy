@@ -1,7 +1,7 @@
 import type { SessionSnapshot, SessionState, LogLine, TodoItem, DiffRow, PendingApproval } from "../shared/types.ts";
 
 export type StateAction =
-  | { type: "system.init"; id: string; project: string; name: string; model: SessionSnapshot["model"]; startedAt: number; cwd?: string; branch?: string; prompt?: string }
+  | { type: "system.init"; id: string; project: string; name: string; model: SessionSnapshot["model"]; startedAt: number; cwd?: string; branch?: string; prompt?: string; effort?: SessionSnapshot["effort"] }
   | { type: "assistant.text"; line: LogLine }
   | { type: "assistant.tool_use"; tool: string; editPath?: string; diff?: DiffRow[] }
   | { type: "pre_tool_use.approval"; approval: PendingApproval }
@@ -11,6 +11,7 @@ export type StateAction =
   | { type: "result.success"; summary?: string; artifacts?: string[]; cost: number; durationMs?: number; inputTokens?: number; outputTokens?: number }
   | { type: "result.error"; message: string; retryIn?: number; durationMs?: number; inputTokens?: number; outputTokens?: number; cost?: number }
   | { type: "cost.update"; delta: number }
+  | { type: "usage.update"; cost: number; inputTokens: number; outputTokens: number }
   | { type: "user.prompt"; line: LogLine }
   | { type: "tool.reset" };
 
@@ -32,6 +33,7 @@ export function initialSnapshot(init: Extract<StateAction, { type: "system.init"
     cwd: init.cwd,
     branch: init.branch,
     prompt: init.prompt,
+    effort: init.effort,
   };
 }
 
@@ -105,6 +107,9 @@ export function reduce(s: SessionSnapshot, a: StateAction): SessionSnapshot {
 
     case "cost.update":
       return { ...s, cost: s.cost + a.delta };
+
+    case "usage.update":
+      return { ...s, cost: a.cost, inputTokens: a.inputTokens, outputTokens: a.outputTokens };
 
     case "user.prompt":
       return { ...s, state: "running", logs: appendLog(s.logs, a.line) };

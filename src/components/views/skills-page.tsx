@@ -109,10 +109,12 @@ export function SkillsPage() {
               <span className="tool-count">{s.invocations7d}</span>
             </button>
           ))}
-          {filtered.length === 0 && !loading && <div style={{ padding: 24, textAlign: "center", color: "var(--fg-muted)", fontSize: 11.5 }}>No matches.</div>}
+          {filtered.length === 0 && !loading && <div className="mcp-empty">No matches.</div>}
         </div>
 
-        {active && <SkillDetail skill={active} onToggle={() => onToggle(active)} />}
+        {active
+          ? <SkillDetail skill={active} onToggle={() => onToggle(active)} />
+          : <div className="mcp-empty">Select a skill to view details.</div>}
       </div>
 
       {confirmToggle && (

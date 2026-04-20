@@ -6,7 +6,7 @@ import { SessionRunner } from "./session.ts";
 import { PtyRunner } from "./pty-runner.ts";
 import { MockSessionRunner, loadFixtures } from "./mock.ts";
 import { LiveWatcher } from "../claude-code/live-watcher.ts";
-import type { SessionSnapshot, SpawnConfig, SessionEvent } from "../shared/types.ts";
+import type { Effort, SessionSnapshot, SpawnConfig, SessionEvent } from "../shared/types.ts";
 
 const log = createLogger("manager");
 
@@ -62,13 +62,17 @@ export class SessionManager {
   }
 
   isInternallyOwned(cwd: string | undefined): boolean {
-    if (!cwd) return false;
+    return this.resolveOwnedId(cwd) !== null;
+  }
+
+  resolveOwnedId(cwd: string | undefined): string | null {
+    if (!cwd) return null;
     for (const r of this.runners.values()) {
       if (!(r instanceof PtyRunner)) continue;
       const snap = r.getSnapshot();
-      if (snap.cwd === cwd && snap.state !== "done" && snap.state !== "error") return true;
+      if (snap.cwd === cwd && snap.state !== "done" && snap.state !== "error") return snap.id;
     }
-    return false;
+    return null;
   }
 
   private activeOwnedCwds(): Set<string> {
@@ -114,9 +118,14 @@ export class SessionManager {
 
   async kill(id: string): Promise<boolean> {
     const r = this.runners.get(id);
-    if (!r) return false;
-    await r.kill();
-    this.runners.delete(id);
+    if (r) {
+      await r.kill();
+      this.runners.delete(id);
+      this.bus.emit({ kind: "gone", at: Date.now(), id });
+      return true;
+    }
+    if (this.live?.forget(id)) return true;
+    this.bus.emit({ kind: "gone", at: Date.now(), id });
     return true;
   }
 
@@ -133,6 +142,13 @@ export class SessionManager {
       allowedTools: ["Read", "Grep", "Glob"],
       approvalMode: "prompt",
     });
+  }
+
+  setEffort(id: string, effort: Effort): boolean {
+    const r = this.runners.get(id);
+    if (!(r instanceof PtyRunner)) return false;
+    r.setEffort(effort);
+    return true;
   }
 
   approve(id: string, toolUseId: string, allow: boolean): boolean {

@@ -10,5 +10,6 @@ export async function GET(req: Request) {
   const cwd = url.searchParams.get("cwd");
   let sessions = scanAll();
   if (cwd) sessions = sessions.filter((s) => s.cwd === cwd);
-  return NextResponse.json({ sessions: sessions.slice(0, limit) });
+  const trimmed = sessions.slice(0, limit).map(({ usage: _usage, ...rest }) => rest);
+  return NextResponse.json({ sessions: trimmed });
 }

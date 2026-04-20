@@ -18,6 +18,9 @@ interface Metrics {
   lastSevenDays: Array<{ day: string; sessions: number; messages: number; toolUses: number; costUsd: number }>;
 }
 
+const PROJ_COLS = "minmax(260px, 1fr) 80px 90px 90px 80px 100px 90px";
+const MODEL_COLS = "minmax(220px, 1fr) 80px 110px 110px 110px 100px";
+
 export function MetricsPage() {
   const [m, setM] = useState<Metrics | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -55,7 +58,7 @@ export function MetricsPage() {
 
       {m && (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 24 }}>
+          <div className="stat-grid">
             <StatCard label="Sessions (total)" value={String(m.totalSessions)}           foot={`${m.liveSessions} live · ${m.doneSessions} done · ${m.errorSessions} error`} />
             <StatCard label="Estimated cost"   value={fmtCost(m.totalCostUsd)}           foot="public Anthropic prices · covered by plan Max" accent />
             <StatCard label="Input tokens"     value={fmtTokens(m.totalInputTokens)}     foot={`${fmtTokens(m.totalOutputTokens)} output`} />
@@ -64,7 +67,7 @@ export function MetricsPage() {
           </div>
 
           <h3 style={metricH3}>Last 7 days · sessions ended</h3>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6, marginBottom: 28, background: "var(--bg-tile)", border: "1px solid var(--border)", borderRadius: 6, padding: 14 }}>
+          <div className="days-grid">
             {m.lastSevenDays.map((d) => (
               <div key={d.day} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
                 <div style={{ height: 80, width: "100%", display: "flex", alignItems: "flex-end" }}>
@@ -84,57 +87,61 @@ export function MetricsPage() {
           </div>
 
           <h3 style={metricH3}>Per project · top {Math.min(20, m.perProject.length)} by cost</h3>
-          <div className="tools-table" style={{ marginBottom: 24 }}>
-            <div className="trow head" style={{ gridTemplateColumns: "1fr 80px 90px 90px 80px 100px 90px" }}>
-              <span>project</span>
-              <span style={{ textAlign: "right" }}>sessions</span>
-              <span style={{ textAlign: "right" }}>input</span>
-              <span style={{ textAlign: "right" }}>output</span>
-              <span style={{ textAlign: "right" }}>tools</span>
-              <span style={{ textAlign: "right" }}>cost</span>
-              <span style={{ textAlign: "right" }}>last run</span>
+          <div className="table-scroll" style={{ marginBottom: 24 }}>
+            <div className="tools-table" style={{ minWidth: 860 }}>
+              <div className="trow head" style={{ gridTemplateColumns: PROJ_COLS }}>
+                <span>project</span>
+                <span style={{ textAlign: "right" }}>sessions</span>
+                <span style={{ textAlign: "right" }}>input</span>
+                <span style={{ textAlign: "right" }}>output</span>
+                <span data-col="tools" style={{ textAlign: "right" }}>tools</span>
+                <span style={{ textAlign: "right" }}>cost</span>
+                <span style={{ textAlign: "right" }}>last run</span>
+              </div>
+              {m.perProject.length === 0 && (
+                <div className="trow" style={{ gridTemplateColumns: "1fr", color: "var(--fg-muted)", justifyContent: "center" }}>
+                  <span style={{ textAlign: "center" }}>No data yet.</span>
+                </div>
+              )}
+              {m.perProject.slice(0, 20).map((p) => (
+                <div key={p.cwd} className="trow" style={{ gridTemplateColumns: PROJ_COLS }} title={p.cwd}>
+                  <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0, maxWidth: 320 }}>
+                    <span className="tname cell-ellipsis" title={p.project}>{p.project}</span>
+                    <span className="tdesc cell-ellipsis" style={{ fontFamily: "var(--font-mono)", fontSize: 10 }} title={p.cwd}>{p.cwd}</span>
+                  </span>
+                  <span className="ncalls">{p.sessions}</span>
+                  <span className="ncalls">{fmtTokens(p.inputTokens)}</span>
+                  <span className="ncalls">{fmtTokens(p.outputTokens)}</span>
+                  <span className="ncalls" data-col="tools">{p.toolUses}</span>
+                  <span className="ncalls" style={{ color: "var(--brand)", fontWeight: 500 }}>{fmtCost(p.costUsd)}</span>
+                  <span className="ncalls">{fmtRel(p.lastRunAt)}</span>
+                </div>
+              ))}
             </div>
-            {m.perProject.length === 0 && (
-              <div className="trow" style={{ gridTemplateColumns: "1fr", color: "var(--fg-muted)", justifyContent: "center" }}>
-                <span style={{ textAlign: "center" }}>No data yet.</span>
-              </div>
-            )}
-            {m.perProject.slice(0, 20).map((p) => (
-              <div key={p.cwd} className="trow" style={{ gridTemplateColumns: "1fr 80px 90px 90px 80px 100px 90px" }}>
-                <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-                  <span className="tname">{p.project}</span>
-                  <span className="tdesc" style={{ fontFamily: "var(--font-mono)", fontSize: 10 }}>{p.cwd}</span>
-                </span>
-                <span className="ncalls">{p.sessions}</span>
-                <span className="ncalls">{fmtTokens(p.inputTokens)}</span>
-                <span className="ncalls">{fmtTokens(p.outputTokens)}</span>
-                <span className="ncalls">{p.toolUses}</span>
-                <span className="ncalls" style={{ color: "var(--brand)", fontWeight: 500 }}>{fmtCost(p.costUsd)}</span>
-                <span className="ncalls">{fmtRel(p.lastRunAt)}</span>
-              </div>
-            ))}
           </div>
 
           <h3 style={metricH3}>Per model</h3>
-          <div className="tools-table">
-            <div className="trow head" style={{ gridTemplateColumns: "1fr 80px 110px 110px 110px 100px" }}>
-              <span>model</span>
-              <span style={{ textAlign: "right" }}>sessions</span>
-              <span style={{ textAlign: "right" }}>input</span>
-              <span style={{ textAlign: "right" }}>output</span>
-              <span style={{ textAlign: "right" }}>cache read</span>
-              <span style={{ textAlign: "right" }}>cost</span>
-            </div>
-            {m.perModel.map((p) => (
-              <div key={p.model} className="trow" style={{ gridTemplateColumns: "1fr 80px 110px 110px 110px 100px" }}>
-                <span className="tname" style={{ fontFamily: "var(--font-mono)" }}>{p.model}</span>
-                <span className="ncalls">{p.sessions}</span>
-                <span className="ncalls">{fmtTokens(p.inputTokens)}</span>
-                <span className="ncalls">{fmtTokens(p.outputTokens)}</span>
-                <span className="ncalls">{fmtTokens(p.cacheReadTokens)}</span>
-                <span className="ncalls" style={{ color: "var(--brand)", fontWeight: 500 }}>{fmtCost(p.costUsd)}</span>
+          <div className="table-scroll">
+            <div className="tools-table" style={{ minWidth: 720 }}>
+              <div className="trow head" style={{ gridTemplateColumns: MODEL_COLS }}>
+                <span>model</span>
+                <span style={{ textAlign: "right" }}>sessions</span>
+                <span style={{ textAlign: "right" }}>input</span>
+                <span style={{ textAlign: "right" }}>output</span>
+                <span style={{ textAlign: "right" }}>cache read</span>
+                <span style={{ textAlign: "right" }}>cost</span>
               </div>
-            ))}
+              {m.perModel.map((p, index) => (
+                <div key={`${p.model}-${index}`} className="trow" style={{ gridTemplateColumns: MODEL_COLS }}>
+                  <span className="tname cell-ellipsis" style={{ fontFamily: "var(--font-mono)" }} title={p.model}>{p.model}</span>
+                  <span className="ncalls">{p.sessions}</span>
+                  <span className="ncalls">{fmtTokens(p.inputTokens)}</span>
+                  <span className="ncalls">{fmtTokens(p.outputTokens)}</span>
+                  <span className="ncalls">{fmtTokens(p.cacheReadTokens)}</span>
+                  <span className="ncalls" style={{ color: "var(--brand)", fontWeight: 500 }}>{fmtCost(p.costUsd)}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </>
       )}

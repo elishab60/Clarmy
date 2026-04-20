@@ -25,7 +25,7 @@ Real mode: leave `COCKPIT_MOCK=0` (the default). The SDK reads `ANTHROPIC_API_KE
 
 ## Commands
 
-- `pnpm dev` — start the custom Next + WebSocket server on :3000 (or `COCKPIT_PORT`)
+- `pnpm dev` — start the custom Next + WebSocket server on :3010 (or `COCKPIT_PORT`)
 - `pnpm typecheck` — TypeScript strict, no emit
 - `pnpm test` — vitest integration suite (`tests/integration/*`)
 - `pnpm build && pnpm start` — production build and serve

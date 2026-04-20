@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useCockpit } from "@/lib/client/store";
 import { Icon, type IconName } from "./icons";
+import { Clawd } from "./clawd";
 
 const NAV_PRIMARY: { k: string; href: string; label: string; icon: IconName; badge?: string }[] = [
   { k: "sessions", href: "/",         label: "Sessions", icon: "sessions" },
@@ -79,7 +80,7 @@ export function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="sidebar-head">
-        <div className="wordmark"><span className="dot" />Slave</div>
+        <div className="wordmark"><Clawd size={26} /><span className="slave-text">Slave</span></div>
       </div>
       <button className="new-session" onClick={() => router.push("/new")}>
         <span className="plus">+</span> New session

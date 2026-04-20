@@ -5,7 +5,7 @@ import { homedir } from "node:os";
 import { resolve } from "node:path";
 import { getManager } from "@/lib/orchestrator/manager";
 import { findClaudeCliPath } from "@/lib/claude-code/history";
-import type { ApprovalMode, ModelId } from "@/lib/shared/types";
+import type { ApprovalMode, Effort, ModelId } from "@/lib/shared/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,6 +21,7 @@ const SpawnSchema = z.object({
   branch: z.string().max(200).optional(),
   dangerouslySkipPermissions: z.boolean().optional(),
   resumeSessionId: z.string().min(1).max(80).optional(),
+  effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
 }).refine((v) => v.prompt.length > 0 || !!v.resumeSessionId, {
   message: "prompt is required unless resumeSessionId is set",
   path: ["prompt"],
@@ -55,6 +56,7 @@ export async function POST(req: Request) {
     cwd,
     model: parsed.data.model as ModelId,
     approvalMode: parsed.data.approvalMode as ApprovalMode,
+    effort: parsed.data.effort as Effort | undefined,
   });
   return NextResponse.json({ id }, { status: 201 });
 }

@@ -2,7 +2,7 @@ import { readdirSync, statSync, openSync, readSync, closeSync, readFileSync } fr
 import { resolve, join } from "node:path";
 import { homedir } from "node:os";
 import { createLogger } from "../util/logger.ts";
-import { estimateCost } from "./pricing.ts";
+import { estimateCost, refreshPricing } from "./pricing.ts";
 import type { EventBus } from "../orchestrator/events.ts";
 import type { LogLine, ModelId, SessionSnapshot, SessionState } from "../shared/types.ts";
 
@@ -25,6 +25,14 @@ const MODEL_ALIAS: Record<string, ModelId> = {
   "claude-haiku-4-5": "haiku-4.5",
 };
 
+interface Totals {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheCreate5m: number;
+  cacheCreate1h: number;
+}
+
 interface Tracked {
   readonly file: string;
   readonly id: string;
@@ -32,6 +40,9 @@ interface Tracked {
   lastMtime: number;
   lastSeen: number;
   snapshot: SessionSnapshot;
+  totals: Totals;
+  rawModel?: string;
+  seenMsgKeys: Set<string>;
 }
 
 export class LiveWatcher {
@@ -46,6 +57,7 @@ export class LiveWatcher {
 
   start(): void {
     if (this.timer) return;
+    void refreshPricing().catch(() => { /* fallback used */ });
     this.timer = setInterval(() => void this.tick(), POLL_MS);
     void this.tick();
     log.info("live watcher started", { root: ROOT, pollMs: POLL_MS });
@@ -60,6 +72,16 @@ export class LiveWatcher {
 
   listSnapshots(): SessionSnapshot[] {
     return Array.from(this.tracked.values()).map((t) => t.snapshot);
+  }
+
+  forget(id: string): boolean {
+    for (const [file, t] of this.tracked) {
+      if (t.id !== id) continue;
+      this.emitGone(t);
+      this.tracked.delete(file);
+      return true;
+    }
+    return false;
   }
 
   private async tick(): Promise<void> {
@@ -112,7 +134,9 @@ export class LiveWatcher {
     const text = safeRead(c.file);
     if (!text) return;
     const base = emptySnapshot(c.file);
-    const acc = new Accumulator(base);
+    const totals: Totals = { input: 0, output: 0, cacheRead: 0, cacheCreate5m: 0, cacheCreate1h: 0 };
+    const seenKeys = new Set<string>();
+    const acc = new Accumulator(base, totals, seenKeys);
     for (const line of text.split("\n")) {
       if (!line.trim()) continue;
       acc.apply(line);
@@ -129,6 +153,9 @@ export class LiveWatcher {
       lastMtime: c.mtime,
       lastSeen: now,
       snapshot: snap,
+      totals,
+      rawModel: acc.rawModel,
+      seenMsgKeys: seenKeys,
     };
     this.tracked.set(c.file, t);
     this.bus.emit({ kind: "init", at: now, snapshot: snap });
@@ -162,7 +189,7 @@ export class LiveWatcher {
     t.lastMtime = mtime;
     t.lastSeen = now;
 
-    const acc = new Accumulator(t.snapshot);
+    const acc = new Accumulator(t.snapshot, t.totals, t.seenMsgKeys, t.rawModel);
     const newLogs: LogLine[] = [];
     for (const line of parts) {
       if (!line.trim()) continue;
@@ -172,6 +199,7 @@ export class LiveWatcher {
       for (const d of delta) newLogs.push(d);
       if (before !== acc.snap) { /* updated */ }
     }
+    t.rawModel = acc.rawModel;
     const updated = acc.finalize(now);
     const diff = snapshotDiff(t.snapshot, updated);
     const prevState = t.snapshot.state;
@@ -203,7 +231,8 @@ export class LiveWatcher {
 }
 
 function emptySnapshot(file: string): SessionSnapshot {
-  const id = "cli_" + (file.split("/").pop() ?? "unknown").replace(/\.jsonl$/, "").slice(0, 12);
+  const fullId = (file.split("/").pop() ?? "unknown").replace(/\.jsonl$/, "");
+  const id = "cli_" + fullId.slice(0, 12);
   return {
     id,
     project: "claude-code",
@@ -220,6 +249,7 @@ function emptySnapshot(file: string): SessionSnapshot {
     logs: [],
     inputTokens: 0,
     outputTokens: 0,
+    resumeSessionId: fullId,
   };
 }
 
@@ -227,18 +257,16 @@ class Accumulator {
   snap: SessionSnapshot;
   private logs: LogLine[] = [];
   private newSinceLastPop = 0;
-  private totals = { input: 0, output: 0, cacheRead: 0, cacheCreate: 0 };
-  private rawModel: string | undefined;
+  private totals: Totals;
+  private seenMsgKeys: Set<string>;
+  rawModel: string | undefined;
 
-  constructor(initial: SessionSnapshot) {
+  constructor(initial: SessionSnapshot, totals: Totals, seenMsgKeys: Set<string>, rawModel?: string) {
     this.snap = { ...initial, logs: initial.logs.slice() };
     this.logs = initial.logs.slice();
-    this.totals = {
-      input: initial.inputTokens ?? 0,
-      output: initial.outputTokens ?? 0,
-      cacheRead: 0,
-      cacheCreate: 0,
-    };
+    this.totals = totals;
+    this.seenMsgKeys = seenMsgKeys;
+    this.rawModel = rawModel;
   }
 
   apply(line: string): void {
@@ -248,7 +276,7 @@ class Accumulator {
 
     if (typeof rec.cwd === "string" && !this.snap.cwd) this.snap = { ...this.snap, cwd: rec.cwd, project: lastSegment(rec.cwd) };
     if (typeof rec.sessionId === "string" && !this.snap.id.startsWith("cli_") === false && this.snap.id.length < 20) {
-      this.snap = { ...this.snap, id: `cli_${rec.sessionId.slice(0, 12)}` };
+      this.snap = { ...this.snap, id: `cli_${rec.sessionId.slice(0, 12)}`, resumeSessionId: rec.sessionId };
     }
     if (typeof rec.gitBranch === "string" && rec.gitBranch) this.snap = { ...this.snap, branch: rec.gitBranch };
 
@@ -267,11 +295,22 @@ class Accumulator {
           if (alias) this.snap = { ...this.snap, model: alias };
         }
         const usage = msg.usage as Record<string, unknown> | undefined;
-        if (usage) {
+        const msgId = typeof msg.id === "string" ? msg.id : null;
+        const reqId = typeof rec.requestId === "string" ? rec.requestId : null;
+        const key = msgId && reqId ? `${msgId}:${reqId}` : null;
+        const alreadySeen = key ? this.seenMsgKeys.has(key) : false;
+        if (usage && !alreadySeen) {
+          if (key) this.seenMsgKeys.add(key);
           this.totals.input        += numOr0(usage.input_tokens);
           this.totals.output       += numOr0(usage.output_tokens);
           this.totals.cacheRead    += numOr0(usage.cache_read_input_tokens);
-          this.totals.cacheCreate  += numOr0(usage.cache_creation_input_tokens);
+          const cc = usage.cache_creation as Record<string, unknown> | undefined;
+          if (cc) {
+            this.totals.cacheCreate5m += numOr0(cc.ephemeral_5m_input_tokens);
+            this.totals.cacheCreate1h += numOr0(cc.ephemeral_1h_input_tokens);
+          } else {
+            this.totals.cacheCreate5m += numOr0(usage.cache_creation_input_tokens);
+          }
         }
         const stopReason = msg.stop_reason;
         const content = msg.content;
@@ -324,7 +363,8 @@ class Accumulator {
       input: this.totals.input,
       output: this.totals.output,
       cacheRead: this.totals.cacheRead,
-      cacheCreate: this.totals.cacheCreate,
+      cacheCreate5m: this.totals.cacheCreate5m,
+      cacheCreate1h: this.totals.cacheCreate1h,
     });
     return {
       ...this.snap,

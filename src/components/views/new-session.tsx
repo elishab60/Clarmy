@@ -1,13 +1,32 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import type { ApprovalMode, ModelId } from "@/lib/shared/types";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { ApprovalMode, Effort, ModelId } from "@/lib/shared/types";
+import { EFFORT_LEVELS_BY_MODEL, defaultEffort } from "@/lib/shared/types";
 import { ProjectSelector, type ProjectOption } from "./project-selector";
 
 const MODELS: ModelId[] = ["opus-4.7", "sonnet-4.6", "haiku-4.5"];
-const DEFAULT_TOOLS = ["Bash", "Read", "Edit", "Write", "Grep", "Glob", "WebFetch", "WebSearch", "TodoWrite", "Task"];
+const BUILTIN_TOOLS = ["Bash", "Read", "Edit", "Write", "Grep", "TodoWrite"];
+const EXTRA_TOOLS = ["Glob", "WebFetch", "WebSearch", "Task"];
 const INITIAL_TOOLS = ["Bash", "Read", "Edit", "Write", "Grep", "TodoWrite"];
+
+const LS_KEY = "cockpit.newSession.prefs.v1";
+type Prefs = { model?: ModelId; effort?: Effort; skipPerms?: boolean };
+
+function loadPrefs(): Prefs {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(LS_KEY);
+    if (!raw) return {};
+    return JSON.parse(raw) as Prefs;
+  } catch { return {}; }
+}
+
+function savePrefs(p: Prefs): void {
+  if (typeof window === "undefined") return;
+  try { window.localStorage.setItem(LS_KEY, JSON.stringify(p)); } catch { /* ignore */ }
+}
 
 export function NewSessionView() {
   const router = useRouter();
@@ -15,15 +34,32 @@ export function NewSessionView() {
   const initialCwd = search.get("cwd") ?? "";
   const initialPrompt = search.get("prompt") ?? "";
   const autolaunch = search.get("autolaunch") === "1";
-  const [model, setModel] = useState<ModelId>("opus-4.7");
+
+  const prefs = useMemo(() => loadPrefs(), []);
+  const [model, setModel] = useState<ModelId>(prefs.model ?? "opus-4.7");
+  const [effort, setEffort] = useState<Effort | null>(() => {
+    const m = prefs.model ?? "opus-4.7";
+    const levels = EFFORT_LEVELS_BY_MODEL[m];
+    if (levels.length === 0) return null;
+    const wanted = prefs.effort;
+    if (wanted && levels.includes(wanted)) return wanted;
+    return defaultEffort(m);
+  });
+
+  useEffect(() => {
+    const levels = EFFORT_LEVELS_BY_MODEL[model];
+    if (levels.length === 0) { setEffort(null); return; }
+    setEffort((cur) => (cur && levels.includes(cur) ? cur : defaultEffort(model)));
+  }, [model]);
   const [tools, setTools] = useState<string[]>(INITIAL_TOOLS);
   const [project, setProject] = useState("");
   const [cwd, setCwd] = useState(initialCwd);
+  const [cwdMissing, setCwdMissing] = useState(false);
   const [name, setName] = useState("");
   const [branch, setBranch] = useState("main");
   const [approval, setApproval] = useState<ApprovalMode>("prompt");
   const [autoMode, setAutoMode] = useState(false);
-  const [skipPerms, setSkipPerms] = useState(false);
+  const [skipPerms, setSkipPerms] = useState(prefs.skipPerms ?? false);
   const [prompt, setPrompt] = useState(initialPrompt);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -34,6 +70,16 @@ export function NewSessionView() {
   const [gitLoading, setGitLoading] = useState(false);
   const [gitReason, setGitReason] = useState<string | null>(null);
   const [pendingLaunch, setPendingLaunch] = useState(autolaunch && Boolean(initialPrompt));
+
+  const promptRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    promptRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    savePrefs({ model, effort: effort ?? undefined, skipPerms });
+  }, [model, effort, skipPerms]);
 
   useEffect(() => {
     void (async () => {
@@ -96,13 +142,24 @@ export function NewSessionView() {
     setCwd(p.cwd);
     setBranch(p.branches[0] ?? "main");
     setCustomBranch(false);
+    setCwdMissing(false);
   };
 
-  const onCustom = (name: string) => {
-    setProject(name);
+  const onCustom = (nm: string) => {
+    setProject(nm);
     setCwd("");
     setBranch("main");
     setCustomBranch(false);
+  };
+
+  const validateCwd = async () => {
+    if (!cwd.trim()) { setCwdMissing(false); return; }
+    try {
+      const res = await fetch(`/api/fs/exists?path=${encodeURIComponent(cwd)}`);
+      if (!res.ok) { setCwdMissing(false); return; }
+      const j = (await res.json()) as { exists: boolean; isDirectory: boolean };
+      setCwdMissing(!(j.exists && j.isDirectory));
+    } catch { setCwdMissing(false); }
   };
 
   const branchOptions = useMemo(() => {
@@ -112,11 +169,16 @@ export function NewSessionView() {
     return Array.from(set);
   }, [gitBranches, selected]);
 
-  const toggle = (t: string) => setTools((xs) => xs.includes(t) ? xs.filter((x) => x !== t) : [...xs, t]);
+  const toggleTool = (t: string) =>
+    setTools((xs) => xs.includes(t) ? xs.filter((x) => x !== t) : [...xs, t]);
 
   const submit = async () => {
     if (!project.trim() || !cwd.trim() || !prompt.trim()) {
       setErr("Project, cwd and prompt are required.");
+      return;
+    }
+    if (cwdMissing) {
+      setErr("Project dir does not exist on disk.");
       return;
     }
     setBusy(true); setErr(null);
@@ -130,6 +192,7 @@ export function NewSessionView() {
           approvalMode: skipPerms ? "auto" : autoMode ? "auto" : approval,
           dangerouslySkipPermissions: skipPerms,
           branch, prompt,
+          ...(effort ? { effort } : {}),
         }),
       });
       if (!res.ok) {
@@ -155,6 +218,19 @@ export function NewSessionView() {
     const t = setTimeout(() => { void submit(); }, 500);
     return () => { clearTimeout(t); window.removeEventListener("keydown", onKey); };
   }, [pendingLaunch, project, cwd, prompt, busy]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault();
+        if (!busy) void submit();
+      } else if (e.key === "Escape" && !pendingLaunch) {
+        router.push("/");
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [busy, pendingLaunch, project, cwd, prompt]);
 
   return (
     <div className="new-session-view">
@@ -186,31 +262,31 @@ export function NewSessionView() {
             <div className="ctrl">
               <input
                 value={cwd}
-                onChange={(e) => setCwd(e.target.value)}
+                onChange={(e) => { setCwd(e.target.value); setCwdMissing(false); }}
+                onBlur={validateCwd}
                 placeholder="/Users/me/code/acme-api"
               />
+              {cwdMissing && (
+                <div className="field-error">path does not exist on disk</div>
+              )}
             </div>
           </div>
           <div className="form-row">
             <label>Branch</label>
             <div className="ctrl">
               {branchOptions.length > 0 && !customBranch ? (
-                <div className="branch-picker">
+                <select
+                  value={branch}
+                  onChange={(e) => {
+                    if (e.target.value === "__custom__") { setCustomBranch(true); return; }
+                    setBranch(e.target.value);
+                  }}
+                >
                   {branchOptions.map((b) => (
-                    <button
-                      key={b}
-                      type="button"
-                      className={`${branch === b ? "on" : ""} ${b === gitCurrent ? "current" : ""}`}
-                      onClick={() => setBranch(b)}
-                      title={b === gitCurrent ? "current branch (git HEAD)" : undefined}
-                    >⎇ {b}{b === gitCurrent ? " ·" : ""}</button>
+                    <option key={b} value={b}>{b === gitCurrent ? `⎇ ${b} · current` : `⎇ ${b}`}</option>
                   ))}
-                  <button
-                    type="button"
-                    className="branch-custom"
-                    onClick={() => setCustomBranch(true)}
-                  >+ custom</button>
-                </div>
+                  <option value="__custom__">+ custom…</option>
+                </select>
               ) : (
                 <input
                   value={branch}
@@ -224,7 +300,7 @@ export function NewSessionView() {
                 {!gitLoading && gitReason === "not-a-repo" && <span>not a git repo — type a name above</span>}
                 {!gitLoading && gitReason === "missing" && <span>cwd not found</span>}
                 {!gitLoading && !gitReason && gitBranches.length > 0 && (
-                  <span>{gitBranches.length} live branch{gitBranches.length > 1 ? "es" : ""} · <span className="dot">·</span> = current</span>
+                  <span>{gitBranches.length} live branch{gitBranches.length > 1 ? "es" : ""} · current = {gitCurrent ?? "?"}</span>
                 )}
               </div>
             </div>
@@ -240,11 +316,39 @@ export function NewSessionView() {
           <div className="form-row">
             <label>Model</label>
             <div className="ctrl">
-              <div className="model-picker">
+              <div className="model-segment" role="radiogroup" aria-label="Model">
                 {MODELS.map((m) => (
-                  <button key={m} className={model === m ? "on" : ""} onClick={() => setModel(m)}>{m}</button>
+                  <button
+                    key={m}
+                    type="button"
+                    role="radio"
+                    aria-checked={model === m}
+                    className={model === m ? "on" : ""}
+                    onClick={() => setModel(m)}
+                  >{m}</button>
                 ))}
               </div>
+            </div>
+          </div>
+          <div className="form-row">
+            <label>Effort</label>
+            <div className="ctrl">
+              {EFFORT_LEVELS_BY_MODEL[model].length === 0 ? (
+                <div className="effort-note">effort not supported on {model}</div>
+              ) : (
+                <div className="model-segment" role="radiogroup" aria-label="Effort">
+                  {EFFORT_LEVELS_BY_MODEL[model].map((lvl) => (
+                    <button
+                      key={lvl}
+                      type="button"
+                      role="radio"
+                      aria-checked={effort === lvl}
+                      className={effort === lvl ? "on" : ""}
+                      onClick={() => setEffort(lvl)}
+                    >{lvl}</button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -252,12 +356,29 @@ export function NewSessionView() {
         <div className="form-section">
           <h4>Allowed tools</h4>
           <div className="form-row">
-            <label>Built-in</label>
+            <label>Tools</label>
             <div className="ctrl">
-              <div className="tool-chips">
-                {DEFAULT_TOOLS.map((t) => (
-                  <button key={t} className={`chip ${tools.includes(t) ? "on" : ""}`} onClick={() => toggle(t)}>{t}</button>
-                ))}
+              <div className="tool-grid">
+                <div className="tool-group-label">Built-in</div>
+                {BUILTIN_TOOLS.map((t) => {
+                  const on = tools.includes(t);
+                  return (
+                    <label key={t} className={`tool-row ${on ? "" : "off"}`}>
+                      <input type="checkbox" checked={on} onChange={() => toggleTool(t)} />
+                      <span className="tool-name">{t}</span>
+                    </label>
+                  );
+                })}
+                <div className="tool-group-label">Extra</div>
+                {EXTRA_TOOLS.map((t) => {
+                  const on = tools.includes(t);
+                  return (
+                    <label key={t} className={`tool-row ${on ? "" : "off"}`}>
+                      <input type="checkbox" checked={on} onChange={() => toggleTool(t)} />
+                      <span className="tool-name">{t}</span>
+                    </label>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -279,7 +400,10 @@ export function NewSessionView() {
           <div className="form-row">
             <label>Auto mode</label>
             <div className="ctrl">
-              <label className={`toggle-row ${skipPerms ? "disabled" : ""}`}>
+              <label
+                className={`toggle-row ${skipPerms ? "disabled" : ""}`}
+                title="Accept every tool call — equivalent to --permission-mode acceptEdits"
+              >
                 <input
                   type="checkbox"
                   checked={autoMode}
@@ -289,7 +413,6 @@ export function NewSessionView() {
                 />
                 <span className="toggle-text">
                   <span className="toggle-title">Accept every tool call</span>
-                  <span className="toggle-desc">equivalent to <code>--permission-mode acceptEdits</code></span>
                 </span>
               </label>
             </div>
@@ -297,7 +420,7 @@ export function NewSessionView() {
           <div className="form-row">
             <label className={skipPerms ? "label-danger" : undefined}>Skip perms</label>
             <div className="ctrl">
-              <label className={`toggle-row ${skipPerms ? "danger" : ""}`}>
+              <label className="toggle-row">
                 <input
                   type="checkbox"
                   checked={skipPerms}
@@ -305,13 +428,13 @@ export function NewSessionView() {
                   style={{ accentColor: "var(--state-error)" }}
                 />
                 <span className="toggle-text">
-                  <span className="toggle-title toggle-danger">⚠ dangerously-skip-permissions</span>
-                  <span className="toggle-desc">bypass all permission checks — use only in sandboxed envs</span>
+                  <span className={`toggle-title ${skipPerms ? "toggle-danger" : ""}`}>dangerously-skip-permissions</span>
+                  {skipPerms && <span className="inline-warn-badge">⚠ unsandboxed</span>}
                 </span>
               </label>
               {skipPerms && (
                 <div className="danger-banner">
-                  Runs with <code>--dangerously-skip-permissions</code>. <code>rm -rf</code>, <code>git push --force</code>, and network calls run without asking.
+                  <code>rm -rf</code>, <code>git push --force</code>, and network calls run without asking. Use only in sandboxed envs.
                 </div>
               )}
             </div>
@@ -323,7 +446,7 @@ export function NewSessionView() {
           <div className="form-row">
             <label>Prompt</label>
             <div className="ctrl">
-              <textarea rows={6} value={prompt} onChange={(e) => setPrompt(e.target.value)} />
+              <textarea ref={promptRef} rows={6} value={prompt} onChange={(e) => setPrompt(e.target.value)} />
             </div>
           </div>
         </div>
@@ -335,7 +458,10 @@ export function NewSessionView() {
              : "⌘↵ to launch · esc to cancel"}
           </span>
           <button className="btn ghost" onClick={() => { setPendingLaunch(false); router.push("/"); }}>Cancel</button>
-          <button className="btn primary" disabled={busy} onClick={submit}>{busy ? "Launching…" : "Launch session"}</button>
+          <button className="btn primary" disabled={busy} onClick={submit}>
+            {busy && <span className="spinner-dot" />}
+            {busy ? "Launching…" : "Launch session"}
+          </button>
         </div>
       </div>
     </div>

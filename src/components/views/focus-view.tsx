@@ -1,13 +1,44 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCockpit } from "@/lib/client/store";
+import type { Effort } from "@/lib/shared/types";
+import { EFFORT_LEVELS_BY_MODEL } from "@/lib/shared/types";
 import { STATE_META } from "../shell/state-meta";
 import { PtyTerminal } from "../terminal/pty-terminal";
+
+function fmtCost(n: number): string {
+  if (!n) return "$0.00";
+  if (n >= 10_000) return `$${(n / 1_000).toFixed(1)}k`;
+  if (n >= 100) return `$${n.toFixed(0)}`;
+  if (n >= 1) return `$${n.toFixed(2)}`;
+  return `$${n.toFixed(3)}`;
+}
+
+function fmtElapsedMs(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const m = Math.floor(s / 60);
+  const h = Math.floor(m / 60);
+  if (h > 0) return `${h}h ${(m % 60).toString().padStart(2, "0")}m`;
+  return `${m.toString().padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`;
+}
 
 export function FocusView({ id }: { id: string }) {
   const router = useRouter();
   const s = useCockpit((st) => st.sessions[id]);
+  const [resuming, setResuming] = useState(false);
+  const [resumeError, setResumeError] = useState<string | null>(null);
+  const [killing, setKilling] = useState(false);
+  const [killError, setKillError] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+
+  const isTicking = !!s && s.state !== "done" && s.state !== "error";
+  useEffect(() => {
+    if (!isTicking) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [isTicking]);
 
   if (!s) {
     return (
@@ -18,6 +49,72 @@ export function FocusView({ id }: { id: string }) {
   }
 
   const meta = STATE_META[s.state];
+  const isLiveTracked = s.id.startsWith("cli_");
+  const isOwned = s.id.startsWith("s_");
+  const isActive = isOwned && s.state !== "done" && s.state !== "error";
+  const effortLevels = EFFORT_LEVELS_BY_MODEL[s.model];
+  const effortSupported = effortLevels.length > 0;
+
+  async function handleEffortChange(next: Effort) {
+    if (!s || !isActive) return;
+    try {
+      await fetch(`/api/sessions/${s.id}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "set_effort", effort: next }),
+      });
+    } catch { /* ignore */ }
+  }
+  const canResume = isLiveTracked && !!s.resumeSessionId && !!s.cwd && s.state !== "done" && s.state !== "error";
+  const canKill = true;
+  const isDead = s.state === "done" || s.state === "error";
+
+  async function handleKill() {
+    if (!s || !canKill) return;
+    const verb = isDead ? "delete" : "kill";
+    if (!window.confirm(`${verb[0]!.toUpperCase()}${verb.slice(1)} session ${s.id}?`)) return;
+    setKilling(true);
+    setKillError(null);
+    try {
+      const res = await fetch(`/api/sessions/${s.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      router.push("/");
+    } catch (err) {
+      setKillError(err instanceof Error ? err.message : String(err));
+      setKilling(false);
+    }
+  }
+
+  async function handleResume() {
+    if (!s || !s.resumeSessionId || !s.cwd) return;
+    setResuming(true);
+    setResumeError(null);
+    try {
+      const res = await fetch("/api/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          project: s.project,
+          cwd: s.cwd,
+          name: s.name,
+          model: s.model,
+          prompt: "",
+          allowedTools: [],
+          approvalMode: "prompt",
+          resumeSessionId: s.resumeSessionId,
+        }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
+      const { id: newId } = (await res.json()) as { id: string };
+      router.push(`/sessions/${newId}`);
+    } catch (err) {
+      setResumeError(err instanceof Error ? err.message : String(err));
+      setResuming(false);
+    }
+  }
 
   return (
     <div className="focus-shell">
@@ -27,11 +124,37 @@ export function FocusView({ id }: { id: string }) {
           <span className="path">{s.project}/</span>
           <h2>{s.name}</h2>
           <div className="actions">
+            {canResume && (
+              <button onClick={handleResume} disabled={resuming} title="Spawn an interactive PTY that resumes this CLI session">
+                {resuming ? "Resuming…" : "Resume interactive"}
+              </button>
+            )}
             <button>Pause</button>
             <button>Fork</button>
+            {canKill && (
+              <button
+                className="danger"
+                onClick={handleKill}
+                disabled={killing}
+                title={isDead ? "Remove this session from the registry" : "Stop this session and remove it"}
+              >
+                {killing ? "Killing…" : isDead ? "Delete" : "Kill"}
+              </button>
+            )}
             <button className="close" onClick={() => router.push("/")}>esc ✕</button>
           </div>
         </div>
+        {isLiveTracked && (
+          <div className="focus-banner muted" style={{ padding: "6px 12px", fontSize: 12 }}>
+            Read-only: detected from ~/.claude/projects/.{canResume && " Use Resume interactive to attach a new PTY."}
+            {resumeError && <span style={{ color: "var(--state-error, #ef4444)", marginLeft: 8 }}>· {resumeError}</span>}
+          </div>
+        )}
+        {killError && (
+          <div className="focus-banner" style={{ padding: "6px 12px", fontSize: 12, color: "var(--state-error, #ef4444)" }}>
+            Kill failed: {killError}
+          </div>
+        )}
         <div className="focus-body">
           {s.id.startsWith("s_") && s.state !== "done" && s.state !== "error" ? (
             <div className="focus-pty">
@@ -64,13 +187,35 @@ export function FocusView({ id }: { id: string }) {
             <div className="kv"><span className="k">model</span><span className="v">{s.model}</span></div>
             <div className="kv"><span className="k">state</span><span className="v" style={{ color: meta.color }}>{meta.label}</span></div>
             <div className="kv"><span className="k">tool</span><span className="v">{s.tool ?? "—"}</span></div>
-            <div className="kv"><span className="k">elapsed</span><span className="v">{s.elapsed}</span></div>
+            <div className="kv"><span className="k">elapsed</span><span className="v">{isTicking && s.startedAt ? fmtElapsedMs(now - s.startedAt) : s.elapsed}</span></div>
           </div>
         </div>
+        {isOwned && (
+          <div className="focus-side-group">
+            <h3>Effort</h3>
+            {!effortSupported ? (
+              <div className="effort-note">not supported on {s.model}</div>
+            ) : (
+              <div className="model-segment" role="radiogroup" aria-label="Effort">
+                {effortLevels.map((lvl) => (
+                  <button
+                    key={lvl}
+                    type="button"
+                    role="radio"
+                    aria-checked={s.effort === lvl}
+                    disabled={!isActive}
+                    className={s.effort === lvl ? "on" : ""}
+                    onClick={() => void handleEffortChange(lvl)}
+                  >{lvl}</button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <div className="focus-side-group">
           <h3>Cost</h3>
           <div className="kv-list">
-            <div className="kv"><span className="k">so far</span><span className="v">${s.cost.toFixed(2)}</span></div>
+            <div className="kv"><span className="k">so far</span><span className="v">{fmtCost(s.cost)}</span></div>
             <div className="kv"><span className="k">tools used</span><span className="v">{s.toolsUsed}</span></div>
           </div>
         </div>

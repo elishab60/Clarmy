@@ -39,6 +39,8 @@ const EVENT_META: Record<HookEvent, { color: string; desc: string }> = {
   SubagentStop:     { color: "var(--fg-dim)",       desc: "Fires when a subagent completes its task." },
 };
 
+const RUN_COLS = "minmax(140px, 1fr) 70px 90px 110px";
+
 export function HooksPage() {
   const [selectedId, setSelectedId] = useState<string>(HOOKS[0]!.id);
   const [enabledMap, setEnabledMap] = useState<Record<string, boolean>>(
@@ -132,30 +134,32 @@ export function HooksPage() {
           <h3 style={{ margin: "0 0 10px", fontSize: 9.5, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--fg-faint)", fontFamily: "var(--font-mono)", fontWeight: 500 }}>
             Runs · last 7 days
           </h3>
-          <div className="tools-table">
-            <div className="trow head">
-              <span>session</span>
-              <span>exit</span>
-              <span style={{ textAlign: "right" }}>ms</span>
-              <span style={{ textAlign: "right" }}>when</span>
-            </div>
-            <div className="trow">
-              <span className="tname">sess-9a12</span>
-              <span className="tdesc">0</span>
-              <span className="ncalls">{active.avgMs}</span>
-              <span className="ncalls">{active.lastRun}</span>
-            </div>
-            <div className="trow">
-              <span className="tname">sess-9a08</span>
-              <span className="tdesc">0</span>
-              <span className="ncalls">{Math.floor(active.avgMs * 0.9)}</span>
-              <span className="ncalls">18m ago</span>
-            </div>
-            <div className="trow">
-              <span className="tname">sess-9a04</span>
-              <span className="tdesc" style={{ color: "var(--state-error)" }}>1</span>
-              <span className="ncalls">{Math.floor(active.avgMs * 1.8)}</span>
-              <span className="ncalls">1h ago</span>
+          <div className="table-scroll">
+            <div className="tools-table runs-table" style={{ minWidth: 520 }}>
+              <div className="trow head" style={{ gridTemplateColumns: RUN_COLS }}>
+                <span>session</span>
+                <span>exit</span>
+                <span style={{ textAlign: "right" }}>ms</span>
+                <span style={{ textAlign: "right" }}>when</span>
+              </div>
+              <div className="trow" style={{ gridTemplateColumns: RUN_COLS }}>
+                <span className="tname">sess-9a12</span>
+                <span className="tdesc">0</span>
+                <span className="ncalls">{active.avgMs}</span>
+                <span className="ncalls">{active.lastRun}</span>
+              </div>
+              <div className="trow" style={{ gridTemplateColumns: RUN_COLS }}>
+                <span className="tname">sess-9a08</span>
+                <span className="tdesc">0</span>
+                <span className="ncalls">{Math.floor(active.avgMs * 0.9)}</span>
+                <span className="ncalls">18m ago</span>
+              </div>
+              <div className="trow" style={{ gridTemplateColumns: RUN_COLS }}>
+                <span className="tname">sess-9a04</span>
+                <span className="tdesc" style={{ color: "var(--state-error)" }}>1</span>
+                <span className="ncalls">{Math.floor(active.avgMs * 1.8)}</span>
+                <span className="ncalls">1h ago</span>
+              </div>
             </div>
           </div>
         </div>

@@ -1,11 +1,11 @@
 import type { SessionState } from "@/lib/shared/types";
 
 export const STATE_META: Record<SessionState, { label: string; color: string; cssVar: string }> = {
-  running: { label: "running", color: "#4a9eff", cssVar: "var(--state-running)" },
-  tool_use: { label: "tool use", color: "#a78bfa", cssVar: "var(--state-tool)" },
-  approval: { label: "approval", color: "#f5a524", cssVar: "var(--state-approval)" },
+  running: { label: "running", color: "#eab308", cssVar: "var(--state-working)" },
+  tool_use: { label: "tool use", color: "#eab308", cssVar: "var(--state-working)" },
+  approval: { label: "approval", color: "#ef4444", cssVar: "var(--state-waiting)" },
   error: { label: "error", color: "#ef4444", cssVar: "var(--state-error)" },
-  idle: { label: "idle", color: "#6b7280", cssVar: "var(--state-idle)" },
+  idle: { label: "waiting", color: "#22c55e", cssVar: "var(--state-done)" },
   done: { label: "done", color: "#22c55e", cssVar: "var(--state-done)" },
 };
 

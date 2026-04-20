@@ -79,10 +79,12 @@ export function McpPage() {
               <span className="tool-count">{s.toolCount || s.callCount}</span>
             </button>
           ))}
-          {filtered.length === 0 && !loading && <div style={{ padding: 24, textAlign: "center", color: "var(--fg-muted)", fontSize: 11.5 }}>No servers.</div>}
+          {filtered.length === 0 && !loading && <div className="mcp-empty">No servers.</div>}
         </div>
 
-        {active && <McpDetail server={active} onToggle={() => onToggle(active.id)} onDelete={() => onDelete(active.id)} onRefresh={refresh} />}
+        {active
+          ? <McpDetail server={active} onToggle={() => onToggle(active.id)} onDelete={() => onDelete(active.id)} onRefresh={refresh} />
+          : <div className="mcp-empty">Select a server to view details.</div>}
       </div>
 
       {addOpen && <McpAddModal onClose={() => setAddOpen(false)} onDone={() => { setAddOpen(false); refresh(); }} />}
