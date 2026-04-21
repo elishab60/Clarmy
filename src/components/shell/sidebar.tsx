@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCockpit } from "@/lib/client/store";
 import { Icon, type IconName } from "./icons";
 import { Clawd } from "./clawd";
@@ -103,8 +103,13 @@ export function Sidebar() {
 
       <div className="nav-group">
         <div className="nav-label">Navigation</div>
-        {NAV_PRIMARY.map((n) => (
-          <Link key={n.k} href={n.href} className={`nav-item ${isActive(n.href, n.k) ? "active" : ""}`}>
+        {NAV_PRIMARY.map((n, i) => (
+          <Link
+            key={n.k}
+            href={n.href}
+            className={`nav-item ${isActive(n.href, n.k) ? "active" : ""}`}
+            style={{ animationDelay: `${i * 32}ms` }}
+          >
             <Icon name={n.icon} />{n.label}
             <span className="badge">{BADGES[n.k] ?? "—"}</span>
           </Link>
@@ -113,8 +118,13 @@ export function Sidebar() {
 
       <div className="nav-group">
         <div className="nav-label">Config</div>
-        {NAV_CONFIG.map((n) => (
-          <Link key={n.k} href={n.href} className={`nav-item ${isActive(n.href, n.k) ? "active" : ""}`}>
+        {NAV_CONFIG.map((n, i) => (
+          <Link
+            key={n.k}
+            href={n.href}
+            className={`nav-item ${isActive(n.href, n.k) ? "active" : ""}`}
+            style={{ animationDelay: `${(NAV_PRIMARY.length + i) * 32}ms` }}
+          >
             <Icon name={n.icon} />{n.label}
           </Link>
         ))}
@@ -124,11 +134,11 @@ export function Sidebar() {
         <div className="nav-label" style={{ padding: "4px 4px 6px" }}>Alerts</div>
         <div className={`alert-row ${approvals > 0 ? "amber" : ""}`}>
           <span>Pending approvals</span>
-          <span className="v">{approvals}</span>
+          <span className="v"><CountUp value={approvals} /></span>
         </div>
         <div className="alert-row">
           <span>Sessions total</span>
-          <span className="v">{count}</span>
+          <span className="v"><CountUp value={count} /></span>
         </div>
       </div>
     </aside>
@@ -139,4 +149,29 @@ function fmtShort(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
   return String(n);
+}
+
+function CountUp({ value, duration = 520 }: { value: number; duration?: number }) {
+  const [display, setDisplay] = useState(value);
+  const fromRef = useRef(value);
+  const rafRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const from = fromRef.current;
+    const to = value;
+    if (from === to) return;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      const cur = Math.round(from + (to - from) * eased);
+      setDisplay(cur);
+      if (t < 1) rafRef.current = requestAnimationFrame(tick);
+      else fromRef.current = to;
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => { if (rafRef.current != null) cancelAnimationFrame(rafRef.current); };
+  }, [value, duration]);
+
+  return <>{display}</>;
 }

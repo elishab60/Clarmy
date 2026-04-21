@@ -1,9 +1,37 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import type { SkillRow } from "../skills-page";
+import { ToggleSwitch } from "@/components/ui/toggle-switch";
 
 interface Invocation { skillName: string; sessionId: string; ts: number; ok: boolean; prompt: string; }
+
+const labelCell: CSSProperties = {
+  fontSize: 11,
+  fontWeight: 500,
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
+  color: "var(--fg-muted)",
+  whiteSpace: "nowrap",
+  paddingTop: 2,
+};
+const valueCell: CSSProperties = {
+  fontSize: 13,
+  color: "var(--fg)",
+  lineHeight: 1.5,
+};
+const monoValue: CSSProperties = {
+  fontFamily: "var(--font-mono)",
+  fontSize: 11,
+  color: "var(--fg-muted)",
+  lineHeight: 1.5,
+  wordBreak: "break-all",
+  overflowWrap: "anywhere",
+};
+
+function KindBadge({ kind }: { kind: "rigid" | "flexible" | "beta" }) {
+  return <span className={`kind-badge kind-${kind}`}>{kind}</span>;
+}
 
 export function SkillDetail({ skill, onToggle }: { skill: SkillRow; onToggle: () => void }) {
   const [body, setBody] = useState<string | null>(null);
@@ -29,46 +57,64 @@ export function SkillDetail({ skill, onToggle }: { skill: SkillRow; onToggle: ()
   return (
     <div className="mcp-detail">
       <div className="row-h">
-        <h2>{skill.name}</h2>
+        <h2 title={skill.name}>{skill.name}</h2>
         <span className="id">{skill.plugin}:{skill.name}</span>
         <span className="status-pill" style={!skill.enabled ? { color: "var(--fg-muted)", background: "rgba(255,255,255,0.04)", boxShadow: "inset 0 0 0 1px var(--border)" } : undefined}>
           {skill.enabled ? "enabled" : "disabled"}
         </span>
-        <span className={`tperm ${skill.kind === "rigid" ? "ask" : ""}`} style={{ justifySelf: "unset" }}>{skill.kind}</span>
-        <div className="right-actions">
+        <KindBadge kind={skill.kind} />
+        <div className="right-actions" style={{ alignItems: "center", gap: 10 }}>
           <button className="btn" onClick={loadBody}>{showBody ? "Hide body" : "View skill"}</button>
-          {!skill.userLevel && <button className="btn" onClick={onToggle}>{skill.enabled ? "Disable" : "Enable"}</button>}
+          {!skill.userLevel && (
+            <ToggleSwitch
+              checked={skill.enabled}
+              onChange={onToggle}
+              label={`Toggle ${skill.name}`}
+            />
+          )}
         </div>
       </div>
 
-      <p style={{ margin: "0 0 18px", color: "var(--fg-dim)", fontSize: 13, lineHeight: 1.55 }}>{skill.description}</p>
+      <p style={{ margin: "0 0 22px", color: "var(--fg)", fontSize: 14, lineHeight: 1.65 }}>{skill.description}</p>
 
       <div className="field-grid">
-        <div className="k">Source</div>
-        <div className="v" style={{ fontFamily: "var(--font-mono)", fontSize: 11.5, color: "var(--fg-muted)", paddingTop: 8 }}>{skill.path}</div>
-        <div className="k">Trigger</div>
-        <div className="v"><input defaultValue={`/${skill.userLevel ? "" : skill.plugin + ":"}${skill.name}`} readOnly /></div>
-        <div className="k">Invocations (7d · 30d)</div>
-        <div className="v" style={{ fontFamily: "var(--font-mono)", fontSize: 11.5, color: "var(--fg)", paddingTop: 8 }}>{skill.invocations7d} · {skill.invocations30d}</div>
+        <div style={labelCell}>Source</div>
+        <div style={monoValue} title={skill.path}>{skill.path}</div>
+        <div style={labelCell}>Trigger</div>
+        <div style={valueCell}><code className="trigger-pill">/{skill.userLevel ? "" : skill.plugin + ":"}{skill.name}</code></div>
+        <div style={labelCell}>Invocations</div>
+        <div style={{ ...valueCell, fontFamily: "var(--font-mono)" }}>
+          <span style={{ color: "var(--fg)" }}>{skill.invocations7d}</span>
+          <span style={{ color: "var(--fg-muted)", margin: "0 6px" }}>·</span>
+          <span style={{ color: "var(--fg-dim)" }}>{skill.invocations30d}</span>
+          <span style={{ color: "var(--fg-muted)", marginLeft: 8, fontSize: 11 }}>(7d · 30d)</span>
+        </div>
       </div>
 
       {showBody && body && (
-        <pre style={{ maxHeight: 320, overflow: "auto", padding: 12, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 4, fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--fg-dim)", marginBottom: 18, whiteSpace: "pre-wrap" }}>{body}</pre>
+        <pre style={{ maxHeight: 320, overflow: "auto", padding: 14, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 6, fontSize: 11.5, lineHeight: 1.55, fontFamily: "var(--font-mono)", color: "var(--fg-dim)", margin: "18px 0", whiteSpace: "pre-wrap" }}>{body}</pre>
       )}
 
-      <h3 style={{ margin: "0 0 10px", fontSize: 9.5, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--fg-faint)", fontFamily: "var(--font-mono)", fontWeight: 500 }}>Recent invocations</h3>
-      <div className="tools-table">
-        <div className="trow head"><span>session</span><span>prompt</span><span style={{ textAlign: "right" }}>when</span><span style={{ textAlign: "right" }}>ok</span></div>
-        {invs.length === 0 && <div className="trow"><span className="tdesc" style={{ gridColumn: "1 / -1", color: "var(--fg-muted)" }}>no invocations recorded</span></div>}
-        {invs.map((r, i) => (
-          <div key={`${r.sessionId}-${i}`} className="trow">
-            <span className="tname">{r.sessionId.slice(0, 8)}</span>
-            <span className="tdesc">{r.prompt || "(tool_use)"}</span>
-            <span className="ncalls">{r.ts ? new Date(r.ts).toLocaleString() : "—"}</span>
-            <span className={`tperm ${r.ok ? "" : "ask"}`} style={!r.ok ? { color: "var(--state-error)" } : undefined}>{r.ok ? "ok" : "err"}</span>
-          </div>
-        ))}
-      </div>
+      <h3 className="metric-h" style={{ marginTop: 24 }}>Recent invocations</h3>
+      <table className="skill-runs-table">
+        <thead>
+          <tr><th>session</th><th>prompt</th><th className="t-right">when</th><th className="t-right">ok</th></tr>
+        </thead>
+        <tbody>
+          {invs.length === 0 && <tr><td colSpan={4} className="empty-cell">no invocations recorded</td></tr>}
+          {invs.map((r, i) => {
+            const isTool = !r.prompt;
+            return (
+              <tr key={`${r.sessionId}-${i}`}>
+                <td className="sess">{r.sessionId.slice(0, 8)}</td>
+                <td className="prompt" title={r.prompt || "(tool_use)"}><span className={isTool ? "tool-use" : undefined}>{r.prompt || "(tool_use)"}</span></td>
+                <td className="when">{r.ts ? new Date(r.ts).toLocaleString() : "—"}</td>
+                <td className="ok-cell"><span className={`ok-badge ${r.ok ? "is-ok" : "is-err"}`}>{r.ok ? "ok" : "err"}</span></td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }

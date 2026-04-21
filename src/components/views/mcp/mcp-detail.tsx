@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import type { ServerRow } from "../mcp-page";
 import { McpLogsDrawer } from "./mcp-logs-drawer";
+import { ToggleSwitch } from "@/components/ui/toggle-switch";
+import { KebabMenu } from "@/components/ui/kebab-menu";
 
 interface Tool { name: string; callCount: number; lastTs: number | null; }
 
-export function McpDetail({ server, onToggle, onDelete, onRefresh }: {
-  server: ServerRow; onToggle: () => void; onDelete: () => void; onRefresh: () => void;
+export function McpDetail({ server, onToggle, onDelete, onRefresh, onConfigure }: {
+  server: ServerRow; onToggle: () => void; onDelete: () => void; onRefresh: () => void; onConfigure: () => void;
 }) {
   const [tools, setTools] = useState<Tool[]>([]);
   const [probe, setProbe] = useState<{ ok?: boolean; tools?: string[]; latencyMs?: number; error?: string; skipped?: boolean; reason?: string } | null>(null);
@@ -38,11 +40,19 @@ export function McpDetail({ server, onToggle, onDelete, onRefresh }: {
         <span className="id">{server.transport} · timeout {server.timeoutMs}ms</span>
         {server.status === "on"  ? <span className="status-pill">enabled</span>
          : <span className="status-pill" style={{ color: "var(--fg-muted)", background: "rgba(255,255,255,0.04)", boxShadow: "inset 0 0 0 1px var(--border)" }}>disabled</span>}
-        <div className="right-actions">
+        <div className="right-actions" style={{ alignItems: "center", gap: 8 }}>
           <button className="btn" onClick={runTest} disabled={testing}>{testing ? "Testing…" : "Test connection"}</button>
           <button className="btn" onClick={() => setLogsOpen(true)}>View logs</button>
-          <button className="btn" onClick={onToggle}>{server.status === "on" ? "Disable" : "Enable"}</button>
-          <button className="btn" style={{ color: "var(--state-error)" }} onClick={onDelete}>Delete</button>
+          <button className="btn primary" onClick={onConfigure}>Configure</button>
+          <ToggleSwitch checked={server.status === "on"} onChange={onToggle} label={`${server.status === "on" ? "Disable" : "Enable"} ${server.name}`} />
+          <KebabMenu
+            ariaLabel={`More actions for ${server.name}`}
+            actions={[
+              { label: "Edit config", onSelect: onConfigure },
+              { label: server.status === "on" ? "Disable" : "Enable", onSelect: onToggle },
+              { label: "Delete", danger: true, onSelect: onDelete },
+            ]}
+          />
         </div>
       </div>
 

@@ -86,7 +86,9 @@ export function Tile({ s }: { s: SessionSnapshot }) {
         <div className="tile-title">
           <span className="path">{s.project}/</span>{s.name}
         </div>
-        <span className="tile-model">{s.model}</span>
+        <span className="state">{meta.label}</span>
+        {s.tool && <><span className="dot-sep">·</span><span className="tool">{s.tool}</span></>}
+        <span className="elapsed">{elapsed}</span>
         <div className="tile-kebab-wrap" ref={menuRef} onClick={stop}>
           <button
             className="tile-kebab"
@@ -107,12 +109,6 @@ export function Tile({ s }: { s: SessionSnapshot }) {
             </div>
           )}
         </div>
-      </div>
-
-      <div className="tile-status">
-        <span className="state">{meta.label}</span>
-        {s.tool && <><span className="dot-sep">·</span><span className="tool">{s.tool}</span></>}
-        <span className="elapsed">{elapsed}</span>
       </div>
 
       <div className="tile-body" onClick={(e) => { if (s.id.startsWith("s_")) e.stopPropagation(); }}>

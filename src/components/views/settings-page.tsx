@@ -1,16 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { ApprovalMode, ModelId } from "@/lib/shared/types";
+import { ToggleSwitch } from "@/components/ui/toggle-switch";
+import { Segmented } from "@/components/ui/segmented";
+import { MoonIcon, SunIcon, MonitorIcon, EyeIcon, EyeOffIcon } from "@/components/ui/icons";
 
-type Tab = "general" | "models" | "approvals" | "telemetry" | "account";
+type Tab = "general" | "models" | "approvals" | "telemetry";
 
 const TABS: { id: Tab; label: string; ico: string; desc: string }[] = [
   { id: "general",   label: "General",   ico: "◐", desc: "Theme, runtime, notify" },
   { id: "models",    label: "Models",    ico: "◆", desc: "Default & provider"    },
   { id: "approvals", label: "Approvals", ico: "✓", desc: "Tool gating rules"     },
   { id: "telemetry", label: "Telemetry", ico: "◉", desc: "Local logs & redact"   },
-  { id: "account",   label: "Account",   ico: "◎", desc: "Identity & plan"       },
 ];
 
 const DEFAULT_ALLOW = `Read
@@ -30,6 +32,10 @@ function countRules(text: string): number {
   return text.split("\n").filter((l) => l.trim().length > 0).length;
 }
 
+const cardStyle: CSSProperties = { padding: 0, borderRadius: 8 };
+const rowStyle: CSSProperties = { position: "relative", padding: "6px 0" };
+const riseOf = (i: number): CSSProperties => ({ animation: "metric-rise .5s cubic-bezier(.2,.7,.2,1) both", animationDelay: `${i * 40}ms` });
+
 export function SettingsPage() {
   const [tab, setTab] = useState<Tab>("general");
   const [defaultModel, setDefaultModel] = useState<ModelId>("opus-4.7");
@@ -41,347 +47,336 @@ export function SettingsPage() {
   const [allowList, setAllowList] = useState(DEFAULT_ALLOW);
   const [denyList, setDenyList] = useState(DEFAULT_DENY);
   const [dirty, setDirty] = useState(false);
+  const [hoverTab, setHoverTab] = useState<Tab | null>(null);
+  const [revealKey, setRevealKey] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("cockpit:theme");
+      if (saved === "dark" || saved === "light" || saved === "system") setTheme(saved);
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    try { localStorage.setItem("cockpit:theme", theme); } catch { /* ignore */ }
+    if (typeof document !== "undefined") {
+      const resolved = theme === "system"
+        ? (window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+        : theme;
+      document.documentElement.dataset.theme = resolved;
+    }
+  }, [theme]);
 
   const mark = <T,>(set: (v: T) => void) => (v: T) => { set(v); setDirty(true); };
 
   const onSave = () => setDirty(false);
   const onReset = () => {
-    setDefaultModel("opus-4.7");
-    setDefaultApproval("prompt");
-    setMaxParallel(6);
-    setTheme("dark");
-    setTelemetry(true);
-    setNotifications(true);
-    setAllowList(DEFAULT_ALLOW);
-    setDenyList(DEFAULT_DENY);
-    setDirty(false);
+    setDefaultModel("opus-4.7"); setDefaultApproval("prompt"); setMaxParallel(6);
+    setTheme("dark"); setTelemetry(true); setNotifications(true);
+    setAllowList(DEFAULT_ALLOW); setDenyList(DEFAULT_DENY); setDirty(false);
   };
+
+  const saveStyle: CSSProperties = {
+    transition: "box-shadow .3s",
+    boxShadow: dirty ? "0 0 0 1px color-mix(in srgb, var(--brand) 55%, transparent), 0 0 22px -4px color-mix(in srgb, var(--brand) 60%, transparent)" : undefined,
+  };
+
+  let i = 0;
+  const rise = () => riseOf(i++);
 
   return (
     <div className="settings-shell">
       <div className="settings-header">
         <div>
           <h1>Settings</h1>
-          <p className="sub">
-            Per-user preferences for Cockpit. These apply to every new session you spawn from this machine.
-          </p>
+          <p className="sub">Per-user preferences for Cockpit. These apply to every new session you spawn from this machine.</p>
         </div>
         <div className="right">
           {dirty && <span className="settings-dirty">Unsaved</span>}
-          <button className="btn" onClick={onReset}>Reset to defaults</button>
-          <button
-            className="btn primary"
-            onClick={onSave}
-            aria-disabled={!dirty}
-            disabled={!dirty}
-          >
-            Save changes
+          <button className="btn btn-refresh" onClick={onReset} aria-label="Reset to defaults">
+            <RefreshIcon /><span>Reset to defaults</span>
           </button>
+          <button className="btn primary" onClick={onSave} aria-disabled={!dirty} disabled={!dirty} style={saveStyle}>Save changes</button>
         </div>
       </div>
 
       <div className="settings-layout">
         <nav className="settings-nav">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              className={`settings-nav-item ${tab === t.id ? "active" : ""}`}
-              onClick={() => setTab(t.id)}
-            >
-              <span className="ico">{t.ico}</span>
-              <span className="lbl">{t.label}</span>
-              <span className="desc">{t.desc}</span>
-            </button>
-          ))}
+          {TABS.map((t) => {
+            const active = tab === t.id;
+            const hov = hoverTab === t.id;
+            return (
+              <button
+                key={t.id}
+                className={`settings-nav-item ${active ? "active" : ""}`}
+                onClick={() => setTab(t.id)}
+                onMouseEnter={() => setHoverTab(t.id)}
+                onMouseLeave={() => setHoverTab(null)}
+                style={{ position: "relative", background: !active && hov ? "color-mix(in srgb, var(--brand) 6%, transparent)" : undefined, transition: "background .2s, color .2s, border-color .2s" }}
+              >
+                <span className="ico">{t.ico}</span>
+                <span className="lbl">{t.label}</span>
+                <span className="desc">{t.desc}</span>
+                <span aria-hidden style={{ position: "absolute", left: 10, right: 10, bottom: 4, height: 1.5, background: "linear-gradient(90deg, transparent, var(--brand), transparent)", transform: `scaleX(${active ? 1 : 0})`, transformOrigin: "center", transition: "transform .35s cubic-bezier(.2,.7,.2,1)", pointerEvents: "none" }} />
+              </button>
+            );
+          })}
         </nav>
 
-        <div className="settings-panel">
+        <div key={tab} className="settings-panel" style={{ animation: "metric-rise .3s cubic-bezier(.2,.7,.2,1) both" }}>
           {tab === "general" && (
             <>
-              <div className="settings-panel-head">
-                <h2>General</h2>
-                <p className="lede">Appearance, concurrency, and notifications.</p>
-              </div>
-
-              <section className="settings-section">
-                <header className="settings-section-head"><h3>Appearance</h3></header>
-                <div className="settings-section-body">
-                  <div className="field-grid">
-                    <div className="k">Theme</div>
-                    <div className="v">
-                      <div className="model-picker">
-                        {(["dark", "light", "system"] as const).map((v) => (
-                          <button key={v} className={theme === v ? "on" : ""} onClick={() => mark(setTheme)(v)}>{v}</button>
-                        ))}
-                      </div>
-                    </div>
+              <div className="settings-panel-head" style={rise()}><h2>General</h2><p className="lede">Appearance, concurrency, and notifications.</p></div>
+              <Section title="Appearance" style={rise()}>
+                <div className="field-grid">
+                  <div className="k">Theme</div>
+                  <div className="v" style={rowStyle}>
+                    <Segmented
+                      ariaLabel="Theme"
+                      value={theme}
+                      onChange={(v) => mark(setTheme)(v)}
+                      options={[
+                        { value: "dark",   label: <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><MoonIcon /> Dark</span>,   title: "Dark theme" },
+                        { value: "light",  label: <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><SunIcon /> Light</span>,  title: "Light theme" },
+                        { value: "system", label: <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><MonitorIcon /> System</span>, title: "Follow system preference" },
+                      ]}
+                    />
+                    <div className="hint" style={{ marginTop: 8 }}>Saves to <code>localStorage</code> and sets <code>data-theme</code> on the root element.</div>
                   </div>
                 </div>
-              </section>
-
-              <section className="settings-section">
-                <header className="settings-section-head"><h3>Runtime</h3></header>
-                <div className="settings-section-body">
-                  <div className="field-grid">
-                    <div className="k">Max parallel sessions</div>
-                    <div className="v">
-                      <input
-                        type="number"
-                        min={1}
-                        max={24}
-                        value={maxParallel}
-                        onChange={(e) => mark(setMaxParallel)(Number(e.target.value))}
-                        style={{ maxWidth: 120 }}
-                      />
-                      <div className="hint">Hard cap on concurrent SDK generators. Extra launches queue.</div>
-                    </div>
+              </Section>
+              <Section title="Runtime" style={rise()}>
+                <div className="field-grid">
+                  <div className="k">Max parallel sessions</div>
+                  <div className="v" style={rowStyle}>
+                    <FocusInput><input type="number" min={1} max={24} value={maxParallel} onChange={(e) => mark(setMaxParallel)(Number(e.target.value))} style={{ maxWidth: 120 }} /></FocusInput>
+                    <div className="hint">Hard cap on concurrent SDK generators. Extra launches queue.</div>
                   </div>
                 </div>
-              </section>
-
-              <section className="settings-section">
-                <header className="settings-section-head"><h3>Notifications</h3></header>
-                <div className="settings-section-body">
-                  <div className="field-grid">
-                    <div className="k">Desktop notifications</div>
-                    <div className="v">
-                      <button
-                        className={`toggle ${notifications ? "on" : ""}`}
-                        onClick={() => mark(setNotifications)(!notifications)}
-                      >
-                        <span className="sw" />
-                        <span>{notifications ? "on" : "off"}</span>
-                      </button>
-                      <div className="hint">Notify on pending approvals and session errors while Cockpit is in the background.</div>
-                    </div>
-
-                    <div className="k">Command palette</div>
-                    <div className="v">
-                      <input defaultValue="⌘K" readOnly style={{ maxWidth: 120, fontFamily: "var(--font-mono)" }} />
-                    </div>
+              </Section>
+              <Section title="Notifications" style={rise()}>
+                <div className="field-grid">
+                  <div className="k">Desktop notifications</div>
+                  <div className="v" style={rowStyle}>
+                    <ToggleSwitch checked={notifications} onChange={(v) => mark(setNotifications)(v)} label="Desktop notifications" />
+                    <div className="hint">Notify on pending approvals and session errors while Cockpit is in the background.</div>
+                  </div>
+                  <div className="k">Command palette</div>
+                  <div className="v" style={rowStyle}>
+                    <FocusInput><input defaultValue="⌘K" readOnly style={{ maxWidth: 120, fontFamily: "var(--font-mono)" }} /></FocusInput>
                   </div>
                 </div>
-              </section>
+              </Section>
             </>
           )}
 
           {tab === "models" && (
             <>
-              <div className="settings-panel-head">
-                <h2>Models</h2>
-                <p className="lede">Default model and provider routing for new sessions.</p>
-              </div>
-
-              <section className="settings-section">
-                <header className="settings-section-head"><h3>Default</h3></header>
-                <div className="settings-section-body">
-                  <div className="field-grid">
-                    <div className="k">Default model</div>
-                    <div className="v">
-                      <div className="model-picker">
-                        {(["opus-4.7", "sonnet-4.6", "haiku-4.5"] as ModelId[]).map((m) => (
-                          <button key={m} className={defaultModel === m ? "on" : ""} onClick={() => mark(setDefaultModel)(m)}>{m}</button>
-                        ))}
-                      </div>
-                    </div>
+              <div className="settings-panel-head" style={rise()}><h2>Models</h2><p className="lede">Default model and provider routing for new sessions.</p></div>
+              <Section title="Default" style={rise()}>
+                <div className="field-grid">
+                  <div className="k">Default model</div>
+                  <div className="v" style={rowStyle}>
+                    <FocusInput>
+                      <select
+                        value={defaultModel}
+                        onChange={(e) => mark(setDefaultModel)(e.target.value as ModelId)}
+                        style={{ minWidth: 220 }}
+                      >
+                        <option value="opus-4.7">opus-4.7 — deepest reasoning</option>
+                        <option value="sonnet-4.6">sonnet-4.6 — balanced</option>
+                        <option value="haiku-4.5">haiku-4.5 — fastest</option>
+                      </select>
+                    </FocusInput>
+                    <div className="hint">Applied to new sessions. Existing sessions keep their original model.</div>
                   </div>
                 </div>
-              </section>
+              </Section>
 
-              <section className="settings-section">
-                <header className="settings-section-head"><h3>Provider</h3></header>
-                <div className="settings-section-body">
-                  <div className="field-grid">
-                    <div className="k">ANTHROPIC_API_KEY</div>
-                    <div className="v">
-                      <input
-                        defaultValue="sk-ant-api03-********************"
-                        type="password"
-                        style={{ fontFamily: "var(--font-mono)" }}
-                        onChange={() => setDirty(true)}
-                      />
-                      <div className="hint">Read from the environment at boot. Changing requires a restart.</div>
+              <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "24px 0" }} />
+
+              <Section title="Provider" style={rise()}>
+                <div className="field-grid">
+                  <div className="k">ANTHROPIC_API_KEY</div>
+                  <div className="v" style={rowStyle}>
+                    <div style={{ display: "inline-flex", alignItems: "stretch", gap: 6 }}>
+                      <FocusInput>
+                        <input
+                          defaultValue="sk-ant-api03-aX8k2LmN9vQzR4tY7wHcE3bJ5dF1gK6sA2nP0oU8iZ7xC9mV"
+                          type={revealKey ? "text" : "password"}
+                          style={{ fontFamily: "var(--font-mono)", minWidth: 320 }}
+                          onChange={() => setDirty(true)}
+                        />
+                      </FocusInput>
+                      <button
+                        type="button"
+                        className="btn"
+                        onClick={() => setRevealKey((v) => !v)}
+                        aria-label={revealKey ? "Hide API key" : "Reveal API key"}
+                        title={revealKey ? "Hide" : "Reveal"}
+                        style={{ padding: "0 10px", display: "inline-flex", alignItems: "center" }}
+                      >
+                        {revealKey ? <EyeOffIcon /> : <EyeIcon />}
+                      </button>
                     </div>
-                    <div className="k">Base URL</div>
-                    <div className="v">
-                      <input
-                        defaultValue="https://api.anthropic.com"
-                        style={{ fontFamily: "var(--font-mono)" }}
-                        onChange={() => setDirty(true)}
-                      />
-                    </div>
-                    <div className="k">Fallback routing</div>
-                    <div className="v">
-                      <select defaultValue="auto" onChange={() => setDirty(true)}>
+                    <div className="hint">Read from the environment at boot. Changing requires a restart.</div>
+                  </div>
+                  <div className="k">Base URL</div>
+                  <div className="v" style={rowStyle}>
+                    <FocusInput><input defaultValue="https://api.anthropic.com" style={{ fontFamily: "var(--font-mono)", minWidth: 320 }} onChange={() => setDirty(true)} /></FocusInput>
+                    <div className="hint">Override to route requests through a proxy or gateway.</div>
+                  </div>
+                  <div className="k">Fallback routing</div>
+                  <div className="v" style={rowStyle}>
+                    <FocusInput>
+                      <select defaultValue="auto" onChange={() => setDirty(true)} style={{ minWidth: 320 }}>
                         <option value="auto">auto — retry on rate-limit with smaller model</option>
                         <option value="strict">strict — fail fast, never downgrade</option>
                       </select>
-                    </div>
+                    </FocusInput>
+                    <div className="hint">How Cockpit handles 429 rate-limits.</div>
                   </div>
                 </div>
-              </section>
+              </Section>
             </>
           )}
 
           {tab === "approvals" && (
             <>
-              <div className="settings-panel-head">
-                <h2>Approvals</h2>
-                <p className="lede">How Cockpit prompts you before running tools.</p>
+              <div className="settings-panel-head" style={rise()}><h2>Approvals</h2><p className="lede">How Cockpit prompts you before running tools.</p></div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0,1fr))", gap: 10, marginBottom: 14, ...rise() }}>
+                <MiniStat label="Allow rules" value={countRules(allowList)} />
+                <MiniStat label="Deny rules" value={countRules(denyList)} tone="error" />
               </div>
-
-              <section className="settings-section">
-                <header className="settings-section-head"><h3>Mode</h3></header>
-                <div className="settings-section-body">
-                  <div className="field-grid">
-                    <div className="k">Default mode</div>
-                    <div className="v">
-                      <select
-                        value={defaultApproval}
-                        onChange={(e) => mark(setDefaultApproval)(e.target.value as ApprovalMode)}
-                      >
-                        <option value="auto">auto — run all tools without asking</option>
-                        <option value="prompt">prompt — ask before destructive tools</option>
-                        <option value="strict">strict — ask for every tool call</option>
-                      </select>
-                    </div>
+              <Section title="Mode" style={rise()}>
+                <div className="field-grid">
+                  <div className="k">Default mode</div>
+                  <div className="v" style={rowStyle}>
+                    <FocusInput><select value={defaultApproval} onChange={(e) => mark(setDefaultApproval)(e.target.value as ApprovalMode)}>
+                      <option value="auto">auto — run all tools without asking</option>
+                      <option value="prompt">prompt — ask before destructive tools</option>
+                      <option value="strict">strict — ask for every tool call</option>
+                    </select></FocusInput>
                   </div>
                 </div>
-              </section>
-
-              <section className="settings-section">
-                <header className="settings-section-head">
-                  <h3>Auto-approve</h3>
-                  <span className="count">{countRules(allowList)} rules</span>
-                </header>
-                <div className="settings-section-body">
-                  <div className="rule-editor">
-                    <div className="rule-editor-head">
-                      <span className="rcount">allow</span>
-                      <span className="spacer" />
-                      <button className="r-add" type="button">+ add rule</button>
-                    </div>
-                    <textarea
-                      rows={6}
-                      value={allowList}
-                      onChange={(e) => mark(setAllowList)(e.target.value)}
-                    />
-                  </div>
-                  <div className="hint" style={{ fontSize: 10.5, color: "var(--fg-muted)", marginTop: 6 }}>
-                    One rule per line. Use <code>Tool(arg-glob)</code> for scoped matchers.
-                  </div>
+              </Section>
+              <Section title="Auto-approve" head={<span className="count">{countRules(allowList)} rules</span>} style={rise()}>
+                <div className="rule-editor">
+                  <div className="rule-editor-head"><span className="rcount">allow</span><span className="spacer" /><button className="r-add" type="button">+ add rule</button></div>
+                  <FocusInput><textarea rows={6} value={allowList} onChange={(e) => mark(setAllowList)(e.target.value)} /></FocusInput>
                 </div>
-              </section>
-
-              <section className="settings-section">
-                <header className="settings-section-head">
-                  <h3>Deny</h3>
-                  <span className="count">{countRules(denyList)} rules</span>
-                </header>
-                <div className="settings-section-body">
-                  <div className="rule-editor">
-                    <div className="rule-editor-head">
-                      <span className="rcount" style={{ color: "var(--state-error)" }}>deny</span>
-                      <span className="spacer" />
-                      <button className="r-add" type="button">+ add rule</button>
-                    </div>
-                    <textarea
-                      rows={4}
-                      value={denyList}
-                      onChange={(e) => mark(setDenyList)(e.target.value)}
-                    />
-                  </div>
+                <div className="hint" style={{ fontSize: 10.5, color: "var(--fg-muted)", marginTop: 6 }}>One rule per line. Use <code>Tool(arg-glob)</code> for scoped matchers.</div>
+              </Section>
+              <Section title="Deny" head={<span className="count">{countRules(denyList)} rules</span>} style={rise()}>
+                <div className="rule-editor">
+                  <div className="rule-editor-head"><span className="rcount" style={{ color: "var(--state-error)" }}>deny</span><span className="spacer" /><button className="r-add" type="button">+ add rule</button></div>
+                  <FocusInput><textarea rows={4} value={denyList} onChange={(e) => mark(setDenyList)(e.target.value)} /></FocusInput>
                 </div>
-              </section>
+              </Section>
             </>
           )}
 
           {tab === "telemetry" && (
             <>
-              <div className="settings-panel-head">
-                <h2>Telemetry</h2>
-                <p className="lede">What Cockpit records about your sessions. Nothing leaves your machine.</p>
-              </div>
-
-              <section className="settings-section">
-                <header className="settings-section-head"><h3>Storage</h3></header>
-                <div className="settings-section-body">
-                  <div className="field-grid">
-                    <div className="k">Local session logs</div>
-                    <div className="v">
-                      <button
-                        className={`toggle ${telemetry ? "on" : ""}`}
-                        onClick={() => mark(setTelemetry)(!telemetry)}
-                      >
-                        <span className="sw" />
-                        <span>{telemetry ? "on" : "off"}</span>
-                      </button>
-                      <div className="hint">Persist WS patches to <code>.cockpit/sessions/*.jsonl</code> for replay.</div>
-                    </div>
-                    <div className="k">Retention</div>
-                    <div className="v">
-                      <select defaultValue="30d" onChange={() => setDirty(true)}>
-                        <option value="7d">7 days</option>
-                        <option value="30d">30 days</option>
-                        <option value="forever">keep forever</option>
-                      </select>
-                    </div>
+              <div className="settings-panel-head" style={rise()}><h2>Telemetry</h2><p className="lede">What Cockpit records about your sessions. Nothing leaves your machine.</p></div>
+              <Section title="Storage" style={rise()}>
+                <div className="field-grid">
+                  <div className="k">Local session logs</div>
+                  <div className="v" style={rowStyle}>
+                    <ToggleSwitch checked={telemetry} onChange={(v) => mark(setTelemetry)(v)} label="Local session logs" />
+                    <div className="hint">Persist WS patches to <code>.cockpit/sessions/*.jsonl</code> for replay.</div>
+                  </div>
+                  <div className="k">Retention</div>
+                  <div className="v" style={rowStyle}>
+                    <FocusInput><select defaultValue="30d" onChange={() => setDirty(true)}>
+                      <option value="7d">7 days</option><option value="30d">30 days</option><option value="forever">keep forever</option>
+                    </select></FocusInput>
                   </div>
                 </div>
-              </section>
-
-              <section className="settings-section">
-                <header className="settings-section-head"><h3>Privacy</h3></header>
-                <div className="settings-section-body">
-                  <div className="field-grid">
-                    <div className="k">Redact secrets</div>
-                    <div className="v">
-                      <select defaultValue="on" onChange={() => setDirty(true)}>
-                        <option value="on">on — mask env, tokens, passwords</option>
-                        <option value="off">off — store raw (dangerous)</option>
-                      </select>
-                    </div>
+              </Section>
+              <Section title="Privacy" style={rise()}>
+                <div className="field-grid">
+                  <div className="k">Redact secrets</div>
+                  <div className="v" style={rowStyle}>
+                    <FocusInput><select defaultValue="on" onChange={() => setDirty(true)}>
+                      <option value="on">on — mask env, tokens, passwords</option>
+                      <option value="off">off — store raw (dangerous)</option>
+                    </select></FocusInput>
                   </div>
                 </div>
-              </section>
+              </Section>
             </>
           )}
 
-          {tab === "account" && (
-            <>
-              <div className="settings-panel-head">
-                <h2>Account</h2>
-                <p className="lede">Signed-in identity and billing scope.</p>
-              </div>
-
-              <section className="settings-section">
-                <header className="settings-section-head"><h3>Identity</h3></header>
-                <div className="settings-section-body">
-                  <div className="account-identity">
-                    <div className="account-avatar">E</div>
-                    <div className="who">
-                      <span className="name">elishabajemon</span>
-                      <span className="mail">elishabajemon60@icloud.com</span>
-                    </div>
-                  </div>
-
-                  <div className="kv-readonly">
-                    <div className="k">Workspace</div>
-                    <div className="v">personal</div>
-                    <div className="k">Plan</div>
-                    <div className="v"><span className="plan-pill">Max — 1M context</span></div>
-                    <div className="k">Region</div>
-                    <div className="v">us-east-1</div>
-                  </div>
-                </div>
-                <div className="settings-footnote">
-                  <code>cockpit@0.1.0</code> · Node 24 LTS · @anthropic-ai/claude-agent-sdk
-                </div>
-              </section>
-            </>
-          )}
         </div>
       </div>
     </div>
   );
+}
+
+function Section({ title, head, children, style }: { title: string; head?: ReactNode; children: ReactNode; style?: CSSProperties }) {
+  return (
+    <section className="settings-section metric-card" style={{ ...cardStyle, ...style }}>
+      <div className="mc-glow" />
+      <header className="settings-section-head" style={{ position: "relative" }}>
+        <h3 className="metric-h" style={{ margin: 0, flex: "0 0 auto" }}>{title}</h3>
+        {head}
+      </header>
+      <div className="settings-section-body" style={{ position: "relative" }}>{children}</div>
+    </section>
+  );
+}
+
+function MiniStat({ label, value, tone }: { label: string; value: number; tone?: "error" }) {
+  const err = tone === "error";
+  const c = err ? { color: "var(--state-error)" } : undefined;
+  return (
+    <div className="metric-card" style={{ padding: "12px 14px", borderColor: err ? "color-mix(in srgb, var(--state-error) 38%, var(--border))" : undefined }}>
+      <div className="mc-glow" />
+      <div className="mc-label" style={c}>{label}</div>
+      <div className="mc-value" style={c}><AnimatedNumber value={value} /></div>
+      <div className="mc-foot">{value === 1 ? "rule" : "rules"} configured</div>
+    </div>
+  );
+}
+
+function FocusInput({ children }: { children: ReactNode }) {
+  const [focus, setFocus] = useState(false);
+  return (
+    <span
+      style={{ display: "inline-block", borderRadius: 6, transition: "box-shadow .2s", boxShadow: focus ? "0 0 0 1px color-mix(in srgb, var(--brand) 55%, transparent), 0 0 14px -4px color-mix(in srgb, var(--brand) 50%, transparent)" : undefined }}
+      onFocusCapture={() => setFocus(true)}
+      onBlurCapture={() => setFocus(false)}
+    >
+      {children}
+    </span>
+  );
+}
+
+function RefreshIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9" /><path d="M13.5 2.5v3h-3" />
+    </svg>
+  );
+}
+
+
+function AnimatedNumber({ value }: { value: number }) {
+  const [d, setD] = useState(value);
+  const prev = useRef(value);
+  useEffect(() => {
+    const s = prev.current, dt = value - s;
+    if (Math.abs(dt) < 1e-9) { setD(value); return; }
+    const t0 = performance.now();
+    let raf = 0;
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - t0) / 600);
+      setD(s + dt * (1 - Math.pow(1 - p, 3)));
+      if (p < 1) raf = requestAnimationFrame(tick); else prev.current = value;
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value]);
+  return <>{Math.round(d).toLocaleString()}</>;
 }

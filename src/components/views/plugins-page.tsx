@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { ToggleSwitch } from "@/components/ui/toggle-switch";
+import { KebabMenu } from "@/components/ui/kebab-menu";
 
 interface Plugin {
   readonly id: string;
@@ -29,6 +31,12 @@ const PLUGINS: Plugin[] = [
 
 export function PluginsPage() {
   const [q, setQ] = useState("");
+  const [focused, setFocused] = useState(false);
+  const [flashKey, setFlashKey] = useState(0);
+  const [enabledMap, setEnabledMap] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(PLUGINS.map((p) => [p.id, p.status !== "disabled"]))
+  );
+  useEffect(() => { setFlashKey((k) => k + 1); }, []);
 
   const filtered = PLUGINS.filter((p) =>
     p.name.toLowerCase().includes(q.toLowerCase()) ||
@@ -36,51 +44,133 @@ export function PluginsPage() {
     p.desc.toLowerCase().includes(q.toLowerCase()),
   );
 
+  const isOn = (p: Plugin) => enabledMap[p.id] ?? false;
+  const total = PLUGINS.length;
+  const enabled = PLUGINS.filter((p) => isOn(p)).length;
+  const updates = PLUGINS.filter((p) => p.status === "update").length;
+  const totalSkills = PLUGINS.reduce((a, p) => a + p.skills, 0);
+  const totalAgents = PLUGINS.reduce((a, p) => a + p.agents, 0);
+  const totalHooks = PLUGINS.reduce((a, p) => a + p.hooks, 0);
+  const shipped = totalSkills + totalAgents + totalHooks;
+
+  const maxContent = Math.max(1, ...PLUGINS.map((p) => p.skills + p.agents + p.hooks));
+
   return (
-    <div className="cfg-shell">
+    <div className="cfg-shell metrics-shell">
       <div className="cfg-header">
         <div>
           <h1>Plugins</h1>
           <p className="sub">Installed plugin bundles. Each plugin can ship skills, subagents, and hooks that attach to every Cockpit session.</p>
         </div>
         <div className="right">
-          <button className="btn">Browse marketplace</button>
-          <button className="btn primary">Install from Git</button>
+          <button
+            className="btn"
+            style={{ transition: "border-color .25s, box-shadow .35s, transform .25s" }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = "color-mix(in srgb, var(--brand) 35%, var(--border))"; e.currentTarget.style.boxShadow = "0 8px 22px -14px color-mix(in srgb, var(--brand) 55%, transparent)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = ""; e.currentTarget.style.boxShadow = ""; }}
+          >
+            Browse marketplace
+          </button>
+          <button
+            className="btn primary"
+            style={{ transition: "box-shadow .35s, transform .25s, filter .25s" }}
+            onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 10px 28px -12px color-mix(in srgb, var(--brand) 75%, transparent)"; e.currentTarget.style.filter = "brightness(1.08)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.boxShadow = ""; e.currentTarget.style.filter = ""; }}
+          >
+            Install from Git
+          </button>
         </div>
+      </div>
+
+      <div className="stat-grid">
+        <StatCard flashKey={flashKey} label="Plugins installed" value={total} foot={`${enabled} enabled · ${PLUGINS.length - enabled} off`} accent />
+        <StatCard flashKey={flashKey} label="Updates available" value={updates} foot={updates ? "run Update to refresh" : "all up to date"} />
+        <StatCard flashKey={flashKey} label="Skills shipped"    value={totalSkills} foot={`${shipped} total additions`} />
+        <StatCard flashKey={flashKey} label="Subagents shipped" value={totalAgents} foot="attach to every session" />
+        <StatCard flashKey={flashKey} label="Hooks shipped"     value={totalHooks} foot="pre/post lifecycle" />
       </div>
 
       <div style={{ marginBottom: 14 }}>
         <input
-          style={{ width: 320, padding: "6px 10px", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 4, fontSize: 11.5, color: "var(--fg)" }}
+          style={{
+            width: 320,
+            padding: "6px 10px",
+            background: "var(--bg)",
+            border: `1px solid ${focused ? "color-mix(in srgb, var(--brand) 55%, var(--border))" : "var(--border)"}`,
+            borderRadius: 4,
+            fontSize: 11.5,
+            color: "var(--fg)",
+            outline: "none",
+            transition: "border-color .25s, box-shadow .25s",
+            boxShadow: focused ? "0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent)" : "none",
+          }}
           placeholder="Filter plugins…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
         />
       </div>
 
+      <h3 className="metric-h">Installed plugins</h3>
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 12 }}>
-        {filtered.map((p) => (
-          <div key={p.id} style={{ border: "1px solid var(--border)", borderRadius: 8, background: "var(--bg-tile)", padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span className={`mcp-dot ${p.status === "enabled" ? "on" : p.status === "update" ? "err" : "off"}`} style={{ width: 7, height: 7, borderRadius: "50%" }} />
-              <span style={{ fontSize: 14, color: "var(--fg)", fontWeight: 500 }}>{p.name}</span>
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, color: "var(--fg-muted)", marginLeft: "auto" }}>{p.version}</span>
+        {filtered.map((p, i) => {
+          const content = p.skills + p.agents + p.hooks;
+          const t = content / maxContent;
+          const on = isOn(p);
+          const accent = p.status === "update";
+          const cardStyle: CSSProperties = {
+            padding: "16px 20px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+            animationDelay: `${Math.min(i, 12) * 40}ms`,
+            ["--t" as string]: `${t}`,
+          } as CSSProperties;
+          return (
+            <div key={p.id} className={`metric-card${accent ? " is-accent" : ""}`} style={cardStyle}>
+              <div className="mc-glow" />
+              <div className="mc-sheen" key={flashKey} />
+              <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 10 }}>
+                <span
+                  className={`mcp-dot ${on ? "on" : p.status === "update" ? "err" : "off"}`}
+                  style={{ width: 8, height: 8, borderRadius: "50%", transition: "filter .25s, transform .25s" }}
+                  aria-hidden
+                />
+                <span style={{ fontSize: 14, color: "var(--fg)", fontWeight: 600 }} title={p.name}>{p.name}</span>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, color: "var(--fg-muted)", marginLeft: "auto" }}>{p.version}</span>
+                <ToggleSwitch
+                  checked={on}
+                  onChange={(next) => setEnabledMap((m) => ({ ...m, [p.id]: next }))}
+                  size="sm"
+                  label={`${on ? "Disable" : "Enable"} ${p.name}`}
+                />
+              </div>
+              <div style={{ position: "relative", fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--fg-muted)" }} title={p.source}>{p.source}</div>
+              <p style={{ position: "relative", margin: 0, fontSize: 13, color: "var(--fg-dim)", lineHeight: 1.55, minHeight: 40 }}>{p.desc}</p>
+              <div style={{ position: "relative", display: "flex", gap: 14, fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--fg-muted)" }}>
+                <span><AnimatedNumber value={p.skills} /> skills</span>
+                <span><AnimatedNumber value={p.agents} /> agents</span>
+                <span><AnimatedNumber value={p.hooks} /> hooks</span>
+              </div>
+              <div style={{ position: "relative", display: "flex", gap: 8, marginTop: 6, alignItems: "center" }}>
+                {p.status === "update" && <FooterBtn primary>Update available</FooterBtn>}
+                <FooterBtn>Configure</FooterBtn>
+                <div style={{ marginLeft: "auto" }}>
+                  <KebabMenu
+                    ariaLabel={`Actions for ${p.name}`}
+                    actions={[
+                      { label: "Edit", onSelect: () => { /* open edit */ } },
+                      { label: on ? "Disable" : "Enable", onSelect: () => setEnabledMap((m) => ({ ...m, [p.id]: !on })) },
+                      { label: "Uninstall", danger: true, onSelect: () => { /* uninstall */ } },
+                    ]}
+                  />
+                </div>
+              </div>
             </div>
-            <div style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, color: "var(--fg-muted)" }}>{p.source}</div>
-            <p style={{ margin: 0, fontSize: 12, color: "var(--fg-dim)", lineHeight: 1.5, minHeight: 36 }}>{p.desc}</p>
-            <div style={{ display: "flex", gap: 12, fontFamily: "var(--font-mono)", fontSize: 10.5, color: "var(--fg-muted)" }}>
-              <span>{p.skills} skills</span>
-              <span>{p.agents} agents</span>
-              <span>{p.hooks} hooks</span>
-            </div>
-            <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-              {p.status === "update" && <button className="btn primary" style={{ flex: 1 }}>Update available</button>}
-              {p.status === "enabled" && <button className="btn" style={{ flex: 1 }}>Configure</button>}
-              {p.status === "disabled" && <button className="btn" style={{ flex: 1 }}>Enable</button>}
-              <button className="btn ghost">…</button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
         {filtered.length === 0 && (
           <div style={{ gridColumn: "1 / -1", padding: 40, textAlign: "center", color: "var(--fg-muted)" }}>
             No plugins match “{q}”.
@@ -89,4 +179,66 @@ export function PluginsPage() {
       </div>
     </div>
   );
+}
+
+function StatCard({ label, value, foot, accent = false, flashKey }: { label: string; value: number; foot: string; accent?: boolean; flashKey: number }) {
+  return (
+    <div className={`metric-card${accent ? " is-accent" : ""}`}>
+      <div className="mc-glow" />
+      <div className="mc-sheen" key={flashKey} />
+      <div className="mc-label">{label}</div>
+      <div className="mc-value"><AnimatedNumber value={value} /></div>
+      <div className="mc-foot">{foot}</div>
+    </div>
+  );
+}
+
+function FooterBtn({ children, primary = false, ghost = false }: { children: React.ReactNode; primary?: boolean; ghost?: boolean }) {
+  const cls = `btn${primary ? " primary" : ""}${ghost ? " ghost" : ""}`;
+  const flex = ghost ? undefined : 1;
+  return (
+    <button
+      className={cls}
+      style={{ flex, transition: "border-color .25s, box-shadow .3s, filter .25s, transform .2s" }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = "color-mix(in srgb, var(--brand) 40%, var(--border))";
+        e.currentTarget.style.boxShadow = primary
+          ? "0 10px 26px -12px color-mix(in srgb, var(--brand) 75%, transparent)"
+          : "0 6px 18px -12px color-mix(in srgb, var(--brand) 55%, transparent)";
+        if (primary) e.currentTarget.style.filter = "brightness(1.08)";
+        e.currentTarget.style.transform = "translateY(-1px)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = "";
+        e.currentTarget.style.boxShadow = "";
+        e.currentTarget.style.filter = "";
+        e.currentTarget.style.transform = "";
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function AnimatedNumber({ value }: { value: number }) {
+  const [display, setDisplay] = useState(value);
+  const prevRef = useRef(value);
+  useEffect(() => {
+    const start = prevRef.current;
+    const delta = value - start;
+    if (Math.abs(delta) < 1e-9) { setDisplay(value); return; }
+    const t0 = performance.now();
+    const dur = 850;
+    let raf = 0;
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - t0) / dur);
+      const eased = 1 - Math.pow(1 - p, 3);
+      setDisplay(start + delta * eased);
+      if (p < 1) raf = requestAnimationFrame(tick);
+      else prevRef.current = value;
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value]);
+  return <>{Math.round(display).toLocaleString()}</>;
 }

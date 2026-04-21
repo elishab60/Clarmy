@@ -5,7 +5,6 @@ import { EventBus } from "./events.ts";
 import { SessionRunner } from "./session.ts";
 import { PtyRunner } from "./pty-runner.ts";
 import { MockSessionRunner, loadFixtures } from "./mock.ts";
-import { LiveWatcher } from "../claude-code/live-watcher.ts";
 import type { Effort, SessionSnapshot, SpawnConfig, SessionEvent } from "../shared/types.ts";
 
 const log = createLogger("manager");
@@ -30,59 +29,16 @@ export interface PtyCapable {
 export class SessionManager {
   private readonly runners = new Map<string, Runner>();
   private readonly bus = new EventBus();
-  private readonly live: LiveWatcher | null;
   private mockLoaded = false;
 
-  constructor(private readonly opts: { mock: boolean; fixturesDir: string }) {
-    this.live = opts.mock ? null : new LiveWatcher(this.bus, (cwd) => this.isInternallyOwned(cwd));
-    this.live?.start();
-  }
+  constructor(private readonly opts: { mock: boolean; fixturesDir: string }) {}
 
   list(): SessionSnapshot[] {
-    const own = Array.from(this.runners.values()).map((r) => r.getSnapshot());
-    const external = this.live?.listSnapshots() ?? [];
-    const seen = new Set(own.map((s) => s.id));
-    const ownedCwds = this.activeOwnedCwds();
-    const merged = own.slice();
-    for (const s of external) {
-      if (seen.has(s.id)) continue;
-      if (s.cwd && ownedCwds.has(s.cwd)) continue;
-      merged.push(s);
-    }
-    return merged;
+    return Array.from(this.runners.values()).map((r) => r.getSnapshot());
   }
 
   get(id: string): SessionSnapshot | null {
-    const own = this.runners.get(id)?.getSnapshot();
-    if (own) return own;
-    const ext = this.live?.listSnapshots().find((s) => s.id === id);
-    if (!ext) return null;
-    if (ext.cwd && this.activeOwnedCwds().has(ext.cwd)) return null;
-    return ext;
-  }
-
-  isInternallyOwned(cwd: string | undefined): boolean {
-    return this.resolveOwnedId(cwd) !== null;
-  }
-
-  resolveOwnedId(cwd: string | undefined): string | null {
-    if (!cwd) return null;
-    for (const r of this.runners.values()) {
-      if (!(r instanceof PtyRunner)) continue;
-      const snap = r.getSnapshot();
-      if (snap.cwd === cwd && snap.state !== "done" && snap.state !== "error") return snap.id;
-    }
-    return null;
-  }
-
-  private activeOwnedCwds(): Set<string> {
-    const out = new Set<string>();
-    for (const r of this.runners.values()) {
-      if (!(r instanceof PtyRunner)) continue;
-      const snap = r.getSnapshot();
-      if (snap.cwd && snap.state !== "done" && snap.state !== "error") out.add(snap.cwd);
-    }
-    return out;
+    return this.runners.get(id)?.getSnapshot() ?? null;
   }
 
   async spawn(config: SpawnConfig): Promise<string> {
@@ -124,7 +80,6 @@ export class SessionManager {
       this.bus.emit({ kind: "gone", at: Date.now(), id });
       return true;
     }
-    if (this.live?.forget(id)) return true;
     this.bus.emit({ kind: "gone", at: Date.now(), id });
     return true;
   }

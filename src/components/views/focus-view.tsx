@@ -27,8 +27,6 @@ function fmtElapsedMs(ms: number): string {
 export function FocusView({ id }: { id: string }) {
   const router = useRouter();
   const s = useCockpit((st) => st.sessions[id]);
-  const [resuming, setResuming] = useState(false);
-  const [resumeError, setResumeError] = useState<string | null>(null);
   const [killing, setKilling] = useState(false);
   const [killError, setKillError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -49,7 +47,6 @@ export function FocusView({ id }: { id: string }) {
   }
 
   const meta = STATE_META[s.state];
-  const isLiveTracked = s.id.startsWith("cli_");
   const isOwned = s.id.startsWith("s_");
   const isActive = isOwned && s.state !== "done" && s.state !== "error";
   const effortLevels = EFFORT_LEVELS_BY_MODEL[s.model];
@@ -65,7 +62,6 @@ export function FocusView({ id }: { id: string }) {
       });
     } catch { /* ignore */ }
   }
-  const canResume = isLiveTracked && !!s.resumeSessionId && !!s.cwd && s.state !== "done" && s.state !== "error";
   const canKill = true;
   const isDead = s.state === "done" || s.state === "error";
 
@@ -85,37 +81,6 @@ export function FocusView({ id }: { id: string }) {
     }
   }
 
-  async function handleResume() {
-    if (!s || !s.resumeSessionId || !s.cwd) return;
-    setResuming(true);
-    setResumeError(null);
-    try {
-      const res = await fetch("/api/sessions", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          project: s.project,
-          cwd: s.cwd,
-          name: s.name,
-          model: s.model,
-          prompt: "",
-          allowedTools: [],
-          approvalMode: "prompt",
-          resumeSessionId: s.resumeSessionId,
-        }),
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(body.error ?? `HTTP ${res.status}`);
-      }
-      const { id: newId } = (await res.json()) as { id: string };
-      router.push(`/sessions/${newId}`);
-    } catch (err) {
-      setResumeError(err instanceof Error ? err.message : String(err));
-      setResuming(false);
-    }
-  }
-
   return (
     <div className="focus-shell">
       <section className="focus-main">
@@ -124,11 +89,6 @@ export function FocusView({ id }: { id: string }) {
           <span className="path">{s.project}/</span>
           <h2>{s.name}</h2>
           <div className="actions">
-            {canResume && (
-              <button onClick={handleResume} disabled={resuming} title="Spawn an interactive PTY that resumes this CLI session">
-                {resuming ? "Resuming…" : "Resume interactive"}
-              </button>
-            )}
             <button>Pause</button>
             <button>Fork</button>
             {canKill && (
@@ -144,12 +104,6 @@ export function FocusView({ id }: { id: string }) {
             <button className="close" onClick={() => router.push("/")}>esc ✕</button>
           </div>
         </div>
-        {isLiveTracked && (
-          <div className="focus-banner muted" style={{ padding: "6px 12px", fontSize: 12 }}>
-            Read-only: detected from ~/.claude/projects/.{canResume && " Use Resume interactive to attach a new PTY."}
-            {resumeError && <span style={{ color: "var(--state-error, #ef4444)", marginLeft: 8 }}>· {resumeError}</span>}
-          </div>
-        )}
         {killError && (
           <div className="focus-banner" style={{ padding: "6px 12px", fontSize: 12, color: "var(--state-error, #ef4444)" }}>
             Kill failed: {killError}
