@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" width="100%" role="img" aria-label="SLAVE">
+  <defs>
+    <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff8a5b"/>
+      <stop offset="55%" stop-color="#d97757"/>
+      <stop offset="100%" stop-color="#5a2618"/>
+    </linearGradient>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#140a08"/>
+      <stop offset="100%" stop-color="#0a0605"/>
+    </linearGradient>
+    <filter id="glow" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur stdDeviation="2.2" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" stroke="#1a100d" stroke-width="1" fill="none"/>
+    </pattern>
+    <clipPath id="reveal">
+      <rect x="0" y="0" width="0" height="400">
+        <animate attributeName="width"
+                 values="0;1200;1200;1200;1200"
+                 keyTimes="0;0.28;0.5;0.92;1"
+                 dur="6s" repeatCount="indefinite"/>
+      </rect>
+    </clipPath>
+  </defs>
+
+  <rect width="1200" height="400" fill="url(#bg)"/>
+  <rect width="1200" height="400" fill="url(#grid)" opacity="0.55"/>
+
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, monospace"
+     font-size="32" font-weight="700" fill="url(#grad)"
+     filter="url(#glow)" clip-path="url(#reveal)" xml:space="preserve">
+    <text x="170" y="90">███████╗██╗      █████╗ ██╗   ██╗███████╗</text>
+    <text x="170" y="124">██╔════╝██║     ██╔══██╗██║   ██║██╔════╝</text>
+    <text x="170" y="158">███████╗██║     ███████║██║   ██║█████╗  </text>
+    <text x="170" y="192">╚════██║██║     ██╔══██║╚██╗ ██╔╝██╔══╝  </text>
+    <text x="170" y="226">███████║███████╗██║  ██║ ╚████╔╝ ███████╗</text>
+    <text x="170" y="260">╚══════╝╚══════╝╚═╝  ╚═╝  ╚═══╝  ╚══════╝</text>
+  </g>
+
+  <!-- global flicker on the banner -->
+  <rect x="100" y="60" width="1000" height="220" fill="#ff8a5b" opacity="0">
+    <animate attributeName="opacity"
+             values="0;0;0.06;0;0.03;0;0"
+             keyTimes="0;0.55;0.58;0.6;0.65;0.68;1"
+             dur="6s" repeatCount="indefinite"/>
+  </rect>
+
+  <!-- scanline sweeping over the banner after reveal -->
+  <rect x="100" y="70" width="1000" height="2" fill="#ff8a5b">
+    <animate attributeName="y"
+             values="70;70;272;272"
+             keyTimes="0;0.3;0.9;1"
+             dur="6s" repeatCount="indefinite"/>
+    <animate attributeName="opacity"
+             values="0;0.9;0.9;0"
+             keyTimes="0;0.3;0.9;1"
+             dur="6s" repeatCount="indefinite"/>
+  </rect>
+
+  <!-- subtitle + blinking cursor -->
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="17" fill="#c8a894">
+    <text x="600" y="330" text-anchor="middle">// PILOT A SWARM OF CLAUDES · ONE COCKPIT · ZERO MERCY</text>
+    <rect x="868" y="318" width="10" height="16" fill="#ff8a5b">
+      <animate attributeName="opacity" values="1;0;1" dur="1s" repeatCount="indefinite"/>
+    </rect>
+  </g>
+
+  <!-- tiny status line -->
+  <g font-family="ui-monospace, monospace" font-size="11" fill="#6e4f40">
+    <text x="100" y="360">[ uplink ] ok</text>
+    <text x="280" y="360">[ reactor ] nominal</text>
+    <text x="500" y="360">[ fleet ] ∞ clawds</text>
+    <text x="740" y="360">[ mode ] operator</text>
+    <text x="960" y="360">[ build ] 0.1.0</text>
+    <circle cx="92" cy="357" r="3" fill="#4ade80">
+      <animate attributeName="opacity" values="1;0.3;1" dur="1.4s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+
+  <!-- corner brackets -->
+  <g stroke="#ff8a5b" stroke-width="2" fill="none" opacity="0.85">
+    <path d="M20 20 h36 M20 20 v36"/>
+    <path d="M1180 20 h-36 M1180 20 v36"/>
+    <path d="M20 380 h36 M20 380 v-36"/>
+    <path d="M1180 380 h-36 M1180 380 v-36"/>
+  </g>
+</svg>
