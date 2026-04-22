@@ -19,8 +19,17 @@
   --state-working: #eab308;
   --state-waiting: #ef4444;
 
-  --brand: #d97757;
-  --brand-hover: #c46744;
+  --accent-source: #d97757;
+  --accent: #d97757;
+  --accent-hover: #c46744;
+  --accent-foreground: #0a0a0a;
+  --accent-soft: rgba(217, 119, 87, 0.12);
+  --accent-muted: rgba(217, 119, 87, 0.18);
+  --accent-border: rgba(217, 119, 87, 0.38);
+  --accent-ring: rgba(217, 119, 87, 0.24);
+  --accent-glow: rgba(217, 119, 87, 0.42);
+  --brand: var(--accent);
+  --brand-hover: var(--accent-hover);
 
   --row-sm: 28px;
   --row-md: 32px;
@@ -56,6 +65,14 @@
 
   --grid-line: rgba(255, 255, 255, 0.04);
 
+  --terminal-bg: #0a0a0a;
+  --terminal-bg-soft: #0d0d0d;
+  --terminal-fg: #ededed;
+  --terminal-fg-dim: #9a9a9a;
+  --terminal-fg-muted: #6b6b6b;
+  --terminal-border: rgba(255, 255, 255, 0.06);
+  --terminal-status-bg: rgba(10, 10, 10, 0.85);
+
   --tint-approval: rgba(245, 165, 36, 0.05);
   --tint-error: rgba(239, 68, 68, 0.04);
   --tint-working: rgba(234, 179, 8, 0.05);
@@ -82,6 +99,14 @@
   --fg-faint: #b4b2a8;
 
   --grid-line: rgba(20, 18, 10, 0.05);
+
+  --terminal-bg: #fbfaf6;
+  --terminal-bg-soft: #f3f0e7;
+  --terminal-fg: #282620;
+  --terminal-fg-dim: #575247;
+  --terminal-fg-muted: #837c70;
+  --terminal-border: rgba(44, 38, 24, 0.12);
+  --terminal-status-bg: rgba(255, 253, 247, 0.88);
 
   --tint-approval: rgba(245, 165, 36, 0.08);
   --tint-error: rgba(239, 68, 68, 0.05);

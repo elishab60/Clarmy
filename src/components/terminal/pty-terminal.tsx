@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
+import { useCockpit } from "@/lib/client/store";
+import { getMonoFontOption, getTerminalTheme } from "@/lib/client/theme-settings";
 
 interface Props {
   readonly sessionId: string;
@@ -17,26 +19,24 @@ export function PtyTerminal({ sessionId, compact = false }: Props) {
   const fitRef = useRef<FitAddon | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const [status, setStatus] = useState<"connecting" | "open" | "closed" | "error">("connecting");
+  const tweaks = useCockpit((s) => s.tweaks);
+  const terminalTheme = useMemo(() => getTerminalTheme(tweaks.theme, tweaks.accent), [tweaks.theme, tweaks.accent]);
+  const terminalFont = useMemo(() => getMonoFontOption(tweaks.monoFont).stack, [tweaks.monoFont]);
+  const visualRef = useRef({ fontFamily: terminalFont, theme: terminalTheme });
+  visualRef.current = { fontFamily: terminalFont, theme: terminalTheme };
 
   useEffect(() => {
     if (!hostRef.current) return;
+    const visual = visualRef.current;
 
     const term = new Terminal({
       cursorBlink: true,
-      fontFamily: "'JetBrains Mono', 'Fira Code', Menlo, Monaco, monospace",
+      fontFamily: visual.fontFamily,
       fontSize: compact ? 11 : 13,
       lineHeight: 1.22,
       convertEol: false,
       scrollback: 5000,
-      theme: {
-        background: "#0a0a0a",
-        foreground: "#ededed",
-        cursor: "#d97757",
-        cursorAccent: "#0a0a0a",
-        selectionBackground: "#3b3b3b",
-        black: "#1a1a1a", red: "#ef4444", green: "#22c55e", yellow: "#f5a524", blue: "#4a9eff", magenta: "#a78bfa", cyan: "#22d3ee", white: "#ededed",
-        brightBlack: "#4b4b4b", brightRed: "#f87171", brightGreen: "#4ade80", brightYellow: "#fbbf24", brightBlue: "#60a5fa", brightMagenta: "#c4b5fd", brightCyan: "#67e8f9", brightWhite: "#ffffff",
-      },
+      theme: visual.theme,
     });
 
     const fit = new FitAddon();
@@ -101,6 +101,14 @@ export function PtyTerminal({ sessionId, compact = false }: Props) {
       wsRef.current = null;
     };
   }, [sessionId, compact]);
+
+  useEffect(() => {
+    const term = termRef.current;
+    if (!term) return;
+    term.options.theme = terminalTheme;
+    term.options.fontFamily = terminalFont;
+    try { fitRef.current?.fit(); } catch { /* ignore */ }
+  }, [terminalTheme, terminalFont]);
 
   return (
     <div className={`pty-wrap ${compact ? "compact" : ""}`}>

@@ -2,12 +2,24 @@
 
 import { create } from "zustand";
 import type { SessionSnapshot, SessionEvent } from "../shared/types";
+import {
+  buildAccentTokens,
+  coerceMonoFontKey,
+  coerceUiFontKey,
+  getMonoFontOption,
+  getUiFontOption,
+  normalizeHexColor,
+  type MonoFontKey,
+  type UiFontKey,
+} from "./theme-settings";
 
 export interface Tweaks {
   theme: "dark" | "light";
   density: "compact" | "default" | "cozy";
   cols: 2 | 3 | 4;
   accent: string;
+  uiFont: UiFontKey;
+  monoFont: MonoFontKey;
   tileVariant: "card" | "strip";
 }
 
@@ -16,6 +28,8 @@ export const DEFAULT_TWEAKS: Tweaks = {
   density: "default",
   cols: 3,
   accent: "#d97757",
+  uiFont: "inter",
+  monoFont: "jetbrains",
   tileVariant: "card",
 };
 
@@ -48,7 +62,7 @@ export const useCockpit = create<CockpitState>((set, get) => ({
   tweaks: loadTweaks(),
 
   setTweaks: (patch) => {
-    const next = { ...get().tweaks, ...patch };
+    const next = normalizeTweaks({ ...get().tweaks, ...patch });
     persistTweaks(next);
     applyTweaks(next);
     set({ tweaks: next });
@@ -104,7 +118,7 @@ function loadTweaks(): Tweaks {
   try {
     const raw = window.localStorage.getItem("cockpit.tweaks");
     if (!raw) return DEFAULT_TWEAKS;
-    return { ...DEFAULT_TWEAKS, ...JSON.parse(raw) };
+    return normalizeTweaks(JSON.parse(raw) as unknown);
   } catch { return DEFAULT_TWEAKS; }
 }
 
@@ -116,8 +130,48 @@ function persistTweaks(t: Tweaks): void {
 export function applyTweaks(t: Tweaks): void {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
+  const accent = buildAccentTokens(t.accent, t.theme);
   root.setAttribute("data-theme", t.theme);
   root.setAttribute("data-density", t.density);
-  root.style.setProperty("--brand", t.accent);
-  root.style.setProperty("--brand-hover", t.accent);
+  root.setAttribute("data-ui-font", t.uiFont);
+  root.setAttribute("data-mono-font", t.monoFont);
+  root.style.setProperty("--font-sans", getUiFontOption(t.uiFont).stack);
+  root.style.setProperty("--font-mono", getMonoFontOption(t.monoFont).stack);
+  root.style.setProperty("--accent-source", accent.source);
+  root.style.setProperty("--accent", accent.accent);
+  root.style.setProperty("--accent-hover", accent.accentHover);
+  root.style.setProperty("--accent-foreground", accent.accentForeground);
+  root.style.setProperty("--accent-soft", accent.accentSoft);
+  root.style.setProperty("--accent-muted", accent.accentMuted);
+  root.style.setProperty("--accent-border", accent.accentBorder);
+  root.style.setProperty("--accent-ring", accent.accentRing);
+  root.style.setProperty("--accent-glow", accent.accentGlow);
+  root.style.setProperty("--brand", accent.accent);
+  root.style.setProperty("--brand-hover", accent.accentHover);
+}
+
+function normalizeTweaks(value: unknown): Tweaks {
+  if (!isRecord(value)) return DEFAULT_TWEAKS;
+  const theme = value.theme === "light" || value.theme === "dark" ? value.theme : DEFAULT_TWEAKS.theme;
+  const density =
+    value.density === "compact" || value.density === "default" || value.density === "cozy"
+      ? value.density
+      : DEFAULT_TWEAKS.density;
+  const cols = value.cols === 2 || value.cols === 3 || value.cols === 4 ? value.cols : DEFAULT_TWEAKS.cols;
+  const accent = typeof value.accent === "string" ? normalizeHexColor(value.accent) ?? DEFAULT_TWEAKS.accent : DEFAULT_TWEAKS.accent;
+  const tileVariant = value.tileVariant === "strip" || value.tileVariant === "card" ? value.tileVariant : DEFAULT_TWEAKS.tileVariant;
+
+  return {
+    theme,
+    density,
+    cols,
+    accent,
+    uiFont: coerceUiFontKey(value.uiFont),
+    monoFont: coerceMonoFontKey(value.monoFont),
+    tileVariant,
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

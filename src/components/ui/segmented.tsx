@@ -36,7 +36,7 @@ export function Segmented<T extends string>({ value, onChange, options, ariaLabe
           border: 0,
           borderLeft: i === 0 ? "0" : "1px solid var(--border)",
           background: active ? "var(--brand)" : "transparent",
-          color: active ? "#fff" : "var(--fg-muted)",
+          color: active ? "var(--accent-foreground)" : "var(--fg-muted)",
           fontFamily: "var(--font-sans)",
           fontSize: 12,
           fontWeight: 500,
