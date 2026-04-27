@@ -197,9 +197,9 @@ kbd, code, .mono { font-family: var(--font-mono); font-feature-settings: 'zero',
 .clawd { display: block; image-rendering: pixelated; image-rendering: crisp-edges; flex-shrink: 0; transition: filter .35s cubic-bezier(.2,.7,.2,1), transform .35s cubic-bezier(.3,1.35,.5,1); }
 .sidebar-head { transition: background .25s ease; }
 .sidebar-head:hover .clawd { filter: drop-shadow(0 0 8px color-mix(in srgb, var(--brand) 55%, transparent)); transform: translateY(-1px) rotate(-3deg); }
-.sidebar-head:hover .slave-text { color: color-mix(in srgb, var(--brand) 35%, var(--fg)); }
-.wordmark .slave-text { transition: color .25s ease; }
-.wordmark .slave-text {
+.sidebar-head:hover .clarmy-text { color: color-mix(in srgb, var(--brand) 35%, var(--fg)); }
+.wordmark .clarmy-text { transition: color .25s ease; }
+.wordmark .clarmy-text {
   font-family: var(--font-mono, ui-monospace, monospace);
   font-weight: 700;
   font-size: 18px;
