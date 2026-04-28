@@ -80,7 +80,7 @@ export function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="sidebar-head">
-        <div className="wordmark"><Clawd size={26} /><span className="slave-text">Slave</span></div>
+        <div className="wordmark"><Clawd size={26} /><span className="clarmy-text">Clarmy</span></div>
       </div>
       <button className="new-session" onClick={() => router.push("/new")}>
         <span className="plus">+</span> New session

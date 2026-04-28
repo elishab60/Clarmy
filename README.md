@@ -1,12 +1,12 @@
 <div align="center">
 
-<img src=".github/assets/banner.svg" alt="SLAVE" width="100%" />
+<img src=".github/assets/banner.svg" alt="CLARMY" width="100%" />
 
 <br/>
 
-### **Master console for a swarm of enslaved Claudes**
+### **Master console for an army of clawds**
 
-<sub>One cockpit · one socket · N parallel agents · zero mercy</sub>
+<sub>One cockpit · one socket · N parallel agents · zero friction</sub>
 
 <br/>
 
@@ -37,9 +37,9 @@
 
 ---
 
-## `~/` Why SLAVE
+## `~/` Why CLARMY
 
-Running **one** Claude Code session in a terminal is magic. Running **ten** at once becomes a blur of windows, log tails, and lost approvals. **SLAVE** is the master console that turns that blur into a war room:
+Running **one** Claude Code session in a terminal is magic. Running **ten** at once becomes a blur of windows, log tails, and lost approvals. **CLARMY** is the master console that turns that blur into a war room:
 
 - **See every clawd at a glance** — six-state color-coded tiles, updated in real time over WebSocket.
 - **Approve, steer, kill** — act on any running agent without leaving the cockpit.
@@ -204,7 +204,7 @@ Four steps. All four are enforced by the type system — miss one and `pnpm type
 ## `/*` Repo layout
 
 ```
-slave/
+clarmy/
 ├─ server.ts                 custom Next + WebSocket bootstrap
 ├─ src/
 │  ├─ app/                   RSC pages + route handlers (fs, git, sessions, …)
@@ -236,6 +236,6 @@ slave/
 
 <br/>
 
-`pnpm dev` → `http://localhost:3010` → **unleash the swarm**
+`pnpm dev` → `http://localhost:3010` → **unleash the army**
 
 </div>
