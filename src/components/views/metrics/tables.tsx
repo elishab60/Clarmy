@@ -17,19 +17,27 @@ export function GroupTable({
   activeKeys?: ReadonlySet<string>;
   onToggle?: (key: string) => void;
 }) {
-  const [sort, setSort] = useState<SortKey>("cost");
-  const sorted = [...rows].sort((a, b) => (b[sort] as number) - (a[sort] as number));
+  const [sortKey, setSortKey] = useState<SortKey>("cost");
+  const [dir, setDir] = useState<1 | -1>(-1); // -1 = descending
+  const sorted = [...rows].sort((a, b) => ((a[sortKey] as number) - (b[sortKey] as number)) * dir);
   const maxCost = Math.max(1e-9, ...rows.map((r) => r.cost));
   const clickable = kind === "project" && !!onToggle;
 
+  const clickTh = (k: SortKey) => {
+    if (k === sortKey) setDir((d) => (d === -1 ? 1 : -1));
+    else { setSortKey(k); setDir(-1); }
+  };
+
   const Th = ({ k, children, first }: { k?: SortKey; children: React.ReactNode; first?: boolean }) => (
-    <span
-      className={`mx-th${k ? " sortable" : ""}${sort === k ? " active" : ""}`}
-      style={first ? undefined : { textAlign: "right" }}
-      onClick={k ? () => setSort(k) : undefined}
+    <button
+      type="button"
+      className={`mx-th${k ? " sortable" : ""}${sortKey === k ? " active" : ""}`}
+      style={first ? undefined : { textAlign: "right", justifyContent: "flex-end" }}
+      onClick={k ? () => clickTh(k) : undefined}
+      disabled={!k}
     >
-      {children}{sort === k ? " ↓" : ""}
-    </span>
+      {children}<span className="mx-th-arrow">{sortKey === k ? (dir === -1 ? "↓" : "↑") : ""}</span>
+    </button>
   );
 
   const cols = kind === "project"

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { DayBucket, HeatMetric } from "./types.ts";
 import { fmtCostFull, fmtDay, fmtInt, fmtTokens } from "./format.ts";
 
@@ -34,7 +35,10 @@ function fmtMetric(v: number, metric: HeatMetric): string {
 export function Heatmap({ bucket, metric, from, to }: { bucket: Map<string, DayBucket>; metric: HeatMetric; from: number; to: number }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const [width, setWidth] = useState(720);
-  const [hover, setHover] = useState<{ col: number; row: number; key: string; v: number } | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const [hover, setHover] = useState<{ x: number; y: number; key: string; v: number } | null>(null);
+
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -108,20 +112,24 @@ export function Heatmap({ bucket, metric, from, to }: { bucket: Map<string, DayB
                   height={cell}
                   rx={Math.max(2, cell * 0.22)}
                   className={`mx-hm-cell lvl-${level(v)}`}
-                  onMouseEnter={() => setHover({ col, row, key, v })}
+                  onMouseEnter={(e) => {
+                    const r = (e.currentTarget as SVGRectElement).getBoundingClientRect();
+                    setHover({ x: r.left + r.width / 2, y: r.top, key, v });
+                  }}
                   onMouseLeave={() => setHover(null)}
                 />
               );
             }),
           )}
         </svg>
-        {hover && (
-          <div className="mx-hm-tip" style={{ left: LEFT + hover.col * step + cell / 2, top: TOP + hover.row * step - 6 }}>
-            <span className="d">{fmtDay(hover.key)}</span>
-            <span className="v">{fmtMetric(hover.v, metric)}</span>
-          </div>
-        )}
       </div>
+      {mounted && hover && createPortal(
+        <div className="mx-hm-tip" style={{ position: "fixed", left: hover.x, top: hover.y - 8, transform: "translate(-50%, -100%)" }}>
+          <span className="d">{fmtDay(hover.key)}</span>
+          <span className="v">{fmtMetric(hover.v, metric)}</span>
+        </div>,
+        document.body,
+      )}
       <div className="mx-hm-legend">
         <span>Less</span>
         <span className="mx-hm-cell lvl-0" />

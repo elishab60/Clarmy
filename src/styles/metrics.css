@@ -108,7 +108,7 @@ rect.mx-hm-cell { stroke: var(--border); stroke-width: 1; }
 .mx-hm-cell.lvl-4 { fill: var(--brand); stroke: transparent; }
 rect.mx-hm-cell:hover { stroke: var(--fg); stroke-width: 1.5; }
 .mx-hm-tip {
-  position: absolute; transform: translate(-50%, -100%); z-index: 20; pointer-events: none;
+  position: fixed; z-index: 1000; pointer-events: none;
   background: var(--bg); border: 1px solid var(--border-strong); border-radius: var(--radius);
   padding: 5px 8px; box-shadow: 0 8px 24px -8px rgba(0,0,0,0.6); white-space: nowrap;
   display: flex; flex-direction: column; gap: 1px;
@@ -162,10 +162,15 @@ rect.mx-hm-cell:hover { stroke: var(--fg); stroke-width: 1.5; }
 .mx-table { width: 100%; }
 .mx-trow { display: grid; align-items: center; gap: 10px; padding: 7px 10px; }
 .mx-thead { border-bottom: 1px solid var(--border); position: sticky; top: 0; }
-.mx-th { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--fg-muted); }
+.mx-th {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--fg-muted);
+  background: transparent; border: 0; padding: 0; font-family: inherit; line-height: 1.4;
+}
 .mx-th.sortable { cursor: pointer; transition: color .15s; }
 .mx-th.sortable:hover { color: var(--fg-dim); }
 .mx-th.active { color: var(--brand); }
+.mx-th-arrow { display: inline-block; width: 8px; text-align: center; }
 .mx-drow { border-bottom: 1px solid var(--grid-line); transition: background .12s; }
 .mx-drow:hover { background: var(--bg-elev); }
 .mx-drow.clickable { cursor: pointer; }
