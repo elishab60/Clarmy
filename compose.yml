@@ -65,6 +65,9 @@ services:
       # project dirs under the host home. The app never spawns claude, so it
       # has no ~/.claude.json.
       - ${HOME}/.claude:/root/.claude
+      # Gemini usage gauge reads homedir()/.gemini/telemetry.log; HOME is /root
+      # in-container, so map the host ~/.gemini there explicitly (like .claude).
+      - ${HOME}/.gemini:/root/.gemini
       - ${HOME}:${HOME}
     working_dir: /app
     restart: unless-stopped
@@ -93,6 +96,7 @@ services:
       - cockpit_node_modules:/app/node_modules
       - cockpit_next_cache:/app/.next
       - ${HOME}/.claude:/root/.claude
+      - ${HOME}/.gemini:/root/.gemini
       - ${HOME}/.claude.json:/seed/.claude.json:ro
       - ${HOME}:${HOME}
     working_dir: /app
