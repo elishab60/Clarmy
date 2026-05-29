@@ -18,7 +18,9 @@ export const geminiDriver: CliDriver = {
   },
 
   buildArgs(cfg: SpawnConfig): string[] {
-    const args: string[] = [];
+    // Cockpit is the controlled environment, so trust the workspace up front:
+    // headless Gemini otherwise refuses to start in an "untrusted" directory.
+    const args: string[] = ["--skip-trust"];
     const model = apiIdFor(cfg.model);
     if (model) args.push("-m", model);
     if (cfg.resumeSessionId) {

@@ -24,6 +24,11 @@ export const codexDriver: CliDriver = {
     const model = apiIdFor(cfg.model);
     if (model) args.push("-m", model);
     if (effort) args.push("-c", `model_reasoning_effort=${effort}`);
+    // Pre-trust the workspace so the interactive TUI does not stop on its
+    // "trust this folder?" selector. (A non-git cwd still needs `codex exec
+    // --skip-git-repo-check`, which the interactive path has no flag for, so
+    // piloted Codex sessions expect a git repo as their cwd.)
+    args.push("-c", `projects.${JSON.stringify(cfg.cwd)}.trust_level="trusted"`);
     if (cfg.dangerouslySkipPermissions) {
       args.push("--dangerously-bypass-approvals-and-sandbox");
     } else if (cfg.approvalMode === "auto") {

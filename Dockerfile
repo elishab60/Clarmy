@@ -5,7 +5,7 @@ ENV PNPM_HOME=/pnpm \
     NEXT_TELEMETRY_DISABLED=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      python3 make g++ git curl ca-certificates procps tini \
+      python3 make g++ git curl ca-certificates procps tini bubblewrap \
     && rm -rf /var/lib/apt/lists/* \
     && corepack enable \
     && corepack prepare pnpm@9 --activate \
