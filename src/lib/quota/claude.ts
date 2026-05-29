@@ -50,9 +50,17 @@ export async function getClaudeQuota(): Promise<ProviderQuota> {
     };
   }
 
-  // Fallback: estimate from local ~/.claude/projects cost when the endpoint is
-  // unreachable (offline / expired token).
-  return costEstimateQuota(plan);
+  // No live reading. The local cost estimate self-calibrates against the busiest
+  // window in history, so it renders a confident-looking percentage that has
+  // nothing to do with the real server-side limit (this is what showed a bogus
+  // ~76% whenever the endpoint 429'd). It is off by default and gated behind an
+  // env flag; otherwise report honestly that live usage is unavailable rather
+  // than fabricate a number.
+  if (process.env.COCKPIT_CLAUDE_QUOTA_ESTIMATE === "1") return costEstimateQuota(plan);
+  return {
+    provider: "claude", label: "Claude", state: "unknown", plan,
+    usedPercent: null, windows: [], detail: "live usage unavailable", source: "oauth-usage", asOf: null,
+  };
 }
 
 // Models the rolling window as current cost relative to the busiest window of

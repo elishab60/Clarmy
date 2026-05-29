@@ -81,6 +81,14 @@ let nextTryAt = 0;
 const FRESH_MS = 60_000;
 const STALE_OK_MS = 60 * 60_000;
 const BACKOFF_MS = 5 * 60_000;
+// Cold start (no cached reading yet) retries soon so a single transient 429 does
+// not strand the gauge with no data for five minutes. Once we have a reading we
+// can serve it stale, so a longer backoff is fine.
+const COLD_BACKOFF_MS = 30_000;
+
+function scheduleRetry(now: number): void {
+  nextTryAt = now + (cache ? BACKOFF_MS : COLD_BACKOFF_MS);
+}
 
 function serveStale(now: number): QuotaWindow[] | null {
   return cache && now - cache.at < STALE_OK_MS ? cache.windows : null;
@@ -111,18 +119,18 @@ export async function fetchClaudeUsageWindows(): Promise<QuotaWindow[] | null> {
     });
   } catch (err) {
     log.warn("usage fetch failed", { err: String(err) });
-    nextTryAt = now + BACKOFF_MS;
+    scheduleRetry(now);
     return serveStale(now);
   }
   if (!resp.ok) {
     log.warn("usage non-ok", { status: resp.status });
-    nextTryAt = now + BACKOFF_MS;
+    scheduleRetry(now);
     return serveStale(now);
   }
 
   let data: UsageResp;
   try { data = (await resp.json()) as UsageResp; }
-  catch { nextTryAt = now + BACKOFF_MS; return serveStale(now); }
+  catch { scheduleRetry(now); return serveStale(now); }
 
   const windows = buildWindows(data);
   if (windows.length > 0) {
@@ -130,6 +138,6 @@ export async function fetchClaudeUsageWindows(): Promise<QuotaWindow[] | null> {
     nextTryAt = 0;
     return windows;
   }
-  nextTryAt = now + BACKOFF_MS;
+  scheduleRetry(now);
   return serveStale(now);
 }
