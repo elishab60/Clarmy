@@ -64,13 +64,25 @@ function WindowLine({ w }: { w: QuotaWindow }) {
   );
 }
 
+function windowResetLine(w: QuotaWindow): string {
+  const at = fmtResetAt(w.resetsAt);
+  const rel = fmtReset(w.resetsAt);
+  const head = `${w.label} ${Math.round(w.usedPercent)}%`;
+  return at ? `${head} · resets ${at}${rel ? ` (${rel})` : ""}` : head;
+}
+
 function QuotaMeter({ q }: { q: ProviderQuota }) {
   const pct = q.usedPercent;
   const hasWindows = q.windows.length > 0;
+  // Hovering anywhere on the row reveals when each window rolls over, so the
+  // reset time is discoverable without having to hit the thin per-window bars.
+  const headTitle = hasWindows
+    ? q.windows.map(windowResetLine).join("\n")
+    : q.detail ?? undefined;
 
   return (
     <div className="quota-row" data-state={q.state}>
-      <div className="quota-head">
+      <div className="quota-head" title={headTitle}>
         <span className="quota-name">
           {q.label}
           {q.plan && <em>{q.plan}</em>}

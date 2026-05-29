@@ -12,6 +12,15 @@ const log = createLogger("quota/claude-usage");
 // and used only as a Bearer header; it is never logged.
 const USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
 
+// The endpoint buckets its rate limit by User-Agent: anything that is not the
+// official client lands in an aggressively throttled bucket and gets near
+// permanent 429s, which silently forces the caller down to the local cost
+// estimate (wrong numbers, a lone 5h window, no real reset times). Sending the
+// claude-code UA (the bucket keys on the "claude-code/" prefix) gets the
+// generous limit so the real five_hour + seven_day windows come through.
+// Override the version with COCKPIT_CLAUDE_USAGE_UA if it ever drifts.
+const USAGE_USER_AGENT = process.env.COCKPIT_CLAUDE_USAGE_UA || "claude-code/2.1.156";
+
 interface UsageWindowRaw { utilization?: unknown; resets_at?: unknown }
 interface UsageResp {
   five_hour?: UsageWindowRaw | null;
@@ -95,7 +104,7 @@ export async function fetchClaudeUsageWindows(): Promise<QuotaWindow[] | null> {
         "anthropic-beta": "oauth-2025-04-20",
         "anthropic-version": "2023-06-01",
         Accept: "application/json",
-        "User-Agent": "cockpit-quota",
+        "User-Agent": USAGE_USER_AGENT,
       },
       cache: "no-store",
       signal: AbortSignal.timeout(8000),
