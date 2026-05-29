@@ -86,6 +86,7 @@ export class PtyRunner {
     this.pty = spawned;
 
     let promptSent = !(config.prompt && !config.resumeSessionId);
+    let effortApplied = !this.effort || CLI_EFFORT_FLAGS.has(this.effort);
     let settleTimer: ReturnType<typeof setTimeout> | null = null;
     let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -95,11 +96,26 @@ export class PtyRunner {
       promptSent = true;
       if (settleTimer) { clearTimeout(settleTimer); settleTimer = null; }
       if (fallbackTimer) { clearTimeout(fallbackTimer); fallbackTimer = null; }
-      // Bracketed paste so embedded newlines don't submit the prompt line-by-line.
-      this.pty.write("\x1b[200~");
-      this.pty.write(config.prompt);
-      this.pty.write("\x1b[201~");
-      setTimeout(() => { if (this.exitCode === null) this.pty.write("\r"); }, 80);
+      const writePrompt = (): void => {
+        // Bracketed paste so embedded newlines don't submit the prompt line-by-line.
+        this.pty.write("\x1b[200~");
+        this.pty.write(config.prompt);
+        this.pty.write("\x1b[201~");
+        setTimeout(() => { if (this.exitCode === null) this.pty.write("\r"); }, 80);
+      };
+      if (!effortApplied && this.effort) {
+        effortApplied = true;
+        this.pty.write(`/effort ${this.effort}\r`);
+        setTimeout(writePrompt, 250);
+      } else {
+        writePrompt();
+      }
+    };
+
+    const applyEffortViaSlash = (): void => {
+      if (effortApplied || this.exitCode !== null || !this.effort) return;
+      effortApplied = true;
+      this.pty.write(`/effort ${this.effort}\r`);
     };
 
     this.pty.onData((data) => {
@@ -111,6 +127,10 @@ export class PtyRunner {
       if (!promptSent) {
         if (settleTimer) clearTimeout(settleTimer);
         settleTimer = setTimeout(sendInitialPrompt, 400);
+      } else if (!effortApplied) {
+        // Resume / no-prompt case: upgrade effort once banner appears.
+        if (settleTimer) clearTimeout(settleTimer);
+        settleTimer = setTimeout(applyEffortViaSlash, 400);
       }
       for (const l of this.dataListeners) {
         try { l(buf); } catch { /* ignore */ }
@@ -284,12 +304,14 @@ export function modelSupportsEffort(model: ModelId): boolean {
   return modelSupportsEffortFor(model);
 }
 
+const CLI_EFFORT_FLAGS: ReadonlySet<Effort> = new Set(["low", "medium", "high", "xhigh", "max"]);
+
 function buildArgs(cfg: SpawnConfig, effort: Effort | null): string[] {
   const args: string[] = [];
   if (cfg.resumeSessionId) args.push("--resume", cfg.resumeSessionId);
   const model = apiIdFor(cfg.model);
   if (model) args.push("--model", model);
-  if (effort) args.push("--effort", effort);
+  if (effort && CLI_EFFORT_FLAGS.has(effort)) args.push("--effort", effort);
   if (cfg.dangerouslySkipPermissions) args.push("--dangerously-skip-permissions");
   else if (cfg.approvalMode === "auto") args.push("--permission-mode", "acceptEdits");
   else if (cfg.approvalMode === "strict") args.push("--permission-mode", "default");

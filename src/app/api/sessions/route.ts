@@ -52,14 +52,20 @@ export async function POST(req: Request) {
       error: "No auth available — install Claude Code CLI (auth via plan Max) or export ANTHROPIC_API_KEY, or run with COCKPIT_MOCK=1",
     }, { status: 500 });
   }
-  const id = await getManager().spawn({
-    ...parsed.data,
-    cwd,
-    model: parsed.data.model as ModelId,
-    approvalMode: parsed.data.approvalMode as ApprovalMode,
-    effort: parsed.data.effort as Effort | undefined,
-  });
-  return NextResponse.json({ id }, { status: 201 });
+  try {
+    const id = await getManager().spawn({
+      ...parsed.data,
+      cwd,
+      model: parsed.data.model as ModelId,
+      approvalMode: parsed.data.approvalMode as ApprovalMode,
+      effort: parsed.data.effort as Effort | undefined,
+    });
+    return NextResponse.json({ id }, { status: 201 });
+  } catch (err) {
+    return NextResponse.json({
+      error: err instanceof Error ? err.message : String(err),
+    }, { status: 500 });
+  }
 }
 
 function expandHome(p: string): string {
