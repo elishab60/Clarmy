@@ -14,6 +14,9 @@ services:
       COCKPIT_MOCK: "${COCKPIT_MOCK:-0}"
       ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
       CLAUDE_CLI_PATH: /usr/local/bin/claude
+      # The container runs as root; the CLI blocks --dangerously-skip-permissions
+      # under root unless it knows it is sandboxed. The container is the sandbox.
+      IS_SANDBOX: "1"
       NODE_ENV: production
       HOME: /root
     expose:
@@ -78,6 +81,7 @@ services:
       COCKPIT_MOCK: "${COCKPIT_MOCK:-0}"
       ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
       CLAUDE_CLI_PATH: /usr/local/bin/claude
+      IS_SANDBOX: "1"
       HOME: /root
     volumes:
       - .:/app:cached

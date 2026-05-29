@@ -95,9 +95,13 @@ export class SessionTailer {
   }
 
   private findLatestFile(): string | null {
-    const dirs = this.candidateDirs();
+    const primary = join(ROOT, this.cwd.replace(/\//g, "-"));
+    const dirs = this.candidateDirs(primary);
     let best: { path: string; mtime: number } | null = null;
     for (const d of dirs) {
+      // Files inside the cwd-encoded project dir belong to this cwd by
+      // construction; only scan file contents for the fallback dirs.
+      const isPrimary = d === primary;
       let files: string[];
       try { files = readdirSync(d).filter((f) => f.endsWith(".jsonl")); }
       catch { continue; }
@@ -106,16 +110,14 @@ export class SessionTailer {
         let st;
         try { st = statSync(p); } catch { continue; }
         if (st.mtimeMs < this.startedAt - 60_000) continue;
-        if (!this.matchesCwd(p)) continue;
+        if (!isPrimary && !this.matchesCwd(p)) continue;
         if (!best || st.mtimeMs > best.mtime) best = { path: p, mtime: st.mtimeMs };
       }
     }
     return best?.path ?? null;
   }
 
-  private candidateDirs(): string[] {
-    const encoded = this.cwd.replace(/\//g, "-");
-    const primary = join(ROOT, encoded);
+  private candidateDirs(primary: string): string[] {
     const out: string[] = [];
     try { if (statSync(primary).isDirectory()) out.push(primary); } catch { /* ignore */ }
     try {
@@ -133,11 +135,15 @@ export class SessionTailer {
     try {
       const fd = openSync(path, "r");
       try {
-        const buf = Buffer.alloc(4096);
-        const n = readSync(fd, buf, 0, 4096, 0);
+        // Resumed sessions begin with metadata records (last-prompt, mode, …)
+        // that carry no cwd; the first cwd-bearing record can be well past 4KB.
+        const buf = Buffer.alloc(128 * 1024);
+        const n = readSync(fd, buf, 0, buf.length, 0);
         const head = buf.toString("utf8", 0, n);
-        for (const line of head.split("\n")) {
-          if (!line.trim()) continue;
+        const lines = head.split("\n");
+        for (let i = 0; i < lines.length - 1; i++) {
+          const line = lines[i]!.trim();
+          if (!line) continue;
           try {
             const rec = JSON.parse(line) as Record<string, unknown>;
             if (typeof rec.cwd === "string") return rec.cwd === this.cwd;
