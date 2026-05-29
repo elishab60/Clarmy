@@ -26,23 +26,16 @@ export const MODELS: readonly ModelSpec[] = [
     apiId: "claude-opus-4-8",
     label: "Opus 4.8",
     tagline: "newest, deepest reasoning",
-    aliasFrom: ["claude-opus-4-8"],
-    effortLevels: ["low", "medium", "high", "xhigh", "max", "ultracode"],
-    defaultEffort: "xhigh",
-  },
-  {
-    id: "opus-4.7",
-    provider: "claude",
-    apiId: "claude-opus-4-7",
-    label: "Opus 4.7",
-    tagline: "deep reasoning",
     aliasFrom: [
+      "claude-opus-4-8",
+      // Folded in from the retired Opus 4.7 entry so older sessions and history
+      // that reference these api ids still resolve to the current Opus.
       "claude-opus-4-7",
       "claude-opus-4-6",
       "claude-opus-4-5",
       "claude-opus-4-5-20251101",
     ],
-    effortLevels: ["low", "medium", "high", "xhigh", "max"],
+    effortLevels: ["low", "medium", "high", "xhigh", "max", "ultracode"],
     defaultEffort: "xhigh",
   },
   {

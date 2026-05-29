@@ -1,4 +1,4 @@
-{"kind":"system.init","payload":{"id":"s_2bf1","project":"dashboard","name":"add dark mode toggle","model":"opus-4.7"}}
+{"kind":"system.init","payload":{"id":"s_2bf1","project":"dashboard","name":"add dark mode toggle","model":"opus-4.8"}}
 {"kind":"assistant.text","payload":{"line":{"t":"gt","v":"preparing clean install"}}}
 {"kind":"pre_tool_use.approval","payload":{"approval":{"toolUseId":"tu_dr_01","tool":"Bash","args":{"command":"rm -rf node_modules && pnpm install --frozen-lockfile","cwd":"~/code/dashboard","timeout":120000},"destructive":true}}}
 {"kind":"cost.update","payload":{"delta":0.07}}

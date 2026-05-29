@@ -1,4 +1,4 @@
-{"kind":"system.init","payload":{"id":"s_c1d9","project":"infra","name":"provision staging cluster","model":"opus-4.7"}}
+{"kind":"system.init","payload":{"id":"s_c1d9","project":"infra","name":"provision staging cluster","model":"opus-4.8"}}
 {"kind":"assistant.text","payload":{"line":{"t":"gt","v":"waiting for next turn"}}}
 {"kind":"todo.update","payload":{"items":[{"status":"done","text":"audit existing terraform modules"},{"status":"done","text":"write vpc + subnet config"},{"status":"active","text":"configure eks node groups"},{"status":"todo","text":"set up rds postgres replica"},{"status":"todo","text":"wire up cloudwatch alarms"},{"status":"todo","text":"validate with terraform plan"}]}}
 {"kind":"pre_tool_use.approval","payload":{"approval":{"toolUseId":"tu_noop_01","tool":"Bash","args":{"command":"noop"},"destructive":false}}}
