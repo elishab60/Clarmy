@@ -4,7 +4,8 @@ import { resolve } from "node:path";
 import { z } from "zod";
 import { getControl } from "../../orchestrator/control.ts";
 import { getBus } from "../bus.ts";
-import { isModelId, MODEL_IDS, ALL_EFFORTS } from "../../shared/models.ts";
+import { isModelId, MODEL_IDS, ALL_EFFORTS, providerOfModel } from "../../shared/models.ts";
+import { DEFAULT_PROVIDER } from "../../shared/providers.ts";
 import type { ApprovalMode, Effort, ModelId, SessionSnapshot } from "../../shared/types.ts";
 import { jsonResult, errorResult, type ToolDef } from "./types.ts";
 
@@ -164,6 +165,9 @@ const spawnSession: ToolDef = {
     }
     try {
       const id = await getControl().spawn({
+        // The model already pins the vendor; derive the provider from it so the
+        // spawned session uses the right CLI driver (matches /api/sessions).
+        provider: providerOfModel(parsed.data.model) ?? DEFAULT_PROVIDER,
         project: parsed.data.project,
         cwd,
         name: parsed.data.name,
