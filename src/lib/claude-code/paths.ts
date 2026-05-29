@@ -17,3 +17,5 @@ export function debugDir(): string { return join(claudeHome(), "debug"); }
 export function cockpitDir(): string { return join(claudeHome(), "cockpit"); }
 export function cronsFile(): string { return join(cockpitDir(), "crons.json"); }
 export function sessionsFile(): string { return join(cockpitDir(), "sessions.json"); }
+export function secretsFile(): string { return join(cockpitDir(), "secrets.json"); }
+export function secretKeyFile(): string { return join(cockpitDir(), "secret.key"); }

@@ -42,6 +42,7 @@ const SpawnSchema = z.object({
   branch: z.string().max(200).optional(),
   dangerouslySkipPermissions: z.boolean().optional(),
   effort: z.enum(ALL_EFFORTS).optional(),
+  secretKeys: z.array(z.string().min(1).max(128)).max(50).optional(),
 });
 
 const CreateBody = z.object({

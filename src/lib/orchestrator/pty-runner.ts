@@ -86,6 +86,8 @@ export class PtyRunner {
           FORCE_COLOR: "3",
           COLORTERM: "truecolor",
           ...driver.envExtras(config),
+          // Injected secrets win last so a cron's chosen keys reach the session.
+          ...(config.env ?? {}),
         },
       });
     } catch (err) {

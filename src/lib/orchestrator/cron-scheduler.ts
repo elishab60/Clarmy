@@ -1,7 +1,30 @@
 import { createLogger } from "../util/logger.ts";
 import { getManager } from "./manager.ts";
 import { listCrons, recordRun, setNextFire, updateCron } from "../claude-code/crons.ts";
-import type { CronJob, CronSchedule } from "../shared/cron-types.ts";
+import { getSecrets } from "../claude-code/secrets.ts";
+import type { CronJob, CronSchedule, CronSpawnSpec } from "../shared/cron-types.ts";
+import type { SpawnConfig } from "../shared/types.ts";
+
+// Build the manager spawn config from a cron's spawn spec, decrypting any
+// selected secrets into env at fire time (values never persisted on the job).
+function spawnConfigFor(spec: CronSpawnSpec): SpawnConfig {
+  const keys = spec.secretKeys ?? [];
+  return {
+    provider: spec.provider ?? "claude",
+    project: spec.project,
+    cwd: spec.cwd,
+    name: spec.name,
+    model: spec.model,
+    prompt: spec.prompt,
+    allowedTools: spec.allowedTools,
+    approvalMode: spec.approvalMode,
+    branch: spec.branch,
+    dangerouslySkipPermissions: spec.dangerouslySkipPermissions,
+    effort: spec.effort,
+    secretKeys: keys.length ? keys : undefined,
+    env: keys.length ? getSecrets(keys) : undefined,
+  };
+}
 
 const log = createLogger("cron.scheduler");
 
@@ -184,19 +207,7 @@ async function tick(): Promise<void> {
 async function fire(job: CronJob, now: Date): Promise<void> {
   log.info("firing cron", { id: job.id, name: job.name });
   try {
-    const sessionId = await getManager().spawn({
-      provider: job.spawn.provider ?? "claude",
-      project: job.spawn.project,
-      cwd: job.spawn.cwd,
-      name: job.spawn.name,
-      model: job.spawn.model,
-      prompt: job.spawn.prompt,
-      allowedTools: job.spawn.allowedTools,
-      approvalMode: job.spawn.approvalMode,
-      branch: job.spawn.branch,
-      dangerouslySkipPermissions: job.spawn.dangerouslySkipPermissions,
-      effort: job.spawn.effort,
-    });
+    const sessionId = await getManager().spawn(spawnConfigFor(job.spawn));
     const nextFire = job.schedule.kind === "recurring"
       ? computeNextFire(job.schedule, now)
       : null;
@@ -219,19 +230,7 @@ export async function runCronNow(id: string): Promise<{ ok: boolean; sessionId?:
   const job = listCrons().find((j) => j.id === id);
   if (!job) return { ok: false, error: "not_found" };
   try {
-    const sessionId = await getManager().spawn({
-      provider: job.spawn.provider ?? "claude",
-      project: job.spawn.project,
-      cwd: job.spawn.cwd,
-      name: job.spawn.name,
-      model: job.spawn.model,
-      prompt: job.spawn.prompt,
-      allowedTools: job.spawn.allowedTools,
-      approvalMode: job.spawn.approvalMode,
-      branch: job.spawn.branch,
-      dangerouslySkipPermissions: job.spawn.dangerouslySkipPermissions,
-      effort: job.spawn.effort,
-    });
+    const sessionId = await getManager().spawn(spawnConfigFor(job.spawn));
     recordRun(job.id, { sessionId }, job.nextFireAt);
     return { ok: true, sessionId };
   } catch (e) {

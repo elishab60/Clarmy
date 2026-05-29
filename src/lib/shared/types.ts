@@ -108,6 +108,11 @@ export interface SpawnConfig {
   readonly dangerouslySkipPermissions?: boolean;
   readonly resumeSessionId?: string;
   readonly effort?: Effort;
+  // Names of stored secrets to inject as env vars into the spawned session.
+  readonly secretKeys?: readonly string[];
+  // Resolved env values (decrypted from `secretKeys` at spawn time). Never
+  // persisted to disk; only held in memory for the pty env merge.
+  readonly env?: Readonly<Record<string, string>>;
 }
 
 export type SessionEvent =

@@ -7,6 +7,7 @@ import { SessionRunner } from "./session.ts";
 import { PtyRunner } from "./pty-runner.ts";
 import { MockSessionRunner, loadFixtures } from "./mock.ts";
 import { listPersisted, upsertPersisted, patchPersisted, removePersisted } from "./session-store.ts";
+import { getSecrets } from "../claude-code/secrets.ts";
 import type { Effort, SessionSnapshot, SpawnConfig, SessionEvent } from "../shared/types.ts";
 
 const log = createLogger("manager");
@@ -77,6 +78,7 @@ export class SessionManager {
         branch: config.branch,
         dangerouslySkipPermissions: config.dangerouslySkipPermissions,
         effort: config.effort,
+        secretKeys: config.secretKeys,
         claudeSessionId: config.resumeSessionId,
         startedAt: Date.now(),
       });
@@ -138,6 +140,8 @@ export class SessionManager {
           dangerouslySkipPermissions: s.dangerouslySkipPermissions,
           resumeSessionId: s.claudeSessionId,
           effort: s.effort,
+          secretKeys: s.secretKeys,
+          env: s.secretKeys && s.secretKeys.length ? getSecrets(s.secretKeys) : undefined,
         });
         resumed++;
       } catch (err) {

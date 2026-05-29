@@ -18,6 +18,8 @@ export interface CronSpawnSpec {
   readonly branch?: string;
   readonly dangerouslySkipPermissions?: boolean;
   readonly effort?: Effort;
+  // Names of stored secrets injected as env vars when this cron fires.
+  readonly secretKeys?: readonly string[];
 }
 
 export interface CronRunRecord {

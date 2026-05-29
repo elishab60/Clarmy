@@ -1,12 +1,18 @@
 import { sessionTools } from "./sessions.ts";
 import { messagingTools } from "./messaging.ts";
 import { cronTools } from "./crons.ts";
+import { secretTools } from "./secrets.ts";
+import { emailTools } from "./email.ts";
+import { metricsTools } from "./metrics.ts";
 import type { ToolDef } from "./types.ts";
 
 export const ALL_TOOLS: readonly ToolDef[] = [
   ...sessionTools,
   ...messagingTools,
   ...cronTools,
+  ...secretTools,
+  ...emailTools,
+  ...metricsTools,
 ];
 
 const BY_NAME = new Map<string, ToolDef>(ALL_TOOLS.map((t) => [t.name, t]));

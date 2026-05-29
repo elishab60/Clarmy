@@ -22,6 +22,7 @@ const SpawnSpecSchema = z.object({
   branch: z.string().max(200).optional(),
   effort: z.enum(ALL_EFFORTS).optional(),
   dangerouslySkipPermissions: z.boolean().optional(),
+  secretKeys: z.array(z.string().min(1).max(128)).max(50).optional(),
 });
 
 const CreateSchema = z.object({
@@ -45,6 +46,7 @@ const spawnSpecJsonSchema = {
     branch: { type: "string" },
     effort: { type: "string", enum: [...ALL_EFFORTS] },
     dangerouslySkipPermissions: { type: "boolean" },
+    secretKeys: { type: "array", items: { type: "string" }, description: "Stored secret names injected as env vars when the cron fires." },
   },
   required: ["project", "cwd", "name", "model", "prompt"],
   additionalProperties: false,
@@ -62,6 +64,7 @@ function toSpawnSpec(s: z.infer<typeof SpawnSpecSchema>): CronSpawnSpec {
     branch: s.branch,
     effort: s.effort as Effort | undefined,
     dangerouslySkipPermissions: s.dangerouslySkipPermissions,
+    secretKeys: s.secretKeys,
   };
 }
 

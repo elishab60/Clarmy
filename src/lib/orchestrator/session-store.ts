@@ -24,6 +24,9 @@ export interface PersistedSession {
   readonly branch?: string;
   readonly dangerouslySkipPermissions?: boolean;
   readonly effort?: Effort;
+  // Secret key references only (never the decrypted values), so a restored
+  // session can re-resolve its injected env from the encrypted store.
+  readonly secretKeys?: readonly string[];
   readonly claudeSessionId?: string;
   readonly startedAt: number;
 }
