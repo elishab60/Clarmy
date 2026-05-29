@@ -6,14 +6,9 @@ import { estimateCost, refreshPricing } from "../claude-code/pricing.ts";
 import type { EventBus } from "./events.ts";
 import { reduce, initialSnapshot, type StateAction } from "./state-machine.ts";
 import type { SessionEvent, SessionSnapshot, SpawnConfig, PendingApproval, LogLine, DiffRow } from "../shared/types.ts";
+import { apiIdFor } from "../shared/models.ts";
 
 const log = createLogger("session");
-
-const MODEL_MAP: Record<string, string> = {
-  "opus-4.7": "claude-opus-4-7",
-  "sonnet-4.6": "claude-sonnet-4-6",
-  "haiku-4.5": "claude-haiku-4-5-20251001",
-};
 
 type Deferred = {
   resolve: (r: PermissionResult) => void;
@@ -96,7 +91,7 @@ export class SessionRunner {
       allowDangerouslySkipPermissions?: boolean;
     } = {
       cwd: this.config.cwd,
-      model: MODEL_MAP[this.config.model] ?? this.config.model,
+      model: apiIdFor(this.config.model) ?? this.config.model,
       allowedTools: auto ? [...this.config.allowedTools] : [],
       tools: [...this.config.allowedTools],
       abortController: this.abort,

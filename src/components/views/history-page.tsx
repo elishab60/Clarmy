@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ModelId } from "@/lib/shared/types";
+import { modelFromApiId, DEFAULT_MODEL_ID } from "@/lib/shared/models";
 
 interface CCSessionRow {
   id: string; file: string; cwd: string; project: string; branch?: string;
@@ -13,17 +14,6 @@ interface CCSessionRow {
 }
 
 type Filter = "all" | "done" | "error";
-
-const MODEL_ALIAS: Record<string, ModelId> = {
-  "claude-opus-4-7": "opus-4.7",
-  "claude-opus-4-6": "opus-4.7",
-  "claude-opus-4-5": "opus-4.7",
-  "claude-opus-4-5-20251101": "opus-4.7",
-  "claude-sonnet-4-6": "sonnet-4.6",
-  "claude-sonnet-4-5": "sonnet-4.6",
-  "claude-haiku-4-5": "haiku-4.5",
-  "claude-haiku-4-5-20251001": "haiku-4.5",
-};
 
 const COLS = "minmax(280px, 2fr) 120px 110px 60px 80px 80px 70px 90px";
 const CHIP: React.CSSProperties = { fontFamily: "var(--font-mono)", fontSize: 10.5, transition: "color .25s, text-shadow .25s" };
@@ -46,7 +36,7 @@ export function HistoryPage() {
   const resume = async (r: CCSessionRow) => {
     setResumingId(r.id); setResumeErr(null);
     try {
-      const model: ModelId = (r.model ? MODEL_ALIAS[r.model] : undefined) ?? "opus-4.7";
+      const model: ModelId = (r.model ? modelFromApiId(r.model) : null) ?? DEFAULT_MODEL_ID;
       const res = await fetch("/api/sessions", {
         method: "POST",
         headers: { "content-type": "application/json" },

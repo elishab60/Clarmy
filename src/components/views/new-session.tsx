@@ -3,10 +3,10 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ApprovalMode, Effort, ModelId } from "@/lib/shared/types";
-import { EFFORT_LEVELS_BY_MODEL, defaultEffort } from "@/lib/shared/types";
+import { MODEL_IDS, DEFAULT_MODEL_ID, effortLevelsFor, defaultEffortFor } from "@/lib/shared/models";
 import { ProjectSelector, type ProjectOption } from "./project-selector";
 
-const MODELS: ModelId[] = ["opus-4.7", "sonnet-4.6", "haiku-4.5"];
+const MODELS: ModelId[] = [...MODEL_IDS];
 const BUILTIN_TOOLS = ["Bash", "Read", "Edit", "Write", "Grep", "TodoWrite"];
 const EXTRA_TOOLS = ["Glob", "WebFetch", "WebSearch", "Task"];
 const INITIAL_TOOLS = ["Bash", "Read", "Edit", "Write", "Grep", "TodoWrite"];
@@ -36,20 +36,20 @@ export function NewSessionView() {
   const autolaunch = search.get("autolaunch") === "1";
 
   const prefs = useMemo(() => loadPrefs(), []);
-  const [model, setModel] = useState<ModelId>(prefs.model ?? "opus-4.7");
+  const [model, setModel] = useState<ModelId>(prefs.model ?? DEFAULT_MODEL_ID);
   const [effort, setEffort] = useState<Effort | null>(() => {
-    const m = prefs.model ?? "opus-4.7";
-    const levels = EFFORT_LEVELS_BY_MODEL[m];
+    const m = prefs.model ?? DEFAULT_MODEL_ID;
+    const levels = effortLevelsFor(m);
     if (levels.length === 0) return null;
     const wanted = prefs.effort;
     if (wanted && levels.includes(wanted)) return wanted;
-    return defaultEffort(m);
+    return defaultEffortFor(m);
   });
 
   useEffect(() => {
-    const levels = EFFORT_LEVELS_BY_MODEL[model];
+    const levels = effortLevelsFor(model);
     if (levels.length === 0) { setEffort(null); return; }
-    setEffort((cur) => (cur && levels.includes(cur) ? cur : defaultEffort(model)));
+    setEffort((cur) => (cur && levels.includes(cur) ? cur : defaultEffortFor(model)));
   }, [model]);
   const [tools, setTools] = useState<string[]>(INITIAL_TOOLS);
   const [project, setProject] = useState("");
@@ -333,11 +333,11 @@ export function NewSessionView() {
           <div className="form-row">
             <label>Effort</label>
             <div className="ctrl">
-              {EFFORT_LEVELS_BY_MODEL[model].length === 0 ? (
+              {effortLevelsFor(model).length === 0 ? (
                 <div className="effort-note">effort not supported on {model}</div>
               ) : (
                 <div className="model-segment" role="radiogroup" aria-label="Effort">
-                  {EFFORT_LEVELS_BY_MODEL[model].map((lvl) => (
+                  {effortLevelsFor(model).map((lvl) => (
                     <button
                       key={lvl}
                       type="button"

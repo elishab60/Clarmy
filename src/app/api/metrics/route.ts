@@ -2,18 +2,10 @@ import { NextResponse } from "next/server";
 import { getManager } from "@/lib/orchestrator/manager";
 import { scanAll, projectsFromSessions, aggregateUsage, type CCUsageRecord } from "@/lib/claude-code/history";
 import { estimateCost, refreshPricing } from "@/lib/claude-code/pricing";
-import type { ModelId } from "@/lib/shared/types";
+import { modelFromApiId } from "@/lib/shared/models";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const MODEL_ALIAS: Record<string, ModelId> = {
-  "claude-opus-4-7": "opus-4.7",
-  "claude-opus-4-6": "opus-4.7",
-  "claude-sonnet-4-6": "sonnet-4.6",
-  "claude-haiku-4-5-20251001": "haiku-4.5",
-  "claude-haiku-4-5": "haiku-4.5",
-};
 
 const cost = (model: string | undefined, r: CCUsageRecord): number => estimateCost(model, {
   input: r.inputTokens,
@@ -37,7 +29,7 @@ export async function GET() {
   }
 
   const perModel = Array.from(agg.perModel.entries()).map(([rawModel, t]) => ({
-    model: MODEL_ALIAS[rawModel] ?? rawModel,
+    model: modelFromApiId(rawModel) ?? rawModel,
     sessions: t.sessions,
     inputTokens: t.inputTokens,
     outputTokens: t.outputTokens,

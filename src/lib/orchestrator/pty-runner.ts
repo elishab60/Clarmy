@@ -5,16 +5,12 @@ import { SessionTailer, type TailPatch } from "../claude-code/session-tailer.ts"
 import { initialSnapshot } from "./state-machine.ts";
 import type { EventBus } from "./events.ts";
 import type { Effort, ModelId, SessionSnapshot, SpawnConfig } from "../shared/types.ts";
-import { EFFORT_LEVELS_BY_MODEL, coerceEffort } from "../shared/types.ts";
+import { coerceEffort } from "../shared/types.ts";
+import { apiIdFor, modelSupportsEffortFor } from "../shared/models.ts";
 
 const log = createLogger("pty");
 
 const HIST_BYTES = 256 * 1024;
-const MODEL_FLAGS: Record<string, string> = {
-  "opus-4.7": "claude-opus-4-7",
-  "sonnet-4.6": "claude-sonnet-4-6",
-  "haiku-4.5": "claude-haiku-4-5",
-};
 
 type DataListener = (data: Buffer) => void;
 type ExitListener = (exitCode: number) => void;
@@ -285,13 +281,13 @@ function buildChildPath(parent: string | undefined): string {
 }
 
 export function modelSupportsEffort(model: ModelId): boolean {
-  return EFFORT_LEVELS_BY_MODEL[model].length > 0;
+  return modelSupportsEffortFor(model);
 }
 
 function buildArgs(cfg: SpawnConfig, effort: Effort | null): string[] {
   const args: string[] = [];
   if (cfg.resumeSessionId) args.push("--resume", cfg.resumeSessionId);
-  const model = MODEL_FLAGS[cfg.model];
+  const model = apiIdFor(cfg.model);
   if (model) args.push("--model", model);
   if (effort) args.push("--effort", effort);
   if (cfg.dangerouslySkipPermissions) args.push("--dangerously-skip-permissions");

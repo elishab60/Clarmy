@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCockpit } from "@/lib/client/store";
 import type { Effort } from "@/lib/shared/types";
-import { EFFORT_LEVELS_BY_MODEL } from "@/lib/shared/types";
+import { effortLevelsFor } from "@/lib/shared/models";
 import { STATE_META } from "../shell/state-meta";
 import { PtyTerminal } from "../terminal/pty-terminal";
 
@@ -49,7 +49,7 @@ export function FocusView({ id }: { id: string }) {
   const meta = STATE_META[s.state];
   const isOwned = s.id.startsWith("s_");
   const isActive = isOwned && s.state !== "done" && s.state !== "error";
-  const effortLevels = EFFORT_LEVELS_BY_MODEL[s.model];
+  const effortLevels = effortLevelsFor(s.model);
   const effortSupported = effortLevels.length > 0;
 
   async function handleEffortChange(next: Effort) {

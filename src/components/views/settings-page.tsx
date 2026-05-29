@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { ApprovalMode, ModelId } from "@/lib/shared/types";
+import { MODELS as MODEL_REGISTRY, DEFAULT_MODEL_ID } from "@/lib/shared/models";
 import { ToggleSwitch } from "@/components/ui/toggle-switch";
 import { Segmented } from "@/components/ui/segmented";
 import { MoonIcon, SunIcon, MonitorIcon, EyeIcon, EyeOffIcon } from "@/components/ui/icons";
@@ -38,7 +39,7 @@ const riseOf = (i: number): CSSProperties => ({ animation: "metric-rise .5s cubi
 
 export function SettingsPage() {
   const [tab, setTab] = useState<Tab>("general");
-  const [defaultModel, setDefaultModel] = useState<ModelId>("opus-4.7");
+  const [defaultModel, setDefaultModel] = useState<ModelId>(DEFAULT_MODEL_ID);
   const [defaultApproval, setDefaultApproval] = useState<ApprovalMode>("prompt");
   const [maxParallel, setMaxParallel] = useState(6);
   const [theme, setTheme] = useState<"dark" | "light" | "system">("dark");
@@ -71,7 +72,7 @@ export function SettingsPage() {
 
   const onSave = () => setDirty(false);
   const onReset = () => {
-    setDefaultModel("opus-4.7"); setDefaultApproval("prompt"); setMaxParallel(6);
+    setDefaultModel(DEFAULT_MODEL_ID); setDefaultApproval("prompt"); setMaxParallel(6);
     setTheme("dark"); setTelemetry(true); setNotifications(true);
     setAllowList(DEFAULT_ALLOW); setDenyList(DEFAULT_DENY); setDirty(false);
   };
@@ -183,9 +184,9 @@ export function SettingsPage() {
                         onChange={(e) => mark(setDefaultModel)(e.target.value as ModelId)}
                         style={{ minWidth: 220 }}
                       >
-                        <option value="opus-4.7">opus-4.7 — deepest reasoning</option>
-                        <option value="sonnet-4.6">sonnet-4.6 — balanced</option>
-                        <option value="haiku-4.5">haiku-4.5 — fastest</option>
+                        {MODEL_REGISTRY.map((m) => (
+                          <option key={m.id} value={m.id}>{m.id} : {m.tagline}</option>
+                        ))}
                       </select>
                     </FocusInput>
                     <div className="hint">Applied to new sessions. Existing sessions keep their original model.</div>

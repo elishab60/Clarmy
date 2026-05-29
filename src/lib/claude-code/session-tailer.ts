@@ -4,21 +4,12 @@ import { homedir } from "node:os";
 import { createLogger } from "../util/logger.ts";
 import { estimateCost, refreshPricing } from "./pricing.ts";
 import type { ModelId, TodoItem } from "../shared/types.ts";
+import { modelFromApiId } from "../shared/models.ts";
 
 const log = createLogger("session-tailer");
 
 const ROOT = resolve(homedir(), ".claude", "projects");
 const POLL_MS = 2_000;
-
-const MODEL_ALIAS: Record<string, ModelId> = {
-  "claude-opus-4-7": "opus-4.7",
-  "claude-opus-4-6": "opus-4.7",
-  "claude-opus-4-5": "opus-4.7",
-  "claude-sonnet-4-6": "sonnet-4.6",
-  "claude-sonnet-4-5": "sonnet-4.6",
-  "claude-haiku-4-5-20251001": "haiku-4.5",
-  "claude-haiku-4-5": "haiku-4.5",
-};
 
 export interface TailPatch {
   readonly cost?: number;
@@ -171,7 +162,7 @@ export class SessionTailer {
       if (!msg) return changed;
       if (typeof msg.model === "string") {
         this.rawModel = msg.model;
-        const alias = MODEL_ALIAS[msg.model];
+        const alias = modelFromApiId(msg.model);
         if (alias && alias !== this.model) { this.model = alias; changed = true; }
       }
       const usage = msg.usage as Record<string, unknown> | undefined;

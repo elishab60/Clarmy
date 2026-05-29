@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 import { getManager } from "@/lib/orchestrator/manager";
 import { findClaudeCliPath } from "@/lib/claude-code/history";
 import type { ApprovalMode, Effort, ModelId } from "@/lib/shared/types";
+import { isModelId, MODEL_IDS, ALL_EFFORTS } from "@/lib/shared/models";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,14 +15,14 @@ const SpawnSchema = z.object({
   project: z.string().min(1).max(200),
   cwd: z.string().min(1).max(500),
   name: z.string().min(1).max(200),
-  model: z.enum(["opus-4.7", "sonnet-4.6", "haiku-4.5"]),
+  model: z.string().refine(isModelId, { message: `model must be one of: ${MODEL_IDS.join(", ")}` }),
   prompt: z.string().max(50_000),
   allowedTools: z.array(z.string().min(1).max(60)).max(40),
   approvalMode: z.enum(["auto", "prompt", "strict"]),
   branch: z.string().max(200).optional(),
   dangerouslySkipPermissions: z.boolean().optional(),
   resumeSessionId: z.string().min(1).max(80).optional(),
-  effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
+  effort: z.enum(ALL_EFFORTS).optional(),
 }).refine((v) => v.prompt.length > 0 || !!v.resumeSessionId, {
   message: "prompt is required unless resumeSessionId is set",
   path: ["prompt"],

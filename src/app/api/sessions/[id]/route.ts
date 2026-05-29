@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getManager } from "@/lib/orchestrator/manager";
+import { ALL_EFFORTS } from "@/lib/shared/models";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,7 +13,7 @@ const ActionSchema = z.discriminatedUnion("action", [
   }),
   z.object({
     action: z.literal("set_effort"),
-    effort: z.enum(["low", "medium", "high", "xhigh", "max"]),
+    effort: z.enum(ALL_EFFORTS),
   }),
 ]);
 

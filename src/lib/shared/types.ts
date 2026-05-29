@@ -1,3 +1,11 @@
+import {
+  effortLevelsFor,
+  defaultEffortFor,
+  coerceEffortFor,
+  type Effort as EffortBase,
+  type ModelId as ModelIdBase,
+} from "./models.ts";
+
 export type SessionState =
   | "idle"
   | "running"
@@ -6,29 +14,22 @@ export type SessionState =
   | "error"
   | "done";
 
-export type ModelId = "opus-4.7" | "sonnet-4.6" | "haiku-4.5";
+export type ModelId = ModelIdBase;
 
 export type ApprovalMode = "auto" | "prompt" | "strict";
 
-export type Effort = "low" | "medium" | "high" | "xhigh" | "max";
+export type Effort = EffortBase;
 
-export const EFFORT_LEVELS_BY_MODEL: Readonly<Record<ModelId, readonly Effort[]>> = {
-  "opus-4.7":   ["low", "medium", "high", "xhigh", "max"],
-  "sonnet-4.6": ["low", "medium", "high", "max"],
-  "haiku-4.5":  [],
-};
+export function effortLevelsByModel(model: ModelId): readonly Effort[] {
+  return effortLevelsFor(model);
+}
 
 export function defaultEffort(model: ModelId): Effort | null {
-  const levels = EFFORT_LEVELS_BY_MODEL[model];
-  if (levels.length === 0) return null;
-  return model === "opus-4.7" ? "xhigh" : "high";
+  return defaultEffortFor(model);
 }
 
 export function coerceEffort(model: ModelId, wanted: Effort | null | undefined): Effort | null {
-  const levels = EFFORT_LEVELS_BY_MODEL[model];
-  if (levels.length === 0) return null;
-  if (wanted && levels.includes(wanted)) return wanted;
-  return defaultEffort(model);
+  return coerceEffortFor(model, wanted);
 }
 
 export type LogKind = "plain" | "gt" | "muted" | "ok" | "warn";
