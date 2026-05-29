@@ -24,7 +24,7 @@ RUN pnpm install --frozen-lockfile
 FROM deps AS dev
 COPY . .
 EXPOSE 3010
-ENTRYPOINT ["/usr/bin/tini", "--"]
+ENTRYPOINT ["/usr/bin/tini", "--", "sh", "/app/docker-entrypoint.sh"]
 CMD ["pnpm", "dev"]
 
 FROM deps AS build
@@ -37,5 +37,5 @@ FROM base AS prod
 # next.config at runtime; copying everything avoids cherry-pick drift.
 COPY --from=build /app ./
 EXPOSE 3010
-ENTRYPOINT ["/usr/bin/tini", "--"]
+ENTRYPOINT ["/usr/bin/tini", "--", "sh", "/app/docker-entrypoint.sh"]
 CMD ["pnpm", "start"]

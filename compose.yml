@@ -20,7 +20,9 @@ services:
       - "4010"
     volumes:
       - ${HOME}/.claude:/root/.claude
-      - ${HOME}/.claude.json:/root/.claude.json
+      # Read-only seed: copied to a container-local /root/.claude.json at boot
+      # (see docker-entrypoint.sh) to avoid torn reads of the shared file.
+      - ${HOME}/.claude.json:/seed/.claude.json:ro
       - ${HOME}:${HOME}
     working_dir: /app
     healthcheck:
@@ -53,9 +55,9 @@ services:
       HOME: /root
     volumes:
       # Read-side: history/metrics/projects scan ~/.claude; git/fs APIs stat
-      # project dirs under the host home.
+      # project dirs under the host home. The app never spawns claude, so it
+      # has no ~/.claude.json.
       - ${HOME}/.claude:/root/.claude
-      - ${HOME}/.claude.json:/root/.claude.json
       - ${HOME}:${HOME}
     working_dir: /app
     restart: unless-stopped
@@ -82,7 +84,7 @@ services:
       - cockpit_node_modules:/app/node_modules
       - cockpit_next_cache:/app/.next
       - ${HOME}/.claude:/root/.claude
-      - ${HOME}/.claude.json:/root/.claude.json
+      - ${HOME}/.claude.json:/seed/.claude.json:ro
       - ${HOME}:${HOME}
     working_dir: /app
     tty: true
