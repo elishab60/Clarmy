@@ -8,16 +8,18 @@ export function Dashboard() {
   const sessions = useCockpit((s) => s.sessions);
   const order = useCockpit((s) => s.order);
   const cols = useCockpit((s) => s.tweaks.cols);
-  const provider = useCockpit((s) => s.provider);
+  const visibleProviders = useCockpit((s) => s.visibleProviders);
 
+  // Show every visible provider's sessions side by side (claude + codex + gemini).
   const list = order
     .map((id) => sessions[id])
-    .filter((v): v is NonNullable<typeof v> => Boolean(v) && v!.provider === provider);
+    .filter((v): v is NonNullable<typeof v> => Boolean(v) && visibleProviders.includes(v!.provider));
 
   if (list.length === 0) {
+    const labels = visibleProviders.map((p) => providerMeta(p).label).join(", ");
     return (
       <div style={{ padding: 40, color: "var(--fg-muted)", fontSize: 13 }}>
-        No {providerMeta(provider).label} sessions yet. Click <strong style={{ color: "var(--fg)" }}>New session</strong> to spawn one.
+        No {labels} sessions yet. Click <strong style={{ color: "var(--fg)" }}>New session</strong> to spawn one.
       </div>
     );
   }

@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import type { SessionSnapshot, SessionEvent } from "../shared/types";
-import { coerceProviderId, DEFAULT_PROVIDER, type ProviderId } from "../shared/providers";
+import { coerceProviderId, DEFAULT_PROVIDER, PROVIDER_IDS, type ProviderId } from "../shared/providers";
 import {
   buildAccentTokens,
   coerceMonoFontKey,
@@ -42,9 +42,14 @@ interface CockpitState {
   cmdkOpen: boolean;
   approvalFor: SessionSnapshot | null;
   tweaks: Tweaks;
+  // Active provider: the default for the New session form + the metrics view.
+  // Always kept inside visibleProviders.
   provider: ProviderId;
+  // Which providers' sessions the dashboard/sidebar show at once (multi-select).
+  visibleProviders: ProviderId[];
 
   setProvider: (p: ProviderId) => void;
+  toggleProvider: (p: ProviderId) => void;
   setTweaks: (patch: Partial<Tweaks>) => void;
   setTweaksOpen: (open: boolean) => void;
   setCmdkOpen: (open: boolean) => void;
@@ -64,10 +69,38 @@ export const useCockpit = create<CockpitState>((set, get) => ({
   approvalFor: null,
   tweaks: loadTweaks(),
   provider: loadProvider(),
+  visibleProviders: loadVisibleProviders(),
 
+  // Picking an active provider (e.g. spawning a session for it) also makes it
+  // visible, so the new tile is never hidden by the current filter.
   setProvider: (p) => {
     persistProvider(p);
-    set({ provider: p });
+    const { visibleProviders } = get();
+    const next = visibleProviders.includes(p)
+      ? visibleProviders
+      : PROVIDER_IDS.filter((id) => visibleProviders.includes(id) || id === p);
+    if (next !== visibleProviders) persistVisibleProviders(next);
+    set({ provider: p, visibleProviders: next });
+  },
+
+  // Toggle one provider in/out of the visible set. Never empties it, and keeps
+  // the active provider valid (inside the set); enabling one makes it active.
+  toggleProvider: (p) => {
+    const s = get();
+    const has = s.visibleProviders.includes(p);
+    if (has && s.visibleProviders.length === 1) return; // keep at least one
+    let visibleProviders: ProviderId[];
+    let provider = s.provider;
+    if (has) {
+      visibleProviders = s.visibleProviders.filter((x) => x !== p);
+      if (provider === p) provider = visibleProviders[0]!;
+    } else {
+      visibleProviders = PROVIDER_IDS.filter((x) => s.visibleProviders.includes(x) || x === p);
+      provider = p;
+    }
+    persistVisibleProviders(visibleProviders);
+    persistProvider(provider);
+    set({ visibleProviders, provider });
   },
 
   setTweaks: (patch) => {
@@ -147,6 +180,26 @@ function loadProvider(): ProviderId {
 function persistProvider(p: ProviderId): void {
   if (typeof window === "undefined") return;
   try { window.localStorage.setItem(PROVIDER_KEY, p); } catch { /* ignore */ }
+}
+
+const VISIBLE_KEY = "cockpit.visibleProviders";
+
+function loadVisibleProviders(): ProviderId[] {
+  if (typeof window === "undefined") return [...PROVIDER_IDS];
+  try {
+    const raw = window.localStorage.getItem(VISIBLE_KEY);
+    if (!raw) return [...PROVIDER_IDS];
+    const arr = JSON.parse(raw) as unknown;
+    if (!Array.isArray(arr)) return [...PROVIDER_IDS];
+    // Keep canonical order + drop anything unknown; never return empty.
+    const valid = PROVIDER_IDS.filter((id) => arr.includes(id));
+    return valid.length > 0 ? valid : [...PROVIDER_IDS];
+  } catch { return [...PROVIDER_IDS]; }
+}
+
+function persistVisibleProviders(v: readonly ProviderId[]): void {
+  if (typeof window === "undefined") return;
+  try { window.localStorage.setItem(VISIBLE_KEY, JSON.stringify(v)); } catch { /* ignore */ }
 }
 
 export function applyTweaks(t: Tweaks): void {

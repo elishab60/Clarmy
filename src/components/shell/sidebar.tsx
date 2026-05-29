@@ -44,8 +44,8 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const sessions = useCockpit((s) => s.sessions);
-  const provider = useCockpit((s) => s.provider);
-  const scoped = Object.values(sessions).filter((v) => v.provider === provider);
+  const visibleProviders = useCockpit((s) => s.visibleProviders);
+  const scoped = Object.values(sessions).filter((v) => visibleProviders.includes(v.provider));
   const count = scoped.length;
   const approvals = scoped.filter((v) => v.state === "approval").length;
   const [stats, setStats] = useState<SideStats>({ projects: 0, history: 0, metrics: 0 });
@@ -70,7 +70,7 @@ export function Sidebar() {
         if (cancelled) return;
         if (mRes.ok) {
           const j = (await mRes.json()) as { sessions: Array<{ provider: string; cwd: string; toolUses: number }> };
-          const rows = (j.sessions ?? []).filter((r) => r.provider === provider);
+          const rows = (j.sessions ?? []).filter((r) => (visibleProviders as readonly string[]).includes(r.provider));
           setStats({
             projects: new Set(rows.map((r) => r.cwd)).size,
             history: rows.length,
@@ -85,7 +85,7 @@ export function Sidebar() {
     void load();
     const id = setInterval(load, 20_000);
     return () => { cancelled = true; clearInterval(id); };
-  }, [provider]);
+  }, [visibleProviders]);
 
   const BADGES: Record<string, number | string> = {
     sessions: count,

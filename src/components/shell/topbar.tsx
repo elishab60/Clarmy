@@ -33,8 +33,8 @@ export function Topbar() {
   const tweaks = useCockpit((s) => s.tweaks);
   const setTweaks = useCockpit((s) => s.setTweaks);
   const setCmdkOpen = useCockpit((s) => s.setCmdkOpen);
-  const provider = useCockpit((s) => s.provider);
-  const setProvider = useCockpit((s) => s.setProvider);
+  const visibleProviders = useCockpit((s) => s.visibleProviders);
+  const toggleProvider = useCockpit((s) => s.toggleProvider);
   const [payload, setPayload] = useState<MetricsPayload | null>(null);
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
@@ -57,28 +57,29 @@ export function Topbar() {
 
   const today = new Date().toISOString().slice(0, 10);
   const todayCost = payload
-    ? payload.sessions.reduce((a, r) => a + (r.provider === provider ? (r.daily?.[today]?.c ?? 0) : 0), 0)
+    ? payload.sessions.reduce((a, r) => a + (visibleProviders.includes(r.provider) ? (r.daily?.[today]?.c ?? 0) : 0), 0)
     : null;
-  const count = Object.values(sessions).filter((s) => s.provider === provider).length;
+  const count = Object.values(sessions).filter((s) => visibleProviders.includes(s.provider)).length;
 
   return (
     <header className="topbar">
       <div className="title">
         <strong>{titleFor(pathname)}</strong>
       </div>
-      <div className="provider-tabs" role="tablist" aria-label="Provider">
+      <div className="provider-tabs" role="group" aria-label="Providers to display">
         {PROVIDERS.map((p) => {
-          const active = mounted && provider === p.id;
+          // Multi-select: every visible provider's sessions show on the dashboard
+          // at once. The button toggles its provider in/out of that set.
+          const on = mounted && visibleProviders.includes(p.id);
           return (
           <button
             key={p.id}
-            role="tab"
             suppressHydrationWarning
-            aria-selected={active}
-            className={`provider-tab${active ? " on" : ""}`}
+            aria-pressed={on}
+            className={`provider-tab${on ? " on" : ""}`}
             style={{ ["--provider-accent" as string]: p.accent }}
-            onClick={() => setProvider(p.id)}
-            title={p.tagline}
+            onClick={() => toggleProvider(p.id)}
+            title={`${p.tagline} — click to show/hide`}
           >
             <span className="provider-dot" />
             {p.label}
