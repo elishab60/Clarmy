@@ -19,6 +19,7 @@ services:
       IS_SANDBOX: "1"
       NODE_ENV: production
       HOME: /root
+      CODEX_HOME: "${HOME}/.codex"
     expose:
       - "4010"
     volumes:
@@ -56,6 +57,9 @@ services:
       COCKPIT_MOCK: "${COCKPIT_MOCK:-0}"
       NODE_ENV: production
       HOME: /root
+      # Codex usage gauge: ~/.codex is not under /root, but the host home is bind
+      # mounted at its real path below, so point the reader at it.
+      CODEX_HOME: "${HOME}/.codex"
     volumes:
       # Read-side: history/metrics/projects scan ~/.claude; git/fs APIs stat
       # project dirs under the host home. The app never spawns claude, so it
@@ -83,6 +87,7 @@ services:
       CLAUDE_CLI_PATH: /usr/local/bin/claude
       IS_SANDBOX: "1"
       HOME: /root
+      CODEX_HOME: "${HOME}/.codex"
     volumes:
       - .:/app:cached
       - cockpit_node_modules:/app/node_modules
