@@ -49,11 +49,43 @@ function toWindow(
   };
 }
 
-// Returns the live usage windows, or null when the token is missing / the call
-// fails / the shape is unusable, so the caller can fall back to a local estimate.
+function buildWindows(data: UsageResp): QuotaWindow[] {
+  const windows: QuotaWindow[] = [];
+  const five = toWindow("5h", 300, data.five_hour, true);
+  const week = toWindow("Weekly", 10080, data.seven_day, true);
+  const opus = toWindow("Opus", 10080, data.seven_day_opus, false);
+  const sonnet = toWindow("Sonnet", 10080, data.seven_day_sonnet, false);
+  if (five) windows.push(five);
+  if (week) windows.push(week);
+  if (opus) windows.push(opus);
+  if (sonnet) windows.push(sonnet);
+  return windows;
+}
+
+// The /api/oauth/usage endpoint is itself rate limited, so hitting it on every
+// 15s client poll returns 429. Cache the result: refresh upstream at most once a
+// minute, and on any failure (429, network, expired token) keep serving the last
+// good reading for up to an hour before giving up and letting the caller fall
+// back to a local estimate.
+let cache: { windows: QuotaWindow[]; at: number } | null = null;
+let nextTryAt = 0;
+const FRESH_MS = 60_000;
+const STALE_OK_MS = 60 * 60_000;
+const BACKOFF_MS = 5 * 60_000;
+
+function serveStale(now: number): QuotaWindow[] | null {
+  return cache && now - cache.at < STALE_OK_MS ? cache.windows : null;
+}
+
+// Returns the live usage windows (possibly from cache), or null when nothing
+// usable is available so the caller can fall back to a local estimate.
 export async function fetchClaudeUsageWindows(): Promise<QuotaWindow[] | null> {
+  const now = Date.now();
+  if (cache && now - cache.at < FRESH_MS) return cache.windows;
+  if (now < nextTryAt) return serveStale(now);
+
   const token = readToken();
-  if (!token) return null;
+  if (!token) return serveStale(now);
 
   let resp: Response;
   try {
@@ -70,26 +102,25 @@ export async function fetchClaudeUsageWindows(): Promise<QuotaWindow[] | null> {
     });
   } catch (err) {
     log.warn("usage fetch failed", { err: String(err) });
-    return null;
+    nextTryAt = now + BACKOFF_MS;
+    return serveStale(now);
   }
   if (!resp.ok) {
     log.warn("usage non-ok", { status: resp.status });
-    return null;
+    nextTryAt = now + BACKOFF_MS;
+    return serveStale(now);
   }
 
   let data: UsageResp;
   try { data = (await resp.json()) as UsageResp; }
-  catch { return null; }
+  catch { nextTryAt = now + BACKOFF_MS; return serveStale(now); }
 
-  const windows: QuotaWindow[] = [];
-  const five = toWindow("5h", 300, data.five_hour, true);
-  const week = toWindow("Weekly", 10080, data.seven_day, true);
-  const opus = toWindow("Opus", 10080, data.seven_day_opus, false);
-  const sonnet = toWindow("Sonnet", 10080, data.seven_day_sonnet, false);
-  if (five) windows.push(five);
-  if (week) windows.push(week);
-  if (opus) windows.push(opus);
-  if (sonnet) windows.push(sonnet);
-
-  return windows.length > 0 ? windows : null;
+  const windows = buildWindows(data);
+  if (windows.length > 0) {
+    cache = { windows, at: now };
+    nextTryAt = 0;
+    return windows;
+  }
+  nextTryAt = now + BACKOFF_MS;
+  return serveStale(now);
 }
