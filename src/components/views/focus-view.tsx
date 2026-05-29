@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCockpit } from "@/lib/client/store";
 import type { Effort } from "@/lib/shared/types";
 import { effortLevelsFor } from "@/lib/shared/models";
+import { providerMeta } from "@/lib/shared/providers";
 import { STATE_META } from "../shell/state-meta";
 import { PtyTerminal } from "../terminal/pty-terminal";
 
@@ -138,6 +139,7 @@ export function FocusView({ id }: { id: string }) {
           <h3>Session</h3>
           <div className="kv-list">
             <div className="kv"><span className="k">id</span><span className="v">{s.id}</span></div>
+            <div className="kv"><span className="k">provider</span><span className="v">{providerMeta(s.provider).label}</span></div>
             <div className="kv"><span className="k">model</span><span className="v">{s.model}</span></div>
             <div className="kv"><span className="k">state</span><span className="v" style={{ color: meta.color }}>{meta.label}</span></div>
             <div className="kv"><span className="k">tool</span><span className="v">{s.tool ?? "—"}</span></div>

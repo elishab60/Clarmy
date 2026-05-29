@@ -2,17 +2,18 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { ApprovalMode, Effort, ModelId } from "@/lib/shared/types";
-import { MODEL_IDS, DEFAULT_MODEL_ID, effortLevelsFor, defaultEffortFor } from "@/lib/shared/models";
+import type { ApprovalMode, Effort, ModelId, ProviderId } from "@/lib/shared/types";
+import { modelIdsForProvider, defaultModelFor, effortLevelsFor, defaultEffortFor } from "@/lib/shared/models";
+import { PROVIDERS, coerceProviderId } from "@/lib/shared/providers";
+import { useCockpit } from "@/lib/client/store";
 import { ProjectSelector, type ProjectOption } from "./project-selector";
 
-const MODELS: ModelId[] = [...MODEL_IDS];
 const BUILTIN_TOOLS = ["Bash", "Read", "Edit", "Write", "Grep", "TodoWrite"];
 const EXTRA_TOOLS = ["Glob", "WebFetch", "WebSearch", "Task"];
 const INITIAL_TOOLS = ["Bash", "Read", "Edit", "Write", "Grep", "TodoWrite"];
 
 const LS_KEY = "cockpit.newSession.prefs.v1";
-type Prefs = { model?: ModelId; effort?: Effort; skipPerms?: boolean };
+type Prefs = { provider?: ProviderId; model?: ModelId; effort?: Effort; skipPerms?: boolean };
 
 function loadPrefs(): Prefs {
   if (typeof window === "undefined") return {};
@@ -35,16 +36,35 @@ export function NewSessionView() {
   const initialPrompt = search.get("prompt") ?? "";
   const autolaunch = search.get("autolaunch") === "1";
 
+  const storeProvider = useCockpit((s) => s.provider);
+  const setStoreProvider = useCockpit((s) => s.setProvider);
   const prefs = useMemo(() => loadPrefs(), []);
-  const [model, setModel] = useState<ModelId>(prefs.model ?? DEFAULT_MODEL_ID);
+  const initialProvider = coerceProviderId(prefs.provider ?? storeProvider);
+  const initialModel = (() => {
+    const ids = modelIdsForProvider(initialProvider);
+    return prefs.model && ids.includes(prefs.model) ? prefs.model : defaultModelFor(initialProvider);
+  })();
+  const [provider, setProviderState] = useState<ProviderId>(initialProvider);
+  const [model, setModel] = useState<ModelId>(initialModel);
   const [effort, setEffort] = useState<Effort | null>(() => {
-    const m = prefs.model ?? DEFAULT_MODEL_ID;
-    const levels = effortLevelsFor(m);
+    const levels = effortLevelsFor(initialModel);
     if (levels.length === 0) return null;
     const wanted = prefs.effort;
     if (wanted && levels.includes(wanted)) return wanted;
-    return defaultEffortFor(m);
+    return defaultEffortFor(initialModel);
   });
+
+  // Switching provider keeps the topbar in sync and snaps the model to one the
+  // provider actually offers.
+  const onProvider = (p: ProviderId) => {
+    setProviderState(p);
+    setStoreProvider(p);
+  };
+
+  useEffect(() => {
+    const ids = modelIdsForProvider(provider);
+    setModel((cur) => (ids.includes(cur) ? cur : defaultModelFor(provider)));
+  }, [provider]);
 
   useEffect(() => {
     const levels = effortLevelsFor(model);
@@ -78,8 +98,8 @@ export function NewSessionView() {
   }, []);
 
   useEffect(() => {
-    savePrefs({ model, effort: effort ?? undefined, skipPerms });
-  }, [model, effort, skipPerms]);
+    savePrefs({ provider, model, effort: effort ?? undefined, skipPerms });
+  }, [provider, model, effort, skipPerms]);
 
   useEffect(() => {
     void (async () => {
@@ -187,6 +207,7 @@ export function NewSessionView() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
+          provider,
           project, cwd, name: name || prompt.split("\n")[0]!.slice(0, 60), model,
           allowedTools: tools,
           approvalMode: skipPerms ? "auto" : autoMode ? "auto" : approval,
@@ -235,7 +256,7 @@ export function NewSessionView() {
   return (
     <div className="new-session-view">
       <h1>New session</h1>
-      <p className="lede">Spawn a Claude Code session in a project directory. You can approve tool calls individually or let a set of them run unattended.</p>
+      <p className="lede">Spawn an agent CLI session in a project directory. Pick the provider (Gemini, Claude or Codex), then approve tool calls individually or let a set of them run unattended.</p>
 
       <div className="form-card">
         <div className="form-section">
@@ -314,10 +335,28 @@ export function NewSessionView() {
         <div className="form-section">
           <h4>Model</h4>
           <div className="form-row">
+            <label>Provider</label>
+            <div className="ctrl">
+              <div className="model-segment" role="radiogroup" aria-label="Provider">
+                {PROVIDERS.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={provider === p.id}
+                    className={provider === p.id ? "on" : ""}
+                    onClick={() => onProvider(p.id)}
+                    title={p.tagline}
+                  >{p.label}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="form-row">
             <label>Model</label>
             <div className="ctrl">
               <div className="model-segment" role="radiogroup" aria-label="Model">
-                {MODELS.map((m) => (
+                {modelIdsForProvider(provider).map((m) => (
                   <button
                     key={m}
                     type="button"

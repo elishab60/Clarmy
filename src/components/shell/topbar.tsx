@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useCockpit } from "@/lib/client/store";
+import { PROVIDERS } from "@/lib/shared/providers";
+import type { ProviderId } from "@/lib/shared/types";
 
 function titleFor(pathname: string): string {
   if (pathname === "/") return "Sessions · dashboard";
@@ -14,7 +16,7 @@ function titleFor(pathname: string): string {
 }
 
 interface MetricsPayload {
-  sessions: Array<{ daily: Record<string, { c: number }> }>;
+  sessions: Array<{ provider: ProviderId; daily: Record<string, { c: number }> }>;
 }
 
 function fmtCost(n: number): string {
@@ -31,7 +33,9 @@ export function Topbar() {
   const tweaks = useCockpit((s) => s.tweaks);
   const setTweaks = useCockpit((s) => s.setTweaks);
   const setCmdkOpen = useCockpit((s) => s.setCmdkOpen);
-  const [todayCost, setTodayCost] = useState<number | null>(null);
+  const provider = useCockpit((s) => s.provider);
+  const setProvider = useCockpit((s) => s.setProvider);
+  const [payload, setPayload] = useState<MetricsPayload | null>(null);
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
@@ -43,9 +47,7 @@ export function Topbar() {
         if (!res.ok) return;
         const j = (await res.json()) as MetricsPayload;
         if (!alive) return;
-        const today = new Date().toISOString().slice(0, 10);
-        const cost = j.sessions.reduce((a, r) => a + (r.daily?.[today]?.c ?? 0), 0);
-        setTodayCost(cost);
+        setPayload(j);
       } catch {}
     };
     void load();
@@ -53,12 +55,32 @@ export function Topbar() {
     return () => { alive = false; clearInterval(id); };
   }, []);
 
-  const count = Object.keys(sessions).length;
+  const today = new Date().toISOString().slice(0, 10);
+  const todayCost = payload
+    ? payload.sessions.reduce((a, r) => a + (r.provider === provider ? (r.daily?.[today]?.c ?? 0) : 0), 0)
+    : null;
+  const count = Object.values(sessions).filter((s) => s.provider === provider).length;
 
   return (
     <header className="topbar">
       <div className="title">
         <strong>{titleFor(pathname)}</strong>
+      </div>
+      <div className="provider-tabs" role="tablist" aria-label="Provider">
+        {PROVIDERS.map((p) => (
+          <button
+            key={p.id}
+            role="tab"
+            aria-selected={provider === p.id}
+            className={`provider-tab${provider === p.id ? " on" : ""}`}
+            style={{ ["--provider-accent" as string]: p.accent }}
+            onClick={() => setProvider(p.id)}
+            title={p.tagline}
+          >
+            <span className="provider-dot" />
+            {p.label}
+          </button>
+        ))}
       </div>
       <div className="meta">
         <span><span className="k">sessions</span><span className="v">{count}</span></span>
