@@ -8,6 +8,7 @@ import type { EventBus } from "./events.ts";
 import type { Effort, ModelId, SessionSnapshot, SpawnConfig } from "../shared/types.ts";
 import { coerceEffort } from "../shared/types.ts";
 import { modelSupportsEffortFor } from "../shared/models.ts";
+import { mcpConfigArgs, removeSessionMcpConfig } from "../mcp/config.ts";
 
 const log = createLogger("pty");
 
@@ -49,7 +50,10 @@ export class PtyRunner {
     }
 
     this.effort = coerceEffort(config.model, config.effort ?? null);
-    const args = driver.buildArgs(config, this.effort);
+    // Inject the cockpit MCP server so this session can reach its peers, the
+    // fleet summary and the control plane. Merged (no --strict-mcp-config) so
+    // the session keeps its own user/project MCP servers too.
+    const args = [...driver.buildArgs(config, this.effort), ...mcpConfigArgs(id)];
     const childPath = buildChildPath(process.env.PATH);
     const startedAt = Date.now();
     this.snapshot = initialSnapshot({
@@ -150,6 +154,7 @@ export class PtyRunner {
     this.pty.onExit(({ exitCode }) => {
       this.exitCode = exitCode;
       this.tailer.stop();
+      removeSessionMcpConfig(this.id);
       if (this.idleTimer) { clearTimeout(this.idleTimer); this.idleTimer = null; }
       if (settleTimer) { clearTimeout(settleTimer); settleTimer = null; }
       if (fallbackTimer) { clearTimeout(fallbackTimer); fallbackTimer = null; }
@@ -234,6 +239,7 @@ export class PtyRunner {
   async kill(): Promise<void> {
     if (this.exitCode !== null) return;
     this.tailer.stop();
+    removeSessionMcpConfig(this.id);
     try { this.pty.kill(); } catch { /* ignore */ }
   }
 
