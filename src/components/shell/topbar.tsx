@@ -14,7 +14,7 @@ function titleFor(pathname: string): string {
 }
 
 interface MetricsPayload {
-  sessions: Array<{ day: string | null; cost: number }>;
+  sessions: Array<{ daily: Record<string, { c: number }> }>;
 }
 
 function fmtCost(n: number): string {
@@ -44,7 +44,7 @@ export function Topbar() {
         const j = (await res.json()) as MetricsPayload;
         if (!alive) return;
         const today = new Date().toISOString().slice(0, 10);
-        const cost = j.sessions.reduce((a, r) => (r.day === today ? a + r.cost : a), 0);
+        const cost = j.sessions.reduce((a, r) => a + (r.daily?.[today]?.c ?? 0), 0);
         setTodayCost(cost);
       } catch {}
     };

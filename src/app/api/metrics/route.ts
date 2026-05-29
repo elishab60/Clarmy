@@ -22,6 +22,7 @@ export async function GET() {
   const seen = new Set<string>();
   const rows = sessions.map((s) => {
     let cost = 0, input = 0, output = 0, cacheRead = 0, cacheCreate = 0;
+    const daily: Record<string, { c: number; o: number }> = {};
     for (const r of s.usage) {
       if (r.key) {
         if (seen.has(r.key)) continue;
@@ -31,13 +32,20 @@ export async function GET() {
       output += r.outputTokens;
       cacheRead += r.cacheReadTokens;
       cacheCreate += r.cacheCreate5mTokens + r.cacheCreate1hTokens;
-      cost += estimateCost(r.model ?? s.model, {
+      const rc = estimateCost(r.model ?? s.model, {
         input: r.inputTokens,
         output: r.outputTokens,
         cacheRead: r.cacheReadTokens,
         cacheCreate5m: r.cacheCreate5mTokens,
         cacheCreate1h: r.cacheCreate1hTokens,
       });
+      cost += rc;
+      if (r.ts) {
+        const dk = new Date(r.ts).toISOString().slice(0, 10);
+        const e = (daily[dk] ??= { c: 0, o: 0 });
+        e.c += rc;
+        e.o += r.outputTokens;
+      }
     }
     const endedAt = s.endedAt || s.startedAt;
     return {
@@ -57,6 +65,7 @@ export async function GET() {
       messages: s.messageCount,
       cost,
       state: s.state,
+      daily,
     };
   });
 

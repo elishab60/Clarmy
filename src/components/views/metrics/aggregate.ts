@@ -98,14 +98,25 @@ export function perModel(rows: readonly SessionRow[]): GroupRow[] {
 
 export function perDay(rows: readonly SessionRow[]): Map<string, DayBucket> {
   const m = new Map<string, DayBucket>();
+  const get = (d: string): DayBucket => {
+    let b = m.get(d);
+    if (!b) { b = { sessions: 0, cost: 0, output: 0, toolUses: 0 }; m.set(d, b); }
+    return b;
+  };
   for (const r of rows) {
-    if (!r.day) continue;
-    let b = m.get(r.day);
-    if (!b) { b = { sessions: 0, cost: 0, output: 0, toolUses: 0 }; m.set(r.day, b); }
-    b.sessions++;
-    b.cost += r.cost;
-    b.output += r.output;
-    b.toolUses += r.toolUses;
+    // Cost / output by the day each message happened (matches ccusage-style
+    // per-day accounting), not the session's end date.
+    for (const [day, e] of Object.entries(r.daily)) {
+      const b = get(day);
+      b.cost += e.c;
+      b.output += e.o;
+    }
+    // A session and its tools count once, on the day it ended.
+    if (r.day) {
+      const b = get(r.day);
+      b.sessions++;
+      b.toolUses += r.toolUses;
+    }
   }
   return m;
 }
