@@ -3,7 +3,7 @@ import { z } from "zod";
 import { statSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
-import { getManager } from "@/lib/orchestrator/manager";
+import { getControl } from "@/lib/orchestrator/control";
 import { findClaudeCliPath } from "@/lib/claude-code/history";
 import type { ApprovalMode, Effort, ModelId } from "@/lib/shared/types";
 import { isModelId, MODEL_IDS, ALL_EFFORTS } from "@/lib/shared/models";
@@ -29,7 +29,7 @@ const SpawnSchema = z.object({
 });
 
 export async function GET() {
-  return NextResponse.json({ sessions: getManager().list() });
+  return NextResponse.json({ sessions: await getControl().list() });
 }
 
 export async function POST(req: Request) {
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
     }, { status: 500 });
   }
   try {
-    const id = await getManager().spawn({
+    const id = await getControl().spawn({
       ...parsed.data,
       cwd,
       model: parsed.data.model as ModelId,

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getManager } from "@/lib/orchestrator/manager";
+import { getControl } from "@/lib/orchestrator/control";
 import { ALL_EFFORTS } from "@/lib/shared/models";
 
 export const runtime = "nodejs";
@@ -21,14 +21,14 @@ type Ctx = { params: Promise<{ id: string }> };
 
 export async function GET(_req: Request, ctx: Ctx) {
   const { id } = await ctx.params;
-  const snap = getManager().get(id);
+  const snap = await getControl().get(id);
   if (!snap) return NextResponse.json({ error: "not_found" }, { status: 404 });
   return NextResponse.json(snap);
 }
 
 export async function DELETE(_req: Request, ctx: Ctx) {
   const { id } = await ctx.params;
-  const ok = await getManager().kill(id);
+  const ok = await getControl().kill(id);
   return NextResponse.json({ ok });
 }
 
@@ -38,12 +38,12 @@ export async function POST(req: Request, ctx: Ctx) {
   const parsed = ActionSchema.safeParse(json);
   if (!parsed.success) return NextResponse.json({ error: "invalid_input" }, { status: 400 });
   if (parsed.data.action === "fork") {
-    const next = await getManager().fork(id, parsed.data.prompt ?? "continue");
+    const next = await getControl().fork(id, parsed.data.prompt ?? "continue");
     if (!next) return NextResponse.json({ error: "not_found" }, { status: 404 });
     return NextResponse.json({ id: next }, { status: 201 });
   }
   if (parsed.data.action === "set_effort") {
-    const ok = getManager().setEffort(id, parsed.data.effort);
+    const ok = await getControl().setEffort(id, parsed.data.effort);
     if (!ok) return NextResponse.json({ error: "not_found" }, { status: 404 });
     return NextResponse.json({ ok: true });
   }

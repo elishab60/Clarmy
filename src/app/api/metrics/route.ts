@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getManager } from "@/lib/orchestrator/manager";
+import { getControl } from "@/lib/orchestrator/control";
 import { scanAll, projectsFromSessions, aggregateUsage, type CCUsageRecord } from "@/lib/claude-code/history";
 import { estimateCost, refreshPricing } from "@/lib/claude-code/pricing";
 import { modelFromApiId } from "@/lib/shared/models";
@@ -18,7 +18,7 @@ const cost = (model: string | undefined, r: CCUsageRecord): number => estimateCo
 export async function GET() {
   await refreshPricing();
 
-  const mgr = getManager();
+  const live = await getControl().list();
   const sessions = scanAll();
   const agg = aggregateUsage(sessions, cost);
   const projects = projectsFromSessions(sessions);
@@ -56,7 +56,7 @@ export async function GET() {
   return NextResponse.json({
     metrics: {
       totalSessions: sessions.length,
-      liveSessions: mgr.list().length,
+      liveSessions: live.length,
       doneSessions: done,
       errorSessions: errored,
       totalInputTokens: agg.totals.inputTokens,

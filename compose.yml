@@ -1,35 +1,68 @@
 services:
-  cockpit:
+  # Long-lived daemon that owns the SessionManager and all PTYs. Survives app
+  # rebuilds: `docker compose up -d --build cockpit` recreates only the app, so
+  # running sessions here keep their live processes (no resume needed).
+  orchestrator:
     build:
       context: .
       target: prod
-    container_name: cockpit
-    ports:
-      - "3010:3010"
+    container_name: cockpit-orchestrator
+    command: ["pnpm", "start:orchestrator"]
     environment:
-      COCKPIT_PORT: "3010"
+      COCKPIT_ROLE: orchestrator
+      COCKPIT_ORCHESTRATOR_PORT: "4010"
       COCKPIT_MOCK: "${COCKPIT_MOCK:-0}"
       ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
       CLAUDE_CLI_PATH: /usr/local/bin/claude
       NODE_ENV: production
       HOME: /root
+    expose:
+      - "4010"
     volumes:
-      # Runtime state only — the app itself is baked into the image (prod
-      # build). To pick up code changes: docker compose up -d --build.
-      #
-      # Claude CLI state, auth, plugins, session history at /root (the CLI's
-      # HOME). Auth token bridged from macOS Keychain into .credentials.json.
       - ${HOME}/.claude:/root/.claude
       - ${HOME}/.claude.json:/root/.claude.json
-      # Whole host home at the SAME absolute path so EVERY project cwd the
-      # cockpit pilots resolves to a real dir. VirtioFS is lazy; unaccessed
-      # paths cost nothing.
+      - ${HOME}:${HOME}
+    working_dir: /app
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:4010/ctl/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  # Next front-end. Stateless: proxies WS to the orchestrator and calls its
+  # control API. Rebuild this freely without touching live sessions.
+  cockpit:
+    build:
+      context: .
+      target: prod
+    container_name: cockpit
+    command: ["pnpm", "start"]
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+    ports:
+      - "3010:3010"
+    environment:
+      COCKPIT_ROLE: app
+      COCKPIT_PORT: "3010"
+      COCKPIT_ORCHESTRATOR_URL: http://orchestrator:4010
+      COCKPIT_MOCK: "${COCKPIT_MOCK:-0}"
+      NODE_ENV: production
+      HOME: /root
+    volumes:
+      # Read-side: history/metrics/projects scan ~/.claude; git/fs APIs stat
+      # project dirs under the host home.
+      - ${HOME}/.claude:/root/.claude
+      - ${HOME}/.claude.json:/root/.claude.json
       - ${HOME}:${HOME}
     working_dir: /app
     restart: unless-stopped
 
-  # Optional dev service with HMR: `docker compose --profile dev up cockpit-dev`.
-  # Slower (compiles routes on demand) but reflects source edits live.
+  # Optional single-process dev with HMR: `docker compose --profile dev up cockpit-dev`.
+  # Solo role (Next + orchestrator together); sessions live here and restart
+  # with the container. Slower first hit (compiles on demand) but live edits.
   cockpit-dev:
     profiles: ["dev"]
     build:

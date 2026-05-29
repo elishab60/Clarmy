@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
-import { getManager } from "@/lib/orchestrator/manager";
+import { getControl } from "@/lib/orchestrator/control";
 import { scanAll, projectsFromSessions, aggregateUsage } from "@/lib/claude-code/history";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const mgr = getManager();
-  const live = mgr.list();
+  const live = await getControl().list();
   const liveByCwd: Record<string, number> = {};
   const liveByName: Record<string, number> = {};
   for (const s of live) {
