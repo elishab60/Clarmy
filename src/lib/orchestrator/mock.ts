@@ -2,7 +2,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import type { EventBus } from "./events.ts";
 import { reduce, initialSnapshot, type StateAction } from "./state-machine.ts";
-import type { SessionSnapshot, SpawnConfig, SessionEvent, LogLine, ModelId } from "../shared/types.ts";
+import type { SessionSnapshot, SpawnConfig, SessionEvent, LogLine, ModelId, ProviderId } from "../shared/types.ts";
 import { createLogger } from "../util/logger.ts";
 
 const log = createLogger("mock");
@@ -15,6 +15,7 @@ interface MockEnvelope {
 
 export interface MockFixture {
   readonly id: string;
+  readonly provider: ProviderId;
   readonly project: string;
   readonly name: string;
   readonly model: ModelId;
@@ -33,6 +34,7 @@ export class MockSessionRunner {
     this.snapshot = initialSnapshot({
       type: "system.init",
       id,
+      provider: fixture.provider,
       project: fixture.project,
       name: fixture.name,
       model: fixture.model,
@@ -103,7 +105,7 @@ function toAction(env: MockEnvelope): StateAction | null {
     case "user.prompt":
     case "tool.reset":
     case "system.init":
-      return { ...(env.payload as object), type: env.kind } as StateAction;
+      return { provider: "claude", ...(env.payload as object), type: env.kind } as StateAction;
     default:
       return null;
   }
@@ -135,9 +137,10 @@ function loadOne(dir: string, name: string): MockFixture {
   const lines = readFileSync(path, "utf8").split("\n").filter((l) => l.trim().length > 0);
   const envelopes = lines.map((l) => JSON.parse(l) as MockEnvelope);
   const meta = envelopes.find((e) => e.kind === "system.init");
-  const init = meta?.payload as { id?: string; project?: string; name?: string; model?: ModelId } | undefined;
+  const init = meta?.payload as { id?: string; provider?: ProviderId; project?: string; name?: string; model?: ModelId } | undefined;
   return {
     id: init?.id ?? `mock_${name}`,
+    provider: init?.provider ?? "claude",
     project: init?.project ?? "fixture",
     name: init?.name ?? name,
     model: init?.model ?? "sonnet-4.6",
@@ -148,6 +151,7 @@ function loadOne(dir: string, name: string): MockFixture {
 function defaultFixture(name: string): MockFixture {
   return {
     id: `mock_${name}`,
+    provider: "claude",
     project: "fixture",
     name,
     model: "sonnet-4.6",

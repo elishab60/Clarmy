@@ -156,6 +156,46 @@ kbd, code, .mono { font-family: var(--font-mono); font-feature-settings: 'zero',
 }
 .theme-toggle button.on { background: var(--bg-elev); color: var(--fg); }
 
+/* Provider switch: pick which CLI vendor's sessions + metrics are in view. */
+.provider-tabs {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: var(--gap-4);
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+}
+.provider-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  font-size: 11.5px;
+  color: var(--fg-muted);
+  border-radius: calc(var(--radius) - 1px);
+  letter-spacing: 0.01em;
+  transition: color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+.provider-tab:hover { color: var(--fg-dim); }
+.provider-tab .provider-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--provider-accent);
+  opacity: 0.4;
+  transition: opacity 0.15s, box-shadow 0.15s;
+}
+.provider-tab.on {
+  color: var(--fg);
+  background: color-mix(in srgb, var(--provider-accent) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--provider-accent) 42%, transparent);
+}
+.provider-tab.on .provider-dot {
+  opacity: 1;
+  box-shadow: 0 0 6px var(--provider-accent);
+}
+
 /* SIDEBAR */
 .sidebar {
   grid-area: sidebar;

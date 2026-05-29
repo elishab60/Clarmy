@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import type { SessionSnapshot, SessionEvent } from "../shared/types";
+import { coerceProviderId, DEFAULT_PROVIDER, type ProviderId } from "../shared/providers";
 import {
   buildAccentTokens,
   coerceMonoFontKey,
@@ -41,7 +42,9 @@ interface CockpitState {
   cmdkOpen: boolean;
   approvalFor: SessionSnapshot | null;
   tweaks: Tweaks;
+  provider: ProviderId;
 
+  setProvider: (p: ProviderId) => void;
   setTweaks: (patch: Partial<Tweaks>) => void;
   setTweaksOpen: (open: boolean) => void;
   setCmdkOpen: (open: boolean) => void;
@@ -60,6 +63,12 @@ export const useCockpit = create<CockpitState>((set, get) => ({
   cmdkOpen: false,
   approvalFor: null,
   tweaks: loadTweaks(),
+  provider: loadProvider(),
+
+  setProvider: (p) => {
+    persistProvider(p);
+    set({ provider: p });
+  },
 
   setTweaks: (patch) => {
     const next = normalizeTweaks({ ...get().tweaks, ...patch });
@@ -125,6 +134,19 @@ function loadTweaks(): Tweaks {
 function persistTweaks(t: Tweaks): void {
   if (typeof window === "undefined") return;
   window.localStorage.setItem("cockpit.tweaks", JSON.stringify(t));
+}
+
+const PROVIDER_KEY = "cockpit.provider";
+
+function loadProvider(): ProviderId {
+  if (typeof window === "undefined") return DEFAULT_PROVIDER;
+  try { return coerceProviderId(window.localStorage.getItem(PROVIDER_KEY)); }
+  catch { return DEFAULT_PROVIDER; }
+}
+
+function persistProvider(p: ProviderId): void {
+  if (typeof window === "undefined") return;
+  try { window.localStorage.setItem(PROVIDER_KEY, p); } catch { /* ignore */ }
 }
 
 export function applyTweaks(t: Tweaks): void {

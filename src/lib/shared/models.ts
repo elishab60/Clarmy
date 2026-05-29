@@ -1,8 +1,11 @@
+import { DEFAULT_PROVIDER, type ProviderId } from "./providers.ts";
+
 export const ALL_EFFORTS = ["low", "medium", "high", "xhigh", "max", "ultracode"] as const;
 export type Effort = typeof ALL_EFFORTS[number];
 
 export interface ModelSpec {
   readonly id: string;
+  readonly provider: ProviderId;
   readonly apiId: string;
   readonly label: string;
   readonly tagline: string;
@@ -11,9 +14,15 @@ export interface ModelSpec {
   readonly defaultEffort: Effort | null;
 }
 
+// Model ids stay globally unique across providers so a single ModelId string is
+// enough to recover its provider. effortLevels capture what each vendor's CLI
+// actually exposes: Claude has a six-step ladder, Codex a reasoning-effort
+// triple, Gemini none.
 export const MODELS: readonly ModelSpec[] = [
+  // ---- Anthropic / Claude -------------------------------------------------
   {
     id: "opus-4.8",
+    provider: "claude",
     apiId: "claude-opus-4-8",
     label: "Opus 4.8",
     tagline: "newest, deepest reasoning",
@@ -23,6 +32,7 @@ export const MODELS: readonly ModelSpec[] = [
   },
   {
     id: "opus-4.7",
+    provider: "claude",
     apiId: "claude-opus-4-7",
     label: "Opus 4.7",
     tagline: "deep reasoning",
@@ -37,6 +47,7 @@ export const MODELS: readonly ModelSpec[] = [
   },
   {
     id: "sonnet-4.6",
+    provider: "claude",
     apiId: "claude-sonnet-4-6",
     label: "Sonnet 4.6",
     tagline: "balanced",
@@ -51,6 +62,7 @@ export const MODELS: readonly ModelSpec[] = [
   },
   {
     id: "haiku-4.5",
+    provider: "claude",
     apiId: "claude-haiku-4-5-20251001",
     label: "Haiku 4.5",
     tagline: "fastest",
@@ -61,12 +73,66 @@ export const MODELS: readonly ModelSpec[] = [
     effortLevels: [],
     defaultEffort: null,
   },
+
+  // ---- Google / Gemini ----------------------------------------------------
+  {
+    id: "gemini-2.5-pro",
+    provider: "gemini",
+    apiId: "gemini-2.5-pro",
+    label: "Gemini 2.5 Pro",
+    tagline: "deepest Gemini, long context",
+    aliasFrom: ["gemini-2.5-pro", "gemini-2.5-pro-latest"],
+    effortLevels: [],
+    defaultEffort: null,
+  },
+  {
+    id: "gemini-2.5-flash",
+    provider: "gemini",
+    apiId: "gemini-2.5-flash",
+    label: "Gemini 2.5 Flash",
+    tagline: "fast, cheap",
+    aliasFrom: ["gemini-2.5-flash", "gemini-2.5-flash-latest"],
+    effortLevels: [],
+    defaultEffort: null,
+  },
+
+  // ---- OpenAI / Codex -----------------------------------------------------
+  // Codex exposes reasoning effort via `-c model_reasoning_effort=<level>`.
+  {
+    id: "gpt-5-codex",
+    provider: "codex",
+    apiId: "gpt-5-codex",
+    label: "GPT-5 Codex",
+    tagline: "agentic coding default",
+    aliasFrom: ["gpt-5-codex"],
+    effortLevels: ["low", "medium", "high"],
+    defaultEffort: "medium",
+  },
+  {
+    id: "gpt-5",
+    provider: "codex",
+    apiId: "gpt-5",
+    label: "GPT-5",
+    tagline: "general reasoning",
+    aliasFrom: ["gpt-5"],
+    effortLevels: ["low", "medium", "high"],
+    defaultEffort: "medium",
+  },
+  {
+    id: "o4-mini",
+    provider: "codex",
+    apiId: "o4-mini",
+    label: "o4-mini",
+    tagline: "fast reasoning",
+    aliasFrom: ["o4-mini"],
+    effortLevels: ["low", "medium", "high"],
+    defaultEffort: "medium",
+  },
 ];
 
 export type ModelId = string;
 
 export const MODEL_IDS: readonly string[] = MODELS.map((m) => m.id);
-export const DEFAULT_MODEL_ID: string = MODELS[0]!.id;
 
 const BY_ID = new Map<string, ModelSpec>(MODELS.map((m) => [m.id, m]));
 const BY_API_ID = new Map<string, ModelSpec>();
@@ -74,6 +140,32 @@ for (const m of MODELS) {
   BY_API_ID.set(m.apiId, m);
   for (const a of m.aliasFrom) BY_API_ID.set(a, m);
 }
+
+const BY_PROVIDER = new Map<ProviderId, ModelSpec[]>();
+for (const m of MODELS) {
+  const list = BY_PROVIDER.get(m.provider) ?? [];
+  list.push(m);
+  BY_PROVIDER.set(m.provider, list);
+}
+
+export function modelsForProvider(provider: ProviderId): readonly ModelSpec[] {
+  return BY_PROVIDER.get(provider) ?? [];
+}
+
+export function modelIdsForProvider(provider: ProviderId): readonly string[] {
+  return modelsForProvider(provider).map((m) => m.id);
+}
+
+export function defaultModelFor(provider: ProviderId): string {
+  return modelsForProvider(provider)[0]?.id ?? MODELS[0]!.id;
+}
+
+export function providerOfModel(id: string | null | undefined): ProviderId | null {
+  if (!id) return null;
+  return BY_ID.get(id)?.provider ?? null;
+}
+
+export const DEFAULT_MODEL_ID: string = defaultModelFor(DEFAULT_PROVIDER);
 
 export function isModelId(v: unknown): v is ModelId {
   return typeof v === "string" && BY_ID.has(v);

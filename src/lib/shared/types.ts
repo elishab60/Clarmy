@@ -5,6 +5,9 @@ import {
   type Effort as EffortBase,
   type ModelId as ModelIdBase,
 } from "./models.ts";
+import type { ProviderId } from "./providers.ts";
+
+export type { ProviderId } from "./providers.ts";
 
 export type SessionState =
   | "idle"
@@ -59,6 +62,7 @@ export interface PendingApproval {
 
 export interface SessionSnapshot {
   readonly id: string;
+  readonly provider: ProviderId;
   readonly project: string;
   readonly name: string;
   readonly model: ModelId;
@@ -92,6 +96,7 @@ export interface SessionSnapshot {
 
 
 export interface SpawnConfig {
+  readonly provider: ProviderId;
   readonly project: string;
   readonly cwd: string;
   readonly name: string;

@@ -1,5 +1,8 @@
+import type { ProviderId } from "../../../lib/shared/providers.ts";
+
 export interface SessionRow {
   readonly id: string;
+  readonly provider: ProviderId;
   readonly cwd: string;
   readonly project: string;
   readonly model: string;
@@ -24,6 +27,7 @@ export interface SessionRow {
 export interface MetricsPayload {
   readonly generatedAt: number;
   readonly liveSessions: number;
+  readonly liveByProvider?: Partial<Record<ProviderId, number>>;
   readonly sessions: readonly SessionRow[];
 }
 

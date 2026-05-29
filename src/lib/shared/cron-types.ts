@@ -1,10 +1,13 @@
-import type { ApprovalMode, Effort, ModelId } from "./types";
+import type { ApprovalMode, Effort, ModelId, ProviderId } from "./types";
 
 export type CronSchedule =
   | { readonly kind: "recurring"; readonly expression: string }
   | { readonly kind: "oneshot"; readonly at: string };
 
 export interface CronSpawnSpec {
+  // Optional for back-compat with crons saved before multi-provider; absent
+  // means a Claude session.
+  readonly provider?: ProviderId;
   readonly project: string;
   readonly cwd: string;
   readonly name: string;

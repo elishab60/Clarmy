@@ -4,25 +4,15 @@ import { homedir } from "node:os";
 import { createLogger } from "../util/logger.ts";
 import { estimateCost, refreshPricing } from "./pricing.ts";
 import type { ModelId, TodoItem } from "../shared/types.ts";
+import type { TailPatch } from "../providers/types.ts";
 import { modelFromApiId } from "../shared/models.ts";
+
+export type { TailPatch } from "../providers/types.ts";
 
 const log = createLogger("session-tailer");
 
 const ROOT = resolve(homedir(), ".claude", "projects");
 const POLL_MS = 2_000;
-
-export interface TailPatch {
-  readonly cost?: number;
-  readonly tool?: string | null;
-  readonly toolsUsed?: number;
-  readonly inputTokens?: number;
-  readonly outputTokens?: number;
-  readonly model?: ModelId;
-  readonly resumeSessionId?: string;
-  readonly todoList?: readonly TodoItem[];
-  readonly todos?: number;
-  readonly todosDone?: number;
-}
 
 export class SessionTailer {
   private timer: ReturnType<typeof setInterval> | null = null;

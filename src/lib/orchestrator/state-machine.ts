@@ -1,7 +1,7 @@
 import type { SessionSnapshot, SessionState, LogLine, TodoItem, DiffRow, PendingApproval } from "../shared/types.ts";
 
 export type StateAction =
-  | { type: "system.init"; id: string; project: string; name: string; model: SessionSnapshot["model"]; startedAt: number; cwd?: string; branch?: string; prompt?: string; effort?: SessionSnapshot["effort"] }
+  | { type: "system.init"; id: string; provider: SessionSnapshot["provider"]; project: string; name: string; model: SessionSnapshot["model"]; startedAt: number; cwd?: string; branch?: string; prompt?: string; effort?: SessionSnapshot["effort"] }
   | { type: "assistant.text"; line: LogLine }
   | { type: "assistant.tool_use"; tool: string; editPath?: string; diff?: DiffRow[] }
   | { type: "pre_tool_use.approval"; approval: PendingApproval }
@@ -18,6 +18,7 @@ export type StateAction =
 export function initialSnapshot(init: Extract<StateAction, { type: "system.init" }>): SessionSnapshot {
   return {
     id: init.id,
+    provider: init.provider,
     project: init.project,
     name: init.name,
     model: init.model,

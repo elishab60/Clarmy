@@ -13,6 +13,8 @@ import { Heatmap } from "./metrics/heatmap.tsx";
 import { Donut } from "./metrics/donut.tsx";
 import { AreaChart } from "./metrics/area-chart.tsx";
 import { GroupTable } from "./metrics/tables.tsx";
+import { useCockpit } from "@/lib/client/store";
+import { providerMeta } from "@/lib/shared/providers";
 
 const HEAT_OPTS: { k: HeatMetric; label: string }[] = [
   { k: "sessions", label: "sessions" },
@@ -33,6 +35,7 @@ export function MetricsPage() {
   const [flashKey, setFlashKey] = useState(0);
   const [now, setNow] = useState(() => Date.now());
 
+  const provider = useCockpit((s) => s.provider);
   const [filters, setFilters] = useState<Filters>({ range: "all", projects: [], models: [] });
   const [heatMetric, setHeatMetric] = useState<HeatMetric>("sessions");
   const [areaMetric, setAreaMetric] = useState<SeriesMetric>("cost");
@@ -53,7 +56,10 @@ export function MetricsPage() {
 
   useEffect(() => { void refresh(); const id = setInterval(() => void refresh(), 15_000); return () => clearInterval(id); }, []);
 
-  const rows = payload?.sessions ?? [];
+  const rows = useMemo(
+    () => (payload?.sessions ?? []).filter((r) => r.provider === provider),
+    [payload, provider],
+  );
 
   const view = useMemo(() => {
     const filtered = filterRows(rows, filters, now);
@@ -80,15 +86,15 @@ export function MetricsPage() {
   const stats: StatDef[] = useMemo(() => {
     const t = view.totals;
     const d = view.deltas;
-    const live = payload?.liveSessions ?? 0;
+    const live = payload?.liveByProvider?.[provider] ?? 0;
     return [
       { key: "sessions", label: "Sessions", value: t.sessions, format: fmtInt, foot: `${live} live · ${t.done} done · ${t.error} error`, delta: d?.sessions, deltaGood: "up" },
-      { key: "cost", label: "Est. cost", value: t.cost, format: fmtCostFull, foot: "public Anthropic prices · plan Max", delta: d?.cost, deltaGood: "down", accent: true },
+      { key: "cost", label: "Est. cost", value: t.cost, format: fmtCostFull, foot: `public ${providerMeta(provider).vendor} list prices`, delta: d?.cost, deltaGood: "down", accent: true },
       { key: "output", label: "Output tokens", value: t.output, format: fmtTokens, foot: `${fmtTokens(t.input)} input`, delta: d?.output, deltaGood: "up" },
       { key: "cache", label: "Cache read", value: t.cacheRead, format: fmtTokens, foot: `${fmtTokens(t.cacheCreate)} cache create`, deltaGood: "up" },
       { key: "tools", label: "Tool calls", value: t.toolUses, format: fmtInt, foot: `${fmtInt(t.messages)} messages`, delta: d?.toolUses, deltaGood: "up" },
     ];
-  }, [view.totals, view.deltas, payload?.liveSessions]);
+  }, [view.totals, view.deltas, payload?.liveByProvider, provider]);
 
   const activeProjects = useMemo(() => new Set(filters.projects), [filters.projects]);
   const toggleProject = (cwd: string) =>
@@ -98,8 +104,8 @@ export function MetricsPage() {
     <div className="mx-shell">
       <div className="mx-header">
         <div>
-          <h1>Metrics</h1>
-          <p className="sub">All-time, aggregated from <code>~/.claude/projects/</code>. Filter by range, project or model. Refreshes every 15s.</p>
+          <h1>Metrics · {providerMeta(provider).label}</h1>
+          <p className="sub">All-time {providerMeta(provider).vendor} usage, from <code>~/{providerMeta(provider).homeDir}</code>. Filter by range, project or model. Refreshes every 15s.</p>
         </div>
         <button className={`btn btn-refresh${refreshing ? " is-spinning" : ""}`} onClick={() => void refresh()} disabled={loading} aria-label="Refresh">
           <RefreshIcon /><span>Refresh</span>
