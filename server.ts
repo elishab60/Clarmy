@@ -14,7 +14,7 @@ const handle = app.getRequestHandler();
 
 await app.prepare();
 
-getManager();
+getManager().restore();
 
 const server = createServer((req, res) => {
   const parsed = parse(req.url ?? "/", true);

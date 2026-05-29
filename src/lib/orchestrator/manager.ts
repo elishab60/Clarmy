@@ -1,10 +1,12 @@
 import { randomBytes } from "node:crypto";
 import { resolve } from "node:path";
+import { existsSync, statSync } from "node:fs";
 import { createLogger } from "../util/logger.ts";
 import { EventBus } from "./events.ts";
 import { SessionRunner } from "./session.ts";
 import { PtyRunner } from "./pty-runner.ts";
 import { MockSessionRunner, loadFixtures } from "./mock.ts";
+import { listPersisted, upsertPersisted, patchPersisted, removePersisted } from "./session-store.ts";
 import type { Effort, SessionSnapshot, SpawnConfig, SessionEvent } from "../shared/types.ts";
 
 const log = createLogger("manager");
@@ -30,8 +32,26 @@ export class SessionManager {
   private readonly runners = new Map<string, Runner>();
   private readonly bus = new EventBus();
   private mockLoaded = false;
+  private restored = false;
+  private readonly persistedIds = new Set<string>();
 
-  constructor(private readonly opts: { mock: boolean; fixturesDir: string }) {}
+  constructor(private readonly opts: { mock: boolean; fixturesDir: string }) {
+    if (!opts.mock) this.bus.subscribe((e) => this.persistFromEvent(e));
+  }
+
+  // Mirror live-session lifecycle into the on-disk store so sessions can be
+  // resumed after a server/container restart. The entry is created in spawn();
+  // here we capture the CLI session id and drop the entry when the pty exits.
+  private persistFromEvent(e: SessionEvent): void {
+    if (e.kind === "gone") {
+      if (this.persistedIds.delete(e.id)) removePersisted(e.id);
+      return;
+    }
+    if (e.kind === "patch" && this.persistedIds.has(e.id)) {
+      const sid = e.patch.resumeSessionId;
+      if (typeof sid === "string" && sid) patchPersisted(e.id, { claudeSessionId: sid });
+    }
+  }
 
   list(): SessionSnapshot[] {
     return Array.from(this.runners.values()).map((r) => r.getSnapshot());
@@ -43,6 +63,35 @@ export class SessionManager {
 
   async spawn(config: SpawnConfig): Promise<string> {
     const id = `s_${randomBytes(3).toString("hex")}`;
+    if (!this.opts.mock) {
+      this.persistedIds.add(id);
+      upsertPersisted({
+        id,
+        project: config.project,
+        cwd: config.cwd,
+        name: config.name,
+        model: config.model,
+        allowedTools: config.allowedTools,
+        approvalMode: config.approvalMode,
+        branch: config.branch,
+        dangerouslySkipPermissions: config.dangerouslySkipPermissions,
+        effort: config.effort,
+        claudeSessionId: config.resumeSessionId,
+        startedAt: Date.now(),
+      });
+    }
+    try {
+      this.instantiate(id, config);
+    } catch (err) {
+      this.persistedIds.delete(id);
+      removePersisted(id);
+      throw err;
+    }
+    log.info("spawned", { id, project: config.project, mock: this.opts.mock });
+    return id;
+  }
+
+  private instantiate(id: string, config: SpawnConfig): Runner {
     const runner: Runner = this.opts.mock
       ? new MockSessionRunner(id, this.bus, {
           id, project: config.project, name: config.name, model: config.model,
@@ -57,8 +106,45 @@ export class SessionManager {
       : new PtyRunner(id, this.bus, config);
     this.runners.set(id, runner);
     runner.start();
-    log.info("spawned", { id, project: config.project, mock: this.opts.mock });
-    return id;
+    return runner;
+  }
+
+  // Re-open sessions that were live before a server/container restart. Each is
+  // resumed idle (no prompt) via the CLI's --resume; the in-flight turn at the
+  // time of the kill is lost but the conversation continues. Runs once.
+  restore(): void {
+    if (this.restored || this.opts.mock) return;
+    this.restored = true;
+    const persisted = listPersisted();
+    let resumed = 0;
+    for (const s of persisted) {
+      if (!s.claudeSessionId) { removePersisted(s.id); continue; }
+      let cwdOk = false;
+      try { cwdOk = existsSync(s.cwd) && statSync(s.cwd).isDirectory(); } catch { cwdOk = false; }
+      if (!cwdOk) { this.persistedIds.delete(s.id); removePersisted(s.id); continue; }
+      this.persistedIds.add(s.id);
+      try {
+        this.instantiate(s.id, {
+          project: s.project,
+          cwd: s.cwd,
+          name: s.name,
+          model: s.model,
+          prompt: "",
+          allowedTools: s.allowedTools,
+          approvalMode: s.approvalMode,
+          branch: s.branch,
+          dangerouslySkipPermissions: s.dangerouslySkipPermissions,
+          resumeSessionId: s.claudeSessionId,
+          effort: s.effort,
+        });
+        resumed++;
+      } catch (err) {
+        this.persistedIds.delete(s.id);
+        removePersisted(s.id);
+        log.warn("restore failed", { id: s.id, err: String(err) });
+      }
+    }
+    if (persisted.length) log.info("sessions restored", { resumed, total: persisted.length });
   }
 
   getPty(id: string): PtyCapable | null {
