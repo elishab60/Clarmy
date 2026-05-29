@@ -185,6 +185,7 @@ async function fire(job: CronJob, now: Date): Promise<void> {
   log.info("firing cron", { id: job.id, name: job.name });
   try {
     const sessionId = await getManager().spawn({
+      provider: job.spawn.provider ?? "claude",
       project: job.spawn.project,
       cwd: job.spawn.cwd,
       name: job.spawn.name,
@@ -219,6 +220,7 @@ export async function runCronNow(id: string): Promise<{ ok: boolean; sessionId?:
   if (!job) return { ok: false, error: "not_found" };
   try {
     const sessionId = await getManager().spawn({
+      provider: job.spawn.provider ?? "claude",
       project: job.spawn.project,
       cwd: job.spawn.cwd,
       name: job.spawn.name,

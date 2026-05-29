@@ -33,6 +33,7 @@ export class SessionRunner {
     this.snapshot = initialSnapshot({
       type: "system.init",
       id,
+      provider: config.provider,
       project: config.project,
       name: config.name,
       model: config.model,

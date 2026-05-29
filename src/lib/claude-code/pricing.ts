@@ -36,6 +36,14 @@ const FALLBACK_PER_TOKEN: Record<string, Pricing> = {
   "claude-haiku-4-5":           { input: 1e-6,    output: 5e-6,    cacheRead: 1e-7,    cacheCreate5m: 1.25e-6,  cacheCreate1h: 2e-6  },
   "claude-haiku-4-5-20251001":  { input: 1e-6,    output: 5e-6,    cacheRead: 1e-7,    cacheCreate5m: 1.25e-6,  cacheCreate1h: 2e-6  },
   "claude-3-5-haiku":           { input: 0.8e-6,  output: 4e-6,    cacheRead: 8e-8,    cacheCreate5m: 1e-6,     cacheCreate1h: 1.6e-6 },
+  // Google Gemini (public list prices; cacheRead ~= input/4, no cache-create tier).
+  "gemini-2.5-pro":             { input: 1.25e-6, output: 10e-6,   cacheRead: 3.125e-7, cacheCreate5m: 1.25e-6,  cacheCreate1h: 1.25e-6 },
+  "gemini-2.5-flash":           { input: 0.3e-6,  output: 2.5e-6,  cacheRead: 7.5e-8,   cacheCreate5m: 0.3e-6,   cacheCreate1h: 0.3e-6  },
+  "gemini-2.5-flash-lite":      { input: 0.1e-6,  output: 0.4e-6,  cacheRead: 2.5e-8,   cacheCreate5m: 0.1e-6,   cacheCreate1h: 0.1e-6  },
+  // OpenAI Codex models (public list prices; cached input billed at cacheRead).
+  "gpt-5-codex":                { input: 1.25e-6, output: 10e-6,   cacheRead: 1.25e-7,  cacheCreate5m: 1.25e-6,  cacheCreate1h: 1.25e-6 },
+  "gpt-5":                      { input: 1.25e-6, output: 10e-6,   cacheRead: 1.25e-7,  cacheCreate5m: 1.25e-6,  cacheCreate1h: 1.25e-6 },
+  "o4-mini":                    { input: 1.1e-6,  output: 4.4e-6,  cacheRead: 2.75e-7,  cacheCreate5m: 1.1e-6,   cacheCreate1h: 1.1e-6  },
 };
 
 const UNKNOWN: Pricing = { input: 0, output: 0, cacheRead: 0, cacheCreate5m: 0, cacheCreate1h: 0 };
@@ -107,6 +115,12 @@ function pricingSync(model: string | undefined | null): Pricing {
   if (lower.includes("opus")) return table["claude-opus-4-1"] ?? UNKNOWN;
   if (lower.includes("sonnet")) return table["claude-sonnet-4-6"] ?? UNKNOWN;
   if (lower.includes("haiku")) return table["claude-haiku-4-5"] ?? UNKNOWN;
+  if (lower.includes("flash-lite")) return table["gemini-2.5-flash-lite"] ?? UNKNOWN;
+  if (lower.includes("flash")) return table["gemini-2.5-flash"] ?? UNKNOWN;
+  if (lower.includes("gemini")) return table["gemini-2.5-pro"] ?? UNKNOWN;
+  if (lower.includes("codex")) return table["gpt-5-codex"] ?? UNKNOWN;
+  if (lower.includes("o4-mini")) return table["o4-mini"] ?? UNKNOWN;
+  if (lower.includes("gpt-5") || lower.startsWith("gpt")) return table["gpt-5"] ?? UNKNOWN;
   return UNKNOWN;
 }
 

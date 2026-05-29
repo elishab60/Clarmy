@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, mkdirSync, renameSync, existsSync } from "node:fs";
 import { dirname } from "node:path";
-import type { ApprovalMode, Effort, ModelId } from "../shared/types.ts";
+import type { ApprovalMode, Effort, ModelId, ProviderId } from "../shared/types.ts";
 import { isModelId } from "../shared/models.ts";
 import { cockpitDir, sessionsFile } from "../claude-code/paths.ts";
 import { createLogger } from "../util/logger.ts";
@@ -12,6 +12,9 @@ const log = createLogger("session-store");
 // JSONL transcript). Without it a session cannot be resumed and is dropped.
 export interface PersistedSession {
   readonly id: string;
+  // Optional for back-compat with stores written before multi-provider; absent
+  // means a Claude session.
+  readonly provider?: ProviderId;
   readonly project: string;
   readonly cwd: string;
   readonly name: string;

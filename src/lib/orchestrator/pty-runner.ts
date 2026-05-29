@@ -1,12 +1,13 @@
 import { spawn as ptySpawn, type IPty } from "node-pty";
 import { createLogger } from "../util/logger.ts";
-import { findClaudeCliPath } from "../claude-code/history.ts";
-import { SessionTailer, type TailPatch } from "../claude-code/session-tailer.ts";
+import { getDriver } from "../providers/registry.ts";
+import { providerMeta } from "../shared/providers.ts";
+import type { CliDriver, LiveTailer, TailPatch } from "../providers/types.ts";
 import { initialSnapshot } from "./state-machine.ts";
 import type { EventBus } from "./events.ts";
 import type { Effort, ModelId, SessionSnapshot, SpawnConfig } from "../shared/types.ts";
 import { coerceEffort } from "../shared/types.ts";
-import { apiIdFor, modelSupportsEffortFor } from "../shared/models.ts";
+import { modelSupportsEffortFor } from "../shared/models.ts";
 
 const log = createLogger("pty");
 
@@ -29,27 +30,32 @@ export class PtyRunner {
   private lastDataAt = 0;
   private readonly idleDelayMs = 2000;
   private effort: Effort | null;
-  private readonly tailer: SessionTailer;
+  private readonly tailer: LiveTailer;
+  private readonly driver: CliDriver;
 
   constructor(
     public readonly id: string,
     private readonly bus: EventBus,
     private readonly config: SpawnConfig,
   ) {
-    const cli = findClaudeCliPath();
+    const driver = getDriver(config.provider);
+    this.driver = driver;
+    const meta = providerMeta(config.provider);
+    const cli = driver.findCli();
     if (!cli) {
       throw new Error(
-        "Claude Code CLI not found. Set CLAUDE_CLI_PATH in .env.local, or install the CLI so it lives at ~/.local/bin/claude, /usr/local/bin/claude, or /opt/homebrew/bin/claude.",
+        `${meta.label} CLI not found. Set ${config.provider.toUpperCase()}_CLI_PATH in .env.local, or install the "${meta.binary}" binary so it lives at ~/.local/bin/${meta.binary}, /usr/local/bin/${meta.binary}, or /opt/homebrew/bin/${meta.binary}.`,
       );
     }
 
     this.effort = coerceEffort(config.model, config.effort ?? null);
-    const args = buildArgs(config, this.effort);
+    const args = driver.buildArgs(config, this.effort);
     const childPath = buildChildPath(process.env.PATH);
     const startedAt = Date.now();
     this.snapshot = initialSnapshot({
       type: "system.init",
       id,
+      provider: config.provider,
       project: config.project,
       name: config.name,
       model: config.model,
@@ -59,9 +65,9 @@ export class PtyRunner {
       prompt: config.prompt,
       effort: this.effort ?? undefined,
     });
-    this.tailer = new SessionTailer(config.cwd, startedAt, (p) => this.applyTailPatch(p));
+    this.tailer = driver.createTailer(config.cwd, startedAt, (p) => this.applyTailPatch(p));
 
-    log.info("pty spawn", { id, cli, cwd: config.cwd, args });
+    log.info("pty spawn", { id, provider: config.provider, cli, cwd: config.cwd, args });
     let spawned: IPty;
     try {
       spawned = ptySpawn(cli, args, {
@@ -75,18 +81,20 @@ export class PtyRunner {
           TERM: "xterm-256color",
           FORCE_COLOR: "3",
           COLORTERM: "truecolor",
+          ...driver.envExtras(config),
         },
       });
     } catch (err) {
       throw new Error(
-        `Failed to spawn Claude CLI at ${cli}: ${err instanceof Error ? err.message : String(err)}. ` +
+        `Failed to spawn ${meta.label} CLI at ${cli}: ${err instanceof Error ? err.message : String(err)}. ` +
         `Verify the binary is executable (\`ls -l ${cli}\`) and runnable in your shell.`,
       );
     }
     this.pty = spawned;
 
-    let promptSent = !(config.prompt && !config.resumeSessionId);
-    let effortApplied = !this.effort || CLI_EFFORT_FLAGS.has(this.effort);
+    // "arg" providers carry the prompt + effort in argv, so nothing is typed in.
+    let promptSent = driver.promptDelivery === "arg" || !(config.prompt && !config.resumeSessionId);
+    let effortApplied = !this.effort || driver.effortInArgs(this.effort) || driver.effortSlash(this.effort) === null;
     let settleTimer: ReturnType<typeof setTimeout> | null = null;
     let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -103,9 +111,10 @@ export class PtyRunner {
         this.pty.write("\x1b[201~");
         setTimeout(() => { if (this.exitCode === null) this.pty.write("\r"); }, 80);
       };
-      if (!effortApplied && this.effort) {
+      const slash = this.effort ? driver.effortSlash(this.effort) : null;
+      if (!effortApplied && slash) {
         effortApplied = true;
-        this.pty.write(`/effort ${this.effort}\r`);
+        this.pty.write(`${slash}\r`);
         setTimeout(writePrompt, 250);
       } else {
         writePrompt();
@@ -114,8 +123,9 @@ export class PtyRunner {
 
     const applyEffortViaSlash = (): void => {
       if (effortApplied || this.exitCode !== null || !this.effort) return;
+      const slash = driver.effortSlash(this.effort);
       effortApplied = true;
-      this.pty.write(`/effort ${this.effort}\r`);
+      if (slash) this.pty.write(`${slash}\r`);
     };
 
     this.pty.onData((data) => {
@@ -169,11 +179,13 @@ export class PtyRunner {
     const coerced = coerceEffort(this.config.model, next);
     if (!coerced) return; // model has no effort support
     if (coerced === this.effort) return;
+    const slash = this.driver.effortSlash(coerced);
+    if (!slash) return; // provider cannot change effort on a live session
     this.effort = coerced;
     this.snapshot = { ...this.snapshot, effort: coerced };
     const now = Date.now();
     this.bus.emit({ kind: "patch", at: now, id: this.id, patch: { effort: coerced } });
-    this.pty.write(`/effort ${coerced}\r`);
+    this.pty.write(`${slash}\r`);
   }
 
   start(): void {
@@ -302,18 +314,4 @@ function buildChildPath(parent: string | undefined): string {
 
 export function modelSupportsEffort(model: ModelId): boolean {
   return modelSupportsEffortFor(model);
-}
-
-const CLI_EFFORT_FLAGS: ReadonlySet<Effort> = new Set(["low", "medium", "high", "xhigh", "max"]);
-
-function buildArgs(cfg: SpawnConfig, effort: Effort | null): string[] {
-  const args: string[] = [];
-  if (cfg.resumeSessionId) args.push("--resume", cfg.resumeSessionId);
-  const model = apiIdFor(cfg.model);
-  if (model) args.push("--model", model);
-  if (effort && CLI_EFFORT_FLAGS.has(effort)) args.push("--effort", effort);
-  if (cfg.dangerouslySkipPermissions) args.push("--dangerously-skip-permissions");
-  else if (cfg.approvalMode === "auto") args.push("--permission-mode", "acceptEdits");
-  else if (cfg.approvalMode === "strict") args.push("--permission-mode", "default");
-  return args;
 }

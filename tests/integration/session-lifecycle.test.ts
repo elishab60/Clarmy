@@ -16,6 +16,7 @@ describe("session state machine", () => {
   const base = initialSnapshot({
     type: "system.init",
     id: "s_test",
+    provider: "claude",
     project: "test",
     name: "spec walk",
     model: "sonnet-4.6",

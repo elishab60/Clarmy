@@ -67,6 +67,7 @@ export class SessionManager {
       this.persistedIds.add(id);
       upsertPersisted({
         id,
+        provider: config.provider,
         project: config.project,
         cwd: config.cwd,
         name: config.name,
@@ -94,7 +95,7 @@ export class SessionManager {
   private instantiate(id: string, config: SpawnConfig): Runner {
     const runner: Runner = this.opts.mock
       ? new MockSessionRunner(id, this.bus, {
-          id, project: config.project, name: config.name, model: config.model,
+          id, provider: config.provider, project: config.project, name: config.name, model: config.model,
           script: [
             { kind: "assistant.text", payload: { line: { t: "gt", v: `› ${config.prompt.slice(0, 80)}` } } },
             { kind: "delay", ms: 600 },
@@ -125,6 +126,7 @@ export class SessionManager {
       this.persistedIds.add(s.id);
       try {
         this.instantiate(s.id, {
+          provider: s.provider ?? "claude",
           project: s.project,
           cwd: s.cwd,
           name: s.name,
@@ -175,6 +177,7 @@ export class SessionManager {
     if (!src) return null;
     const snap = src.getSnapshot();
     return this.spawn({
+      provider: snap.provider,
       project: snap.project,
       cwd: process.cwd(),
       name: `fork · ${snap.name}`,

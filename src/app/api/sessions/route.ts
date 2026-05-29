@@ -4,14 +4,16 @@ import { statSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
 import { getControl } from "@/lib/orchestrator/control";
-import { findClaudeCliPath } from "@/lib/claude-code/history";
-import type { ApprovalMode, Effort, ModelId } from "@/lib/shared/types";
-import { isModelId, MODEL_IDS, ALL_EFFORTS } from "@/lib/shared/models";
+import { getDriver } from "@/lib/providers/registry";
+import type { ApprovalMode, Effort, ModelId, ProviderId } from "@/lib/shared/types";
+import { isModelId, MODEL_IDS, ALL_EFFORTS, providerOfModel } from "@/lib/shared/models";
+import { PROVIDER_IDS } from "@/lib/shared/providers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const SpawnSchema = z.object({
+  provider: z.enum(PROVIDER_IDS).default("claude"),
   project: z.string().min(1).max(200),
   cwd: z.string().min(1).max(500),
   name: z.string().min(1).max(200),
@@ -26,6 +28,9 @@ const SpawnSchema = z.object({
 }).refine((v) => v.prompt.length > 0 || !!v.resumeSessionId, {
   message: "prompt is required unless resumeSessionId is set",
   path: ["prompt"],
+}).refine((v) => providerOfModel(v.model) === v.provider, {
+  message: "model does not belong to the selected provider",
+  path: ["model"],
 });
 
 export async function GET() {
@@ -47,14 +52,17 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: `cwd_not_found: ${cwd}` }, { status: 400 });
   }
-  if (process.env.COCKPIT_MOCK !== "1" && !process.env.ANTHROPIC_API_KEY && !findClaudeCliPath()) {
+  const provider = parsed.data.provider as ProviderId;
+  const driver = getDriver(provider);
+  if (process.env.COCKPIT_MOCK !== "1" && !driver.findCli()) {
     return NextResponse.json({
-      error: "No auth available — install Claude Code CLI (auth via plan Max) or export ANTHROPIC_API_KEY, or run with COCKPIT_MOCK=1",
+      error: `${provider} CLI not found — install the "${provider}" binary or set ${provider.toUpperCase()}_CLI_PATH, or run with COCKPIT_MOCK=1`,
     }, { status: 500 });
   }
   try {
     const id = await getControl().spawn({
       ...parsed.data,
+      provider,
       cwd,
       model: parsed.data.model as ModelId,
       approvalMode: parsed.data.approvalMode as ApprovalMode,

@@ -1,6 +1,6 @@
 import type { SVGProps } from "react";
 
-type IconName = "sessions" | "projects" | "history" | "skills" | "mcp" | "plugins" | "hooks" | "settings" | "metrics";
+type IconName = "sessions" | "projects" | "history" | "skills" | "mcp" | "plugins" | "hooks" | "settings" | "metrics" | "agents" | "crons";
 
 const stroke = { stroke: "currentColor", strokeWidth: 1.4, fill: "none", strokeLinecap: "round", strokeLinejoin: "round" } as const;
 
@@ -26,6 +26,15 @@ const PATHS: Record<IconName, React.ReactNode> = {
   metrics: (<>
     <path d="M1.5 11.5h10" {...stroke}/>
     <path d="M3 9.5v-3M6 9.5v-5M9 9.5v-4" {...stroke}/>
+  </>),
+  agents: (<>
+    <circle cx="6.5" cy="4" r="2.5" {...stroke}/>
+    <path d="M2 11.5v-.5a4.5 4.5 0 0 1 9 0v.5" {...stroke}/>
+  </>),
+  crons: (<>
+    <circle cx="6.5" cy="6.5" r="5" {...stroke}/>
+    <path d="M6.5 3.5v3l2 1.5" {...stroke}/>
+    <path d="M10.5 2.5v2h-2" {...stroke}/>
   </>),
   settings: (<>
     <circle cx="6.5" cy="6.5" r="2" {...stroke}/>
