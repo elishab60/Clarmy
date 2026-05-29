@@ -95,7 +95,8 @@
 .mx-h-sub { font-size: 10.5px; color: var(--fg-faint); text-transform: none; letter-spacing: 0; font-weight: 400; }
 
 /* ---- heatmap ---- */
-.mx-heatmap-scroll { overflow-x: auto; padding-bottom: 4px; }
+.mx-heatmap { width: 100%; overflow-x: auto; }
+.mx-heatmap-inner { margin: 0 auto; }
 .mx-hm-month { fill: var(--fg-muted); font-size: 9px; font-family: var(--font-mono); }
 .mx-hm-wd { fill: var(--fg-faint); font-size: 8px; font-family: var(--font-mono); }
 .mx-hm-cell { transition: fill .15s; cursor: default; }

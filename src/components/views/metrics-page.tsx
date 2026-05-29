@@ -147,11 +147,15 @@ export function MetricsPage() {
             <Donut title="Cost by model" slices={view.costByModel} total={view.totals.cost} format={fmtCostFull} centerLabel={fmtCost(view.totals.cost)} />
           </div>
 
-          <h3 className="mx-h">Per project<span className="mx-h-sub">click a row to filter</span></h3>
-          <GroupTable rows={view.projects} kind="project" activeKeys={activeProjects} onToggle={toggleProject} />
+          <section className="mx-card mx-wide">
+            <div className="mx-card-h"><span>Per project</span><span className="mx-h-sub">click a row to filter</span></div>
+            <GroupTable rows={view.projects} kind="project" activeKeys={activeProjects} onToggle={toggleProject} />
+          </section>
 
-          <h3 className="mx-h">Per model</h3>
-          <GroupTable rows={view.models} kind="model" />
+          <section className="mx-card mx-wide">
+            <div className="mx-card-h"><span>Per model</span></div>
+            <GroupTable rows={view.models} kind="model" />
+          </section>
         </>
       )}
     </div>
