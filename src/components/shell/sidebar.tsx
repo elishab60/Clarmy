@@ -15,6 +15,8 @@ const NAV_PRIMARY: { k: string; href: string; label: string; icon: IconName; bad
 ];
 
 const NAV_CONFIG: { k: string; href: string; label: string; icon: IconName; badge?: string }[] = [
+  { k: "agents",   href: "/agents",   label: "Agents",      icon: "agents"   },
+  { k: "crons",    href: "/crons",    label: "Cron jobs",   icon: "crons"    },
   { k: "skills",   href: "/skills",   label: "Skills",      icon: "skills"   },
   { k: "mcp",      href: "/mcp",      label: "MCP servers", icon: "mcp"      },
   { k: "plugins",  href: "/plugins",  label: "Plugins",     icon: "plugins"  },
@@ -28,6 +30,15 @@ interface SideStats {
   metrics: number;
 }
 
+interface ConfigCounts {
+  agents: number;
+  crons: number;
+  skills: number;
+  mcp: number;
+  plugins: number;
+  hooks: number;
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -35,6 +46,7 @@ export function Sidebar() {
   const count = Object.keys(sessions).length;
   const approvals = Object.values(sessions).filter((v) => v.state === "approval").length;
   const [stats, setStats] = useState<SideStats>({ projects: 0, history: 0, metrics: 0 });
+  const [cfgCounts, setCfgCounts] = useState<ConfigCounts>({ agents: 0, crons: 0, skills: 0, mcp: 0, plugins: 0, hooks: 0 });
   const [quickPrompt, setQuickPrompt] = useState("");
 
   const launchQuick = () => {
@@ -48,15 +60,23 @@ export function Sidebar() {
     let cancelled = false;
     const load = async () => {
       try {
-        const res = await fetch("/api/metrics", { cache: "no-store" });
-        if (!res.ok) return;
-        const j = (await res.json()) as { metrics: { totalSessions: number; perProject: unknown[]; totalToolCalls: number } };
+        const [mRes, cRes] = await Promise.all([
+          fetch("/api/metrics", { cache: "no-store" }),
+          fetch("/api/sidebar-counts", { cache: "no-store" }),
+        ]);
         if (cancelled) return;
-        setStats({
-          projects: j.metrics.perProject.length,
-          history: j.metrics.totalSessions,
-          metrics: j.metrics.totalToolCalls,
-        });
+        if (mRes.ok) {
+          const j = (await mRes.json()) as { sessions: Array<{ cwd: string; toolUses: number }> };
+          const rows = j.sessions ?? [];
+          setStats({
+            projects: new Set(rows.map((r) => r.cwd)).size,
+            history: rows.length,
+            metrics: rows.reduce((a, r) => a + r.toolUses, 0),
+          });
+        }
+        if (cRes.ok) {
+          setCfgCounts(await cRes.json() as ConfigCounts);
+        }
       } catch { /* ignore */ }
     };
     void load();
@@ -69,6 +89,12 @@ export function Sidebar() {
     projects: stats.projects || "—",
     history: stats.history || "—",
     metrics: stats.metrics ? fmtShort(stats.metrics) : "—",
+    agents: cfgCounts.agents || "—",
+    crons: cfgCounts.crons || "—",
+    skills: cfgCounts.skills || "—",
+    mcp: cfgCounts.mcp || "—",
+    plugins: cfgCounts.plugins || "—",
+    hooks: cfgCounts.hooks || "—",
   };
 
   const isActive = (href: string, k: string) => {
@@ -80,7 +106,7 @@ export function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="sidebar-head">
-        <div className="wordmark"><Clawd size={26} /><span className="slave-text">Slave</span></div>
+        <div className="wordmark"><Clawd size={26} /><span className="slave-text">clawdmax</span></div>
       </div>
       <button className="new-session" onClick={() => router.push("/new")}>
         <span className="plus">+</span> New session
@@ -126,6 +152,7 @@ export function Sidebar() {
             style={{ animationDelay: `${(NAV_PRIMARY.length + i) * 32}ms` }}
           >
             <Icon name={n.icon} />{n.label}
+            {BADGES[n.k] !== undefined && <span className="badge">{BADGES[n.k]}</span>}
           </Link>
         ))}
       </div>

@@ -14,9 +14,7 @@ function titleFor(pathname: string): string {
 }
 
 interface MetricsPayload {
-  metrics: {
-    lastSevenDays: Array<{ day: string; costUsd: number }>;
-  };
+  sessions: Array<{ day: string | null; cost: number }>;
 }
 
 function fmtCost(n: number): string {
@@ -46,8 +44,8 @@ export function Topbar() {
         const j = (await res.json()) as MetricsPayload;
         if (!alive) return;
         const today = new Date().toISOString().slice(0, 10);
-        const row = j.metrics.lastSevenDays.find((d) => d.day === today);
-        setTodayCost(row?.costUsd ?? 0);
+        const cost = j.sessions.reduce((a, r) => (r.day === today ? a + r.cost : a), 0);
+        setTodayCost(cost);
       } catch {}
     };
     void load();
