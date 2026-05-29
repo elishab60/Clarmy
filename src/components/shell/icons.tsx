@@ -32,13 +32,14 @@ const PATHS: Record<IconName, React.ReactNode> = {
     <path d="M6.5 1v2M6.5 10v2M1 6.5h2M10 6.5h2M3 3l1.5 1.5M8.5 8.5L10 10M3 10l1.5-1.5M8.5 4.5L10 3" {...stroke}/>
   </>),
   agents: (<>
-    <circle cx="6.5" cy="4" r="2.2" {...stroke}/>
-    <path d="M2.5 11.5a4 4 0 0 1 8 0" {...stroke}/>
+    <circle cx="6.5" cy="5" r="2.2" {...stroke}/>
+    <path d="M2.5 11.5c0-2 1.8-3.5 4-3.5s4 1.5 4 3.5" {...stroke}/>
+    <path d="M10.5 3.5l1 1 1-1" {...stroke}/>
   </>),
   crons: (<>
-    <path d="M10.5 6.5a4 4 0 1 1-1.2-2.85" {...stroke}/>
-    <path d="M10.8 2.5v2.2H8.6" {...stroke}/>
-    <path d="M6.5 4.5v2.3l1.6 1" {...stroke}/>
+    <circle cx="6.5" cy="6.5" r="4.5" {...stroke}/>
+    <path d="M6.5 3.5v3l2 1.5" {...stroke}/>
+    <path d="M2 2l1.5 1.5M11 2l-1.5 1.5" {...stroke}/>
   </>),
 };
 
