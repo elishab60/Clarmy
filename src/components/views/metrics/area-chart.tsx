@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export interface SeriesPoint {
   t: number;
@@ -8,17 +8,12 @@ export interface SeriesPoint {
   value: number;
 }
 
-const H = 200;
-const PAD_T = 14;
-const PAD_B = 22;
-const PAD_L = 4;
-const PAD_R = 4;
+const H = 210;
+const PAD_T = 12;
+const PAD_B = 26;
+const PAD_L = 52;
+const PAD_R = 12;
 const PLOT_H = H - PAD_T - PAD_B;
-
-// Width-responsive area+line chart. The internal coordinate width is fixed at
-// VW; the SVG scales to the container via width="100%". Hover maps the pointer
-// to the nearest sample using the container's measured width.
-const VW = 1000;
 
 function niceMax(v: number): number {
   if (v <= 0) return 1;
@@ -28,6 +23,8 @@ function niceMax(v: number): number {
   return step * mag;
 }
 
+// Single-series area+line rendered at the measured pixel width (no viewBox
+// scaling, so text/dots aren't distorted). Pointer x maps 1:1 to data.
 export function AreaChart({
   points,
   format,
@@ -38,61 +35,70 @@ export function AreaChart({
   unit: string;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
+  const [w, setW] = useState(840);
   const [hi, setHi] = useState<number | null>(null);
 
-  const n = points.length;
-  if (n === 0) return <div className="mx-area-empty">no activity in range</div>;
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver((entries) => {
+      const cw = entries[0]?.contentRect.width;
+      if (cw && cw > 0) setW(cw);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
+  const n = points.length;
+  if (n === 0) return <div className="mx-area" ref={ref}><div className="mx-area-empty">no activity in range</div></div>;
+
+  const plotW = Math.max(40, w - PAD_L - PAD_R);
   const max = niceMax(Math.max(...points.map((p) => p.value)));
-  const innerW = VW - PAD_L - PAD_R;
-  const x = (i: number) => PAD_L + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW);
+  const x = (i: number) => PAD_L + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW);
   const y = (v: number) => PAD_T + PLOT_H - (v / max) * PLOT_H;
 
   const line = points.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)} ${y(p.value).toFixed(1)}`).join(" ");
   const area = `${line} L${x(n - 1).toFixed(1)} ${(PAD_T + PLOT_H).toFixed(1)} L${x(0).toFixed(1)} ${(PAD_T + PLOT_H).toFixed(1)} Z`;
-
-  const gridVals = [0, 0.25, 0.5, 0.75, 1].map((f) => f * max);
-  const labelEvery = Math.max(1, Math.ceil(n / 8));
+  const gridVals = [1, 0.75, 0.5, 0.25, 0].map((f) => f * max);
+  const labelEvery = Math.max(1, Math.ceil(n / Math.max(4, Math.floor(plotW / 90))));
 
   const onMove = (e: React.MouseEvent) => {
     const el = ref.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    const frac = (e.clientX - rect.left) / rect.width;
-    setHi(Math.max(0, Math.min(n - 1, Math.round(frac * (n - 1)))));
+    const idx = Math.round((((e.clientX - rect.left) - PAD_L) / plotW) * (n - 1));
+    setHi(Math.max(0, Math.min(n - 1, idx)));
   };
 
   const hp = hi != null ? points[hi] : null;
 
   return (
     <div className="mx-area" ref={ref} onMouseMove={onMove} onMouseLeave={() => setHi(null)}>
-      <svg viewBox={`0 0 ${VW} ${H}`} preserveAspectRatio="none" className="mx-area-svg" role="img" aria-label="Activity over time">
+      <svg width={w} height={H} className="mx-area-svg" role="img" aria-label="Activity over time">
         <defs>
           <linearGradient id="mx-area-grad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--brand)" stopOpacity="0.32" />
+            <stop offset="0%" stopColor="var(--brand)" stopOpacity="0.30" />
             <stop offset="100%" stopColor="var(--brand)" stopOpacity="0" />
           </linearGradient>
         </defs>
         {gridVals.map((v, i) => (
-          <line key={i} x1={PAD_L} x2={VW - PAD_R} y1={y(v)} y2={y(v)} className="mx-area-grid" />
+          <g key={i}>
+            <line x1={PAD_L} x2={w - PAD_R} y1={y(v)} y2={y(v)} className="mx-area-grid" />
+            <text x={PAD_L - 8} y={y(v) + 3} className="mx-area-ylabel">{format(v)}</text>
+          </g>
         ))}
         <path d={area} fill="url(#mx-area-grad)" />
-        <path d={line} className="mx-area-line" fill="none" vectorEffect="non-scaling-stroke" />
-        {hp && (
-          <line x1={x(hi!)} x2={x(hi!)} y1={PAD_T} y2={PAD_T + PLOT_H} className="mx-area-cross" vectorEffect="non-scaling-stroke" />
-        )}
-        {hp && <circle cx={x(hi!)} cy={y(hp.value)} r={3.5} className="mx-area-dot" vectorEffect="non-scaling-stroke" />}
+        <path d={line} className="mx-area-line" fill="none" />
+        {points.map((p, i) => (i % labelEvery === 0 || i === n - 1) ? (
+          <text key={p.t} x={x(i)} y={H - 8} className="mx-area-xlabel">{p.label}</text>
+        ) : null)}
+        {hp && <line x1={x(hi!)} x2={x(hi!)} y1={PAD_T} y2={PAD_T + PLOT_H} className="mx-area-cross" />}
+        {hp && <circle cx={x(hi!)} cy={y(hp.value)} r={3.5} className="mx-area-dot" />}
       </svg>
-      <div className="mx-area-yaxis">
-        {[...gridVals].reverse().map((v, i) => <span key={i}>{format(v)}</span>)}
-      </div>
-      <div className="mx-area-xaxis">
-        {points.map((p, i) => (i % labelEvery === 0 || i === n - 1) ? <span key={p.t} style={{ left: `${(x(i) / VW) * 100}%` }}>{p.label}</span> : null)}
-      </div>
       {hp && (
-        <div className="mx-area-tip" style={{ left: `${(x(hi!) / VW) * 100}%` }}>
+        <div className="mx-area-tip" style={{ left: x(hi!) }}>
           <span className="d">{hp.label}</span>
-          <span className="v">{format(hp.value)} {unit}</span>
+          <span className="v">{format(hp.value)}{unit ? ` ${unit}` : ""}</span>
         </div>
       )}
     </div>

@@ -42,7 +42,7 @@ export function GroupTable({
 
   const cols = kind === "project"
     ? "minmax(180px,1fr) 70px 78px 78px 64px 110px 78px"
-    : "minmax(180px,1fr) 70px 78px 78px 96px 110px";
+    : "minmax(180px,1fr) 70px 78px 78px 64px 110px 96px";
 
   return (
     <div className="mx-table-scroll">

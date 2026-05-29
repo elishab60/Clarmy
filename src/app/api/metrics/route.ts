@@ -16,14 +16,21 @@ export async function GET() {
   const live = await getControl().list();
   const sessions = scanAll();
 
+  // Dedup usage records globally by msg:req key (resumed transcripts replay
+  // prior messages). Tokens AND cost are summed from the deduped records so the
+  // headline totals match the orchestrator's accounting and never double-count.
   const seen = new Set<string>();
   const rows = sessions.map((s) => {
-    let cost = 0;
+    let cost = 0, input = 0, output = 0, cacheRead = 0, cacheCreate = 0;
     for (const r of s.usage) {
       if (r.key) {
         if (seen.has(r.key)) continue;
         seen.add(r.key);
       }
+      input += r.inputTokens;
+      output += r.outputTokens;
+      cacheRead += r.cacheReadTokens;
+      cacheCreate += r.cacheCreate5mTokens + r.cacheCreate1hTokens;
       cost += estimateCost(r.model ?? s.model, {
         input: r.inputTokens,
         output: r.outputTokens,
@@ -42,10 +49,10 @@ export async function GET() {
       startedAt: s.startedAt,
       endedAt,
       day: endedAt ? new Date(endedAt).toISOString().slice(0, 10) : null,
-      input: s.inputTokens,
-      output: s.outputTokens,
-      cacheRead: s.cacheReadTokens,
-      cacheCreate: s.cacheCreateTokens,
+      input,
+      output,
+      cacheRead,
+      cacheCreate,
       toolUses: s.toolUses,
       messages: s.messageCount,
       cost,

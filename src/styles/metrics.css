@@ -120,20 +120,19 @@ rect.mx-hm-cell:hover { stroke: var(--fg); stroke-width: 1.5; }
 .mx-hm-legend span:first-child, .mx-hm-legend span:last-child { margin: 0 4px; }
 
 /* ---- area chart ---- */
-.mx-area { position: relative; padding-left: 44px; }
+.mx-area { position: relative; width: 100%; }
 .mx-area-empty { color: var(--fg-muted); font-size: 12px; padding: 40px; text-align: center; }
-.mx-area-svg { width: 100%; height: 200px; display: block; }
+.mx-area-svg { display: block; height: 210px; overflow: visible; }
 .mx-area-grid { stroke: var(--grid-line); stroke-width: 1; }
 .mx-area-line { stroke: var(--brand); stroke-width: 2; }
 .mx-area-cross { stroke: var(--border-focus); stroke-dasharray: 3 3; }
 .mx-area-dot { fill: var(--brand); stroke: var(--bg); stroke-width: 2; }
-.mx-area-yaxis { position: absolute; left: 0; top: 14px; height: 164px; width: 40px; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; font-size: 9.5px; color: var(--fg-faint); font-family: var(--font-mono); }
-.mx-area-xaxis { position: relative; height: 16px; margin-left: 0; }
-.mx-area-xaxis span { position: absolute; transform: translateX(-50%); font-size: 9.5px; color: var(--fg-faint); font-family: var(--font-mono); white-space: nowrap; }
+.mx-area-ylabel { fill: var(--fg-faint); font-size: 11px; font-family: var(--font-mono); text-anchor: end; }
+.mx-area-xlabel { fill: var(--fg-faint); font-size: 11px; font-family: var(--font-mono); text-anchor: middle; }
 .mx-area-tip {
-  position: absolute; top: 0; transform: translateX(-50%); pointer-events: none; z-index: 10;
+  position: absolute; top: -2px; transform: translateX(-50%); pointer-events: none; z-index: 10;
   background: var(--bg); border: 1px solid var(--border-strong); border-radius: var(--radius);
-  padding: 4px 8px; display: flex; flex-direction: column; gap: 1px; box-shadow: 0 8px 24px -8px rgba(0,0,0,0.6);
+  padding: 4px 8px; display: flex; flex-direction: column; gap: 1px; box-shadow: 0 8px 24px -8px rgba(0,0,0,0.6); white-space: nowrap;
 }
 .mx-area-tip .d { font-size: 10.5px; color: var(--fg-dim); }
 .mx-area-tip .v { font-size: 11px; color: var(--brand); font-weight: 600; font-family: var(--font-mono); }

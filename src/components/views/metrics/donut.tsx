@@ -52,10 +52,10 @@ export function Donut({
                     r={R}
                     fill="none"
                     stroke={a.color}
-                    strokeWidth={active === a.key ? STROKE + 4 : STROKE}
+                    strokeWidth={STROKE}
                     strokeDasharray={`${a.frac * C} ${C - a.frac * C}`}
                     strokeDashoffset={-a.offset * C}
-                    style={{ opacity: dim ? 0.28 : 1, transition: "opacity .2s, stroke-width .2s" }}
+                    style={{ opacity: dim ? 0.22 : 1, transition: "opacity .18s" }}
                     onMouseEnter={() => setActive(a.key)}
                     onMouseLeave={() => setActive(null)}
                   />
