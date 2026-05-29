@@ -9,7 +9,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && corepack enable \
     && corepack prepare pnpm@9 --activate \
-    && npm install -g @anthropic-ai/claude-code \
+    # Every provider cockpit can pilot needs its vendor CLI on PATH. npm global
+    # drops them in /usr/local/bin, where the driver's resolveCliPath() looks.
+    && npm install -g @anthropic-ai/claude-code @openai/codex @google/gemini-cli \
     # The bridged ~/.claude.json records installMethod=native pointing at
     # ~/.local/bin/claude. In the container the CLI lives at /usr/local/bin
     # (npm global); symlink so the native-install check stops warning.

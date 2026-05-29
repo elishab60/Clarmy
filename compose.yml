@@ -14,6 +14,8 @@ services:
       COCKPIT_MOCK: "${COCKPIT_MOCK:-0}"
       ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
       CLAUDE_CLI_PATH: /usr/local/bin/claude
+      CODEX_CLI_PATH: /usr/local/bin/codex
+      GEMINI_CLI_PATH: /usr/local/bin/gemini
       # The container runs as root; the CLI blocks --dangerously-skip-permissions
       # under root unless it knows it is sandboxed. The container is the sandbox.
       IS_SANDBOX: "1"
@@ -24,6 +26,9 @@ services:
       - "4010"
     volumes:
       - ${HOME}/.claude:/root/.claude
+      # Gemini auth/config lives at homedir()/.gemini; HOME is /root in-container
+      # so the spawned gemini CLI finds its oauth creds. (codex uses CODEX_HOME.)
+      - ${HOME}/.gemini:/root/.gemini
       # Read-only seed: copied to a container-local /root/.claude.json at boot
       # (see docker-entrypoint.sh) to avoid torn reads of the shared file.
       - ${HOME}/.claude.json:/seed/.claude.json:ro
@@ -88,6 +93,8 @@ services:
       COCKPIT_MOCK: "${COCKPIT_MOCK:-0}"
       ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
       CLAUDE_CLI_PATH: /usr/local/bin/claude
+      CODEX_CLI_PATH: /usr/local/bin/codex
+      GEMINI_CLI_PATH: /usr/local/bin/gemini
       IS_SANDBOX: "1"
       HOME: /root
       CODEX_HOME: "${HOME}/.codex"
