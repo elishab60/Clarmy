@@ -1,0 +1,37 @@
+services:
+  cockpit:
+    build:
+      context: .
+      target: dev
+    container_name: cockpit
+    ports:
+      - "3010:3010"
+    environment:
+      COCKPIT_PORT: "3010"
+      COCKPIT_MOCK: "${COCKPIT_MOCK:-0}"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      CLAUDE_CLI_PATH: /usr/local/bin/claude
+      HOME: /root
+    volumes:
+      # Source for HMR. node_modules + .next stay container-local so the
+      # host arch (darwin) does not clobber the linux node-pty build.
+      - .:/app:cached
+      - cockpit_node_modules:/app/node_modules
+      - cockpit_next_cache:/app/.next
+      # Claude CLI state, auth, plugins, session history. Same path in
+      # container as host so the JSONL encoded cwd resolves identically.
+      # Auth token bridged from macOS Keychain into ~/.claude/.credentials.json
+      # (the location the linux CLI reads).
+      - ${HOME}/.claude:/root/.claude
+      - ${HOME}/.claude.json:/root/.claude.json
+      # Bind-mount the project workspaces at the SAME absolute path so the
+      # cwd strings stored by cockpit match real dirs inside the container.
+      - ${HOME}/Documents/projetspersos:${HOME}/Documents/projetspersos
+    working_dir: /app
+    tty: true
+    stdin_open: true
+    restart: unless-stopped
+
+volumes:
+  cockpit_node_modules:
+  cockpit_next_cache:
