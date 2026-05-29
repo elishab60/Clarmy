@@ -19,7 +19,9 @@ async function call(name: string, args: unknown, ctx: ToolContext = anonCtx): Pr
   );
   const body = res.body as { result?: { content: { text: string }[]; isError?: boolean } };
   const content = body.result?.content?.[0]?.text ?? "null";
-  return { result: JSON.parse(content), isError: body.result?.isError ?? false };
+  let result: unknown = content;
+  try { result = JSON.parse(content); } catch { /* error results are plain text */ }
+  return { result, isError: body.result?.isError ?? false };
 }
 
 async function spawnMock(name: string): Promise<string> {
