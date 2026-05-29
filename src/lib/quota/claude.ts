@@ -4,15 +4,12 @@ import { homedir } from "node:os";
 import { scanAll, type CCUsageRecord } from "@/lib/claude-code/history";
 import { estimateCost, refreshPricing } from "@/lib/claude-code/pricing";
 import { createLogger } from "@/lib/util/logger";
+import { fetchClaudeUsageWindows } from "@/lib/quota/claude-usage";
 import type { ProviderQuota } from "@/lib/shared/quota";
 
 const log = createLogger("quota/claude");
 const HOUR_MS = 3_600_000;
 
-// Claude Code (Max plan) enforces a rolling N-hour window but exposes no token
-// or message quota locally. We model the gauge as "current window cost relative
-// to your busiest-ever window of the same length": a self-calibrating baseline
-// that needs no unpublished numbers. Override with COCKPIT_CLAUDE_QUOTA_LIMIT_USD.
 function windowHours(): number {
   const raw = Number(process.env.COCKPIT_QUOTA_WINDOW_HOURS);
   return Number.isFinite(raw) && raw > 0 ? raw : 5;
@@ -38,19 +35,31 @@ function planLabel(): string | null {
   return null;
 }
 
-function recCost(r: CCUsageRecord, fallbackModel: string | undefined): number {
-  return estimateCost(r.model ?? fallbackModel, {
-    input: r.inputTokens,
-    output: r.outputTokens,
-    cacheRead: r.cacheReadTokens,
-    cacheCreate5m: r.cacheCreate5mTokens,
-    cacheCreate1h: r.cacheCreate1hTokens,
-  });
+export async function getClaudeQuota(): Promise<ProviderQuota> {
+  const plan = planLabel();
+
+  // Primary: real server-side utilization, the same numbers the CLI `/usage`
+  // screen shows (session + weekly windows).
+  const live = await fetchClaudeUsageWindows();
+  if (live && live.length > 0) {
+    const headline = live.reduce((m, w) => Math.max(m, w.usedPercent), 0);
+    const detail = live.map((w) => `${w.label} ${Math.round(w.usedPercent)}%`).join(" · ");
+    return {
+      provider: "claude", label: "Claude", state: "ok", plan,
+      usedPercent: headline, windows: live, detail, source: "oauth-usage", asOf: Date.now(),
+    };
+  }
+
+  // Fallback: estimate from local ~/.claude/projects cost when the endpoint is
+  // unreachable (offline / expired token).
+  return costEstimateQuota(plan);
 }
 
-export async function getClaudeQuota(): Promise<ProviderQuota> {
+// Models the rolling window as current cost relative to the busiest window of
+// the same length in history (self-calibrating, no unpublished numbers needed).
+// Override with COCKPIT_QUOTA_WINDOW_HOURS and COCKPIT_CLAUDE_QUOTA_LIMIT_USD.
+async function costEstimateQuota(plan: string | null): Promise<ProviderQuota> {
   await refreshPricing();
-  const plan = planLabel();
   const windowMs = windowHours() * HOUR_MS;
 
   let events: { ts: number; cost: number }[] = [];
@@ -95,7 +104,6 @@ export async function getClaudeQuota(): Promise<ProviderQuota> {
     }
   }
 
-  // Busiest window of the same length over all history (two-pointer max).
   let baseline = 0;
   let sum = 0;
   let head = 0;
@@ -125,8 +133,18 @@ export async function getClaudeQuota(): Promise<ProviderQuota> {
     plan,
     usedPercent: pct,
     windows: [{ label: `${windowHours()}h`, usedPercent: pct, windowMinutes: windowHours() * 60, resetsAt }],
-    detail: `$${current.toFixed(2)} / ${peakLabel} $${limit.toFixed(2)}`,
+    detail: `$${current.toFixed(2)} / ${peakLabel} $${limit.toFixed(2)} (est)`,
     source: "claude-jsonl",
     asOf: now,
   };
+}
+
+function recCost(r: CCUsageRecord, fallbackModel: string | undefined): number {
+  return estimateCost(r.model ?? fallbackModel, {
+    input: r.inputTokens,
+    output: r.outputTokens,
+    cacheRead: r.cacheReadTokens,
+    cacheCreate5m: r.cacheCreate5mTokens,
+    cacheCreate1h: r.cacheCreate1hTokens,
+  });
 }

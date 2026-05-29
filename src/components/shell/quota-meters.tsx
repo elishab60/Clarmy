@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
-import type { ProviderQuota, QuotasResponse } from "@/lib/shared/quota";
+import type { ProviderQuota, QuotaWindow, QuotasResponse } from "@/lib/shared/quota";
 
 type Level = "ok" | "warn" | "crit";
 
@@ -18,28 +18,44 @@ function fmtReset(ms: number | null): string | null {
   const diff = ms - Date.now();
   if (diff <= 0) return "resets now";
   const mins = Math.round(diff / 60_000);
-  if (mins < 60) return `${mins}m left`;
+  if (mins < 60) return `${mins}m`;
   const h = Math.floor(mins / 60);
   const m = mins % 60;
-  if (h < 24) return m > 0 ? `${h}h${m}m left` : `${h}h left`;
+  if (h < 24) return m > 0 ? `${h}h${m}m` : `${h}h`;
   const d = Math.floor(h / 24);
-  return `${d}d${h % 24}h left`;
+  return `${d}d${h % 24}h`;
 }
 
-function bindingReset(q: ProviderQuota): number | null {
-  let best: { pct: number; resetsAt: number | null } | null = null;
-  for (const w of q.windows) {
-    if (!best || w.usedPercent > best.pct) best = { pct: w.usedPercent, resetsAt: w.resetsAt };
-  }
-  return best?.resetsAt ?? null;
+function Bar({ pct }: { pct: number | null }) {
+  const style = { "--p": pct !== null ? pct / 100 : 0 } as CSSProperties;
+  return (
+    <div
+      className="quota-bar"
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={pct === null ? undefined : Math.round(pct)}
+      style={style}
+    >
+      <span className="quota-fill" data-level={levelFor(pct)} />
+    </div>
+  );
+}
+
+function WindowLine({ w }: { w: QuotaWindow }) {
+  const reset = fmtReset(w.resetsAt);
+  return (
+    <div className="quota-wline" title={reset ? `${w.label} · resets in ${reset}` : w.label}>
+      <span className="quota-wlabel">{w.label}</span>
+      <Bar pct={w.usedPercent} />
+      <span className="quota-wpct">{Math.round(w.usedPercent)}%</span>
+    </div>
+  );
 }
 
 function QuotaMeter({ q }: { q: ProviderQuota }) {
   const pct = q.usedPercent;
-  const level = levelFor(pct);
-  const reset = q.state === "ok" ? fmtReset(bindingReset(q)) : null;
-  const caption = [q.detail, reset].filter(Boolean).join(" · ");
-  const barStyle = { "--p": pct !== null ? pct / 100 : 0 } as CSSProperties;
+  const hasWindows = q.windows.length > 0;
 
   return (
     <div className="quota-row" data-state={q.state}>
@@ -50,18 +66,12 @@ function QuotaMeter({ q }: { q: ProviderQuota }) {
         </span>
         <span className="quota-pct">{pct === null ? "—" : `${Math.round(pct)}%`}</span>
       </div>
-      <div
-        className="quota-bar"
-        role="progressbar"
-        aria-label={`${q.label} usage`}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={pct === null ? undefined : Math.round(pct)}
-        style={barStyle}
-      >
-        <span className="quota-fill" data-level={level} />
-      </div>
-      {caption && <div className="quota-cap" title={caption}>{caption}</div>}
+      {hasWindows
+        ? q.windows.map((w) => <WindowLine key={w.label} w={w} />)
+        : <Bar pct={pct} />}
+      {q.detail && !hasWindows && (
+        <div className="quota-cap" title={q.detail}>{q.detail}</div>
+      )}
     </div>
   );
 }

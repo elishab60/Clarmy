@@ -437,6 +437,30 @@ kbd, code, .mono { font-family: var(--font-mono); font-feature-settings: 'zero',
   color: var(--fg-muted);
   font-variant-numeric: tabular-nums;
 }
+.quota-wline {
+  display: grid;
+  grid-template-columns: 40px 1fr 30px;
+  align-items: center;
+  gap: 7px;
+  margin-top: 4px;
+}
+.quota-wlabel {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.02em;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.quota-wpct {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--fg-muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
 .quota-bar {
   position: relative;
   height: 4px;
