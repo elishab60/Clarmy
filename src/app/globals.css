@@ -439,7 +439,7 @@ kbd, code, .mono { font-family: var(--font-mono); font-feature-settings: 'zero',
 }
 .quota-wline {
   display: grid;
-  grid-template-columns: 40px 1fr 30px;
+  grid-template-columns: 48px 1fr 30px;
   align-items: center;
   gap: 7px;
   margin-top: 4px;

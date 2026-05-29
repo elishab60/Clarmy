@@ -26,6 +26,15 @@ function fmtReset(ms: number | null): string | null {
   return `${d}d${h % 24}h`;
 }
 
+// Absolute reset moment in the viewer's local timezone, e.g. "Thu 29 May 14:20".
+function fmtResetAt(ms: number | null): string | null {
+  if (ms === null) return null;
+  return new Date(ms).toLocaleString(undefined, {
+    weekday: "short", day: "numeric", month: "short",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+
 function Bar({ pct }: { pct: number | null }) {
   const style = { "--p": pct !== null ? pct / 100 : 0 } as CSSProperties;
   return (
@@ -43,9 +52,11 @@ function Bar({ pct }: { pct: number | null }) {
 }
 
 function WindowLine({ w }: { w: QuotaWindow }) {
-  const reset = fmtReset(w.resetsAt);
+  const at = fmtResetAt(w.resetsAt);
+  const rel = fmtReset(w.resetsAt);
+  const title = at ? `${w.label} · resets ${at}${rel ? ` (${rel})` : ""}` : w.label;
   return (
-    <div className="quota-wline" title={reset ? `${w.label} · resets in ${reset}` : w.label}>
+    <div className="quota-wline" title={title}>
       <span className="quota-wlabel">{w.label}</span>
       <Bar pct={w.usedPercent} />
       <span className="quota-wpct">{Math.round(w.usedPercent)}%</span>

@@ -83,7 +83,7 @@ export async function fetchClaudeUsageWindows(): Promise<QuotaWindow[] | null> {
 
   const windows: QuotaWindow[] = [];
   const five = toWindow("5h", 300, data.five_hour, true);
-  const week = toWindow("Wk", 10080, data.seven_day, true);
+  const week = toWindow("Weekly", 10080, data.seven_day, true);
   const opus = toWindow("Opus", 10080, data.seven_day_opus, false);
   const sonnet = toWindow("Sonnet", 10080, data.seven_day_sonnet, false);
   if (five) windows.push(five);
