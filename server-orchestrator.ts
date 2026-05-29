@@ -3,6 +3,7 @@ import { attachWebSocket } from "./src/lib/orchestrator/ws-server.ts";
 import { getManager } from "./src/lib/orchestrator/manager.ts";
 import { startCronScheduler } from "./src/lib/orchestrator/cron-scheduler.ts";
 import { orchestratorPort } from "./src/lib/orchestrator/role.ts";
+import { handleMcpHttp } from "./src/lib/mcp/http.ts";
 import { createLogger } from "./src/lib/util/logger.ts";
 import type { Effort, SpawnConfig } from "./src/lib/shared/types.ts";
 
@@ -36,6 +37,9 @@ const server = createServer((req, res) => {
       const method = req.method ?? "GET";
 
       if (method === "GET" && path === "/ctl/health") return send(res, 200, { ok: true });
+
+      // Cockpit MCP server: piloted sessions in this container connect here.
+      if (path === "/mcp") return await handleMcpHttp(req, res);
 
       if (method === "GET" && path === "/ctl/sessions") {
         return send(res, 200, { sessions: manager.list() });
