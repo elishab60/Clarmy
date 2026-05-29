@@ -27,13 +27,10 @@ COPY . .
 RUN pnpm build
 
 FROM base AS prod
-COPY --from=build /app/.next ./.next
-COPY --from=build /app/public ./public
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/package.json ./package.json
-COPY --from=build /app/server.ts ./server.ts
-COPY --from=build /app/tsconfig.json ./tsconfig.json
-COPY --from=build /app/src ./src
+# Whole built tree (source + node_modules + .next + configs). server.ts is
+# run directly via --experimental-transform-types, so it needs src/ and the
+# next.config at runtime; copying everything avoids cherry-pick drift.
+COPY --from=build /app ./
 EXPOSE 3010
 ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["pnpm", "start"]

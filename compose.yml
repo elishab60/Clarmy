@@ -2,8 +2,40 @@ services:
   cockpit:
     build:
       context: .
-      target: dev
+      target: prod
     container_name: cockpit
+    ports:
+      - "3010:3010"
+    environment:
+      COCKPIT_PORT: "3010"
+      COCKPIT_MOCK: "${COCKPIT_MOCK:-0}"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      CLAUDE_CLI_PATH: /usr/local/bin/claude
+      NODE_ENV: production
+      HOME: /root
+    volumes:
+      # Runtime state only — the app itself is baked into the image (prod
+      # build). To pick up code changes: docker compose up -d --build.
+      #
+      # Claude CLI state, auth, plugins, session history at /root (the CLI's
+      # HOME). Auth token bridged from macOS Keychain into .credentials.json.
+      - ${HOME}/.claude:/root/.claude
+      - ${HOME}/.claude.json:/root/.claude.json
+      # Whole host home at the SAME absolute path so EVERY project cwd the
+      # cockpit pilots resolves to a real dir. VirtioFS is lazy; unaccessed
+      # paths cost nothing.
+      - ${HOME}:${HOME}
+    working_dir: /app
+    restart: unless-stopped
+
+  # Optional dev service with HMR: `docker compose --profile dev up cockpit-dev`.
+  # Slower (compiles routes on demand) but reflects source edits live.
+  cockpit-dev:
+    profiles: ["dev"]
+    build:
+      context: .
+      target: dev
+    container_name: cockpit-dev
     ports:
       - "3010:3010"
     environment:
@@ -13,20 +45,12 @@ services:
       CLAUDE_CLI_PATH: /usr/local/bin/claude
       HOME: /root
     volumes:
-      # Source for HMR. node_modules + .next stay container-local so the
-      # host arch (darwin) does not clobber the linux node-pty build.
       - .:/app:cached
       - cockpit_node_modules:/app/node_modules
       - cockpit_next_cache:/app/.next
-      # Claude CLI state, auth, plugins, session history. Same path in
-      # container as host so the JSONL encoded cwd resolves identically.
-      # Auth token bridged from macOS Keychain into ~/.claude/.credentials.json
-      # (the location the linux CLI reads).
       - ${HOME}/.claude:/root/.claude
       - ${HOME}/.claude.json:/root/.claude.json
-      # Bind-mount the project workspaces at the SAME absolute path so the
-      # cwd strings stored by cockpit match real dirs inside the container.
-      - ${HOME}/Documents/projetspersos:${HOME}/Documents/projetspersos
+      - ${HOME}:${HOME}
     working_dir: /app
     tty: true
     stdin_open: true
