@@ -67,12 +67,15 @@ export function Topbar() {
         <strong>{titleFor(pathname)}</strong>
       </div>
       <div className="provider-tabs" role="tablist" aria-label="Provider">
-        {PROVIDERS.map((p) => (
+        {PROVIDERS.map((p) => {
+          const active = mounted && provider === p.id;
+          return (
           <button
             key={p.id}
             role="tab"
-            aria-selected={provider === p.id}
-            className={`provider-tab${provider === p.id ? " on" : ""}`}
+            suppressHydrationWarning
+            aria-selected={active}
+            className={`provider-tab${active ? " on" : ""}`}
             style={{ ["--provider-accent" as string]: p.accent }}
             onClick={() => setProvider(p.id)}
             title={p.tagline}
@@ -80,7 +83,8 @@ export function Topbar() {
             <span className="provider-dot" />
             {p.label}
           </button>
-        ))}
+          );
+        })}
       </div>
       <div className="meta">
         <span><span className="k">sessions</span><span className="v">{count}</span></span>
