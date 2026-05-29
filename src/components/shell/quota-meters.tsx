@@ -76,30 +76,60 @@ function QuotaMeter({ q }: { q: ProviderQuota }) {
   );
 }
 
+function SkeletonRow({ name }: { name: string }) {
+  return (
+    <div className="quota-row" data-state="loading">
+      <div className="quota-head">
+        <span className="quota-name">{name}</span>
+        <span className="quota-pct">··</span>
+      </div>
+      <Bar pct={null} />
+    </div>
+  );
+}
+
+const PLACEHOLDER = ["Claude", "Codex", "Gemini"];
+
 export function QuotaMeters() {
-  const [providers, setProviders] = useState<readonly ProviderQuota[]>([]);
+  // null = still loading the first response; [] = loaded but nothing to show.
+  const [providers, setProviders] = useState<readonly ProviderQuota[] | null>(null);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let alive = true;
     const load = async () => {
       try {
         const res = await fetch("/api/quotas", { cache: "no-store" });
-        if (!alive || !res.ok) return;
+        if (!alive) return;
+        if (!res.ok) throw new Error(`status ${res.status}`);
         const j = (await res.json()) as QuotasResponse;
-        if (alive) setProviders(j.providers ?? []);
-      } catch { /* keep last good reading */ }
+        if (!alive) return;
+        setProviders(j.providers ?? []);
+        setFailed(false);
+      } catch {
+        if (!alive) return;
+        setFailed(true);
+        setProviders((prev) => prev ?? []);
+      }
     };
     void load();
     const id = setInterval(load, 15_000);
     return () => { alive = false; clearInterval(id); };
   }, []);
 
-  if (providers.length === 0) return null;
-
+  // Always render the section so the gauges never silently vanish.
   return (
-    <div className="quota-group">
+    <div className="quota-group" data-testid="quota-group">
       <div className="nav-label">Quotas</div>
-      {providers.map((q) => <QuotaMeter key={q.provider} q={q} />)}
+      {providers === null
+        ? PLACEHOLDER.map((n) => <SkeletonRow key={n} name={n} />)
+        : providers.length > 0
+          ? providers.map((q) => <QuotaMeter key={q.provider} q={q} />)
+          : (
+            <div className="quota-row" data-state="error">
+              <div className="quota-cap">{failed ? "usage unavailable" : "no usage data"}</div>
+            </div>
+          )}
     </div>
   );
 }

@@ -484,6 +484,9 @@ kbd, code, .mono { font-family: var(--font-mono); font-feature-settings: 'zero',
 .quota-row[data-state="unconfigured"] .quota-fill,
 .quota-row[data-state="unknown"] .quota-fill,
 .quota-row[data-state="error"] .quota-fill { background: var(--fg-faint); }
+.quota-row[data-state="loading"] { opacity: 0.6; }
+.quota-row[data-state="loading"] .quota-bar { animation: quota-pulse 1.4s ease-in-out infinite; }
+@keyframes quota-pulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
 .quota-cap {
   margin-top: 4px;
   font-family: var(--font-mono);
