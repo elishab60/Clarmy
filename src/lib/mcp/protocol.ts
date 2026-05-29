@@ -51,7 +51,9 @@ function asRecord(v: unknown): Record<string, unknown> {
 // transport should answer with 202 Accepted and an empty body.
 async function handleOne(msg: JsonRpcRequest, ctx: ToolContext): Promise<JsonRpcResponse | null> {
   const id = msg.id ?? null;
-  const isNotification = msg.id === undefined || msg.id === null;
+  // Per JSON-RPC 2.0 a notification is a request with NO id member. An explicit
+  // id of null is a (discouraged but valid) request and still gets a response.
+  const isNotification = msg.id === undefined;
 
   switch (msg.method) {
     case "initialize": {

@@ -26,12 +26,13 @@ and an in-process message bus. Those all live in the process that owns the manag
 A spawned session is a child of whichever process called `manager.spawn()`, so
 `127.0.0.1:<that process port>` is always reachable from the child. We therefore
 serve MCP from the manager-owning process and point each child at it over loopback
-HTTP. The handler is transport-agnostic (`McpCore.handle`) and mounted twice:
+HTTP. The handler is transport-agnostic (the `dispatch` function in
+`src/lib/mcp/protocol.ts`) and mounted twice:
 
 ```
 solo          child claude ──http──> Next  :3010 /api/mcp-bridge ─┐
 orchestrator  child claude ──http──> daemon:4010 /mcp ────────────┤
-                                                                  ├─> McpCore
+                                                                  ├─> dispatch()
                                                           getControl() (Local)
                                                           crons.ts store
                                                           message bus (singleton)
@@ -50,14 +51,16 @@ We use the MCP **streamable HTTP** transport rather than stdio.
 - HTTP keeps a single server, co-located with the manager, with zero per-session
   processes. Identity travels in a header.
 
-The server is stateless: each `POST /mcp` carries one JSON-RPC 2.0 message and the
-server answers with a single `application/json` response (no SSE stream is opened,
-because no tool needs server-initiated push for the prototype). Notifications
-(no `id`) get `202 Accepted`. This is a valid subset of the streamable HTTP spec
+The server is stateless: each `POST /mcp` carries one JSON-RPC 2.0 message (or a
+batch array) and the server answers with a single `application/json` response
+(an array of responses for a batch; no SSE stream is opened, because no tool
+needs server-initiated push for the prototype). Notifications (no `id`) get
+`202 Accepted`, and a batch made only of notifications does too. This is a valid subset of the streamable HTTP spec
 and the Claude Code CLI accepts it.
 
-Methods handled: `initialize`, `notifications/initialized`, `tools/list`,
-`tools/call`, `ping`. Everything else returns JSON-RPC error `-32601`.
+Methods handled: `initialize`, `notifications/initialized`,
+`notifications/cancelled`, `tools/list`, `tools/call`, `ping`. Everything else
+returns JSON-RPC error `-32601`.
 
 ## 3. Identity and security
 
@@ -172,7 +175,7 @@ Because the config is merged, a session sees the cockpit tools as
 src/lib/mcp/
   bus.ts            in-process message bus singleton (inbox per session)
   config.ts         endpoint URL + per-session .mcp.json writer + argv
-  protocol.ts       JSON-RPC 2.0 + MCP method dispatch (McpCore)
+  protocol.ts       JSON-RPC 2.0 + MCP method dispatch (dispatch fn)
   tools/index.ts    tool registry + dispatch to handlers
   tools/sessions.ts list_sessions, get_session, summarize_all, spawn/kill
   tools/messaging.ts send_message, broadcast, read_messages

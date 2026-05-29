@@ -186,5 +186,112 @@ describe("cockpit mcp server", () => {
       });
       expect(res.isError).toBe(true);
     });
+
+    it("rejects an invalid oneshot date but accepts a future one", async () => {
+      const bad = await call("create_cron", {
+        name: "badtime", schedule: { kind: "oneshot", at: "not-a-date" },
+        spawn: { project: "demo", cwd: process.cwd(), name: "x", model: "opus-4.8", prompt: "p" },
+      });
+      expect(bad.isError).toBe(true);
+      const future = new Date(Date.now() + 86_400_000).toISOString();
+      const okRes = (await call("create_cron", {
+        name: "future", schedule: { kind: "oneshot", at: future },
+        spawn: { project: "demo", cwd: process.cwd(), name: "x", model: "opus-4.8", prompt: "p" },
+      })).result as { id: string; nextFireAt?: string };
+      expect(okRes.id).toMatch(/^c_/);
+      expect(okRes.nextFireAt).toBe(future);
+    });
+  });
+
+  describe("protocol negotiation + batch", () => {
+    it("initialize echoes the requested protocol version, else defaults", async () => {
+      const custom = await dispatch(
+        { jsonrpc: "2.0", id: 9, method: "initialize", params: { protocolVersion: "2025-01-01" } }, anonCtx);
+      const cBody = custom.body as { result: { protocolVersion: string } };
+      expect(cBody.result.protocolVersion).toBe("2025-01-01");
+      const def = await dispatch({ jsonrpc: "2.0", id: 9, method: "initialize", params: {} }, anonCtx);
+      const dBody = def.body as { result: { protocolVersion: string } };
+      expect(dBody.result.protocolVersion).toBe("2025-06-18");
+    });
+
+    it("a mixed batch drops notifications and flags invalid items", async () => {
+      const res = await dispatch([
+        { jsonrpc: "2.0", id: 1, method: "tools/list" },
+        { jsonrpc: "2.0", method: "notifications/initialized" },
+        { bad: true },
+      ], anonCtx);
+      expect(res.status).toBe(200);
+      const arr = res.body as Array<{ id: unknown; result?: unknown; error?: { code: number } }>;
+      expect(arr.length).toBe(2); // the notification yields no response
+      expect(arr.some((r) => r.error?.code === -32600)).toBe(true);
+      expect(arr.some((r) => r.result !== undefined)).toBe(true);
+    });
+
+    it("a batch of only notifications returns 202 with no body", async () => {
+      const res = await dispatch([
+        { jsonrpc: "2.0", method: "notifications/initialized" },
+        { jsonrpc: "2.0", method: "notifications/cancelled" },
+      ], anonCtx);
+      expect(res.status).toBe(202);
+      expect(res.body).toBeNull();
+    });
+  });
+
+  describe("messaging edge cases", () => {
+    beforeEach(() => {
+      getBus().forget("s_peek_dst");
+      getBus().forget("s_overflow");
+    });
+
+    it("peek reads without draining; a real read drains", async () => {
+      const a = await spawnMock("peek-src");
+      const b = await spawnMock("peek-dst");
+      await call("send_message", { to: b, text: "keep me" }, { sessionId: a });
+      const peek1 = (await call("read_messages", { peek: true }, { sessionId: b })).result as { count: number };
+      expect(peek1.count).toBe(1);
+      const peek2 = (await call("read_messages", { peek: true }, { sessionId: b })).result as { count: number };
+      expect(peek2.count).toBe(1); // still present after peek
+      const drained = (await call("read_messages", {}, { sessionId: b })).result as { count: number };
+      expect(drained.count).toBe(1);
+      const after = (await call("read_messages", { peek: true }, { sessionId: b })).result as { count: number };
+      expect(after.count).toBe(0);
+    });
+
+    it("send_message to an unknown session errors", async () => {
+      const a = await spawnMock("lonely");
+      const res = await call("send_message", { to: "s_does_not_exist", text: "hi" }, { sessionId: a });
+      expect(res.isError).toBe(true);
+      expect(String(res.result)).toContain("not_found");
+    });
+
+    it("the inbox is capped, dropping the oldest messages", () => {
+      const bus = getBus();
+      for (let i = 0; i < 105; i += 1) bus.send("s_src", "s_overflow", `msg-${i}`);
+      const msgs = bus.read("s_overflow", true);
+      expect(msgs.length).toBe(100);
+      expect(msgs[0]!.text).toBe("msg-5"); // first 5 evicted
+      expect(msgs[99]!.text).toBe("msg-104");
+    });
+  });
+
+  describe("session control guards", () => {
+    it("spawn_session rejects a missing or non-directory cwd", async () => {
+      const missing = await call("spawn_session", {
+        project: "p", cwd: "/no/such/dir/xyz", name: "x", model: "opus-4.8", prompt: "hi",
+      });
+      expect(missing.isError).toBe(true);
+      expect(String(missing.result)).toContain("cwd_not_found");
+      const notDir = await call("spawn_session", {
+        project: "p", cwd: join(process.cwd(), "package.json"), name: "x", model: "opus-4.8", prompt: "hi",
+      });
+      expect(notDir.isError).toBe(true);
+      expect(String(notDir.result)).toContain("cwd_not_directory");
+    });
+
+    it("kill_session refuses to kill the calling session", async () => {
+      const res = await call("kill_session", { id: "s_self" }, { sessionId: "s_self" });
+      expect(res.isError).toBe(true);
+      expect(String(res.result)).toContain("refusing");
+    });
   });
 });

@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { cockpitDir } from "../claude-code/paths.ts";
-import { role, orchestratorPort } from "../orchestrator/role.ts";
+import { role, orchestratorPort, orchestratorUrl } from "../orchestrator/role.ts";
 import { createLogger } from "../util/logger.ts";
 
 const log = createLogger("mcp.config");
@@ -28,6 +28,12 @@ export function mcpKey(): string {
 export function mcpEndpointUrl(): string {
   if (role() === "orchestrator") {
     return `http://127.0.0.1:${orchestratorPort()}/mcp`;
+  }
+  // app role does not spawn PTYs today (the daemon does), so this branch is a
+  // safety net: a child of the app process reaches the daemon over the compose
+  // network, not the local Next route, since the manager and bus live there.
+  if (role() === "app") {
+    return `${orchestratorUrl().replace(/\/$/, "")}/mcp`;
   }
   const port = Number(process.env.COCKPIT_PORT ?? process.env.PORT ?? 3010);
   return `http://127.0.0.1:${port}/api/mcp-bridge`;
