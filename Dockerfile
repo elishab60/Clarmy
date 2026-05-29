@@ -9,7 +9,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && corepack enable \
     && corepack prepare pnpm@9 --activate \
-    && npm install -g @anthropic-ai/claude-code
+    && npm install -g @anthropic-ai/claude-code \
+    # The bridged ~/.claude.json records installMethod=native pointing at
+    # ~/.local/bin/claude. In the container the CLI lives at /usr/local/bin
+    # (npm global); symlink so the native-install check stops warning.
+    && mkdir -p /root/.local/bin \
+    && ln -sf /usr/local/bin/claude /root/.local/bin/claude
 
 FROM base AS deps
 COPY package.json pnpm-lock.yaml ./
