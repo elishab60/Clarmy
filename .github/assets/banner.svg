@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" width="100%" shape-rendering="crispEdges" role="img" aria-label="SLAVE">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" width="100%" shape-rendering="crispEdges" role="img" aria-label="CLARMY">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#140a08"/>
@@ -12,31 +12,27 @@
   <rect width="1200" height="400" fill="url(#bg)"/>
   <rect width="1200" height="400" fill="url(#grid)" opacity="0.55"/>
 
-  <!-- SLAVE pixel letters. 5x7 grid, pixel size 28. Total 812x196, starting at x=194, y=90 -->
+  <!-- CLARMY pixel letters. 5x7 grid, pixel size 28. Total 980x196, starting at x=110, y=90 -->
   <g fill="#ff8a5b">
-    <!-- S -->
-    <g transform="translate(194 90)" opacity="0">
+    <!-- C -->
+    <g transform="translate(110 90)" opacity="0">
       <rect x="28" y="0" width="84" height="28"/>
-      <rect x="0" y="28" width="28" height="28"/>
+      <rect x="0" y="28" width="28" height="140"/>
       <rect x="112" y="28" width="28" height="28"/>
-      <rect x="0" y="56" width="28" height="28"/>
-      <rect x="28" y="84" width="84" height="28"/>
-      <rect x="112" y="112" width="28" height="28"/>
-      <rect x="0" y="140" width="28" height="28"/>
       <rect x="112" y="140" width="28" height="28"/>
       <rect x="28" y="168" width="84" height="28"/>
       <animate attributeName="opacity" values="1;0;1;1" keyTimes="0;0.88;0.92;1"
                dur="5s" repeatCount="indefinite" calcMode="discrete"/>
     </g>
     <!-- L -->
-    <g transform="translate(362 90)" opacity="0">
+    <g transform="translate(278 90)" opacity="0">
       <rect x="0" y="0" width="28" height="168"/>
       <rect x="0" y="168" width="140" height="28"/>
       <animate attributeName="opacity" values="0;1;0;1;1" keyTimes="0;0.06;0.88;0.92;1"
                dur="5s" repeatCount="indefinite" calcMode="discrete"/>
     </g>
     <!-- A -->
-    <g transform="translate(530 90)" opacity="0">
+    <g transform="translate(446 90)" opacity="0">
       <rect x="28" y="0" width="84" height="28"/>
       <rect x="0" y="28" width="28" height="168"/>
       <rect x="112" y="28" width="28" height="168"/>
@@ -44,23 +40,36 @@
       <animate attributeName="opacity" values="0;1;0;1;1" keyTimes="0;0.12;0.88;0.92;1"
                dur="5s" repeatCount="indefinite" calcMode="discrete"/>
     </g>
-    <!-- V -->
-    <g transform="translate(698 90)" opacity="0">
-      <rect x="0" y="0" width="28" height="140"/>
-      <rect x="112" y="0" width="28" height="140"/>
-      <rect x="28" y="140" width="28" height="28"/>
+    <!-- R -->
+    <g transform="translate(614 90)" opacity="0">
+      <rect x="0" y="0" width="112" height="28"/>
+      <rect x="0" y="28" width="28" height="168"/>
+      <rect x="112" y="28" width="28" height="56"/>
+      <rect x="28" y="84" width="84" height="28"/>
+      <rect x="56" y="112" width="28" height="28"/>
       <rect x="84" y="140" width="28" height="28"/>
-      <rect x="56" y="168" width="28" height="28"/>
+      <rect x="112" y="168" width="28" height="28"/>
       <animate attributeName="opacity" values="0;1;0;1;1" keyTimes="0;0.18;0.88;0.92;1"
                dur="5s" repeatCount="indefinite" calcMode="discrete"/>
     </g>
-    <!-- E -->
-    <g transform="translate(866 90)" opacity="0">
-      <rect x="0" y="0" width="140" height="28"/>
-      <rect x="0" y="28" width="28" height="140"/>
-      <rect x="0" y="84" width="112" height="28"/>
-      <rect x="0" y="168" width="140" height="28"/>
+    <!-- M -->
+    <g transform="translate(782 90)" opacity="0">
+      <rect x="0" y="0" width="28" height="196"/>
+      <rect x="112" y="0" width="28" height="196"/>
+      <rect x="28" y="28" width="28" height="28"/>
+      <rect x="84" y="28" width="28" height="28"/>
+      <rect x="56" y="56" width="28" height="56"/>
       <animate attributeName="opacity" values="0;1;0;1;1" keyTimes="0;0.24;0.88;0.92;1"
+               dur="5s" repeatCount="indefinite" calcMode="discrete"/>
+    </g>
+    <!-- Y -->
+    <g transform="translate(950 90)" opacity="0">
+      <rect x="0" y="0" width="28" height="56"/>
+      <rect x="112" y="0" width="28" height="56"/>
+      <rect x="28" y="56" width="28" height="28"/>
+      <rect x="84" y="56" width="28" height="28"/>
+      <rect x="56" y="84" width="28" height="112"/>
+      <animate attributeName="opacity" values="0;1;0;1;1" keyTimes="0;0.30;0.88;0.92;1"
                dur="5s" repeatCount="indefinite" calcMode="discrete"/>
     </g>
   </g>
@@ -75,8 +84,8 @@
 
   <!-- Subtitle + blinking cursor -->
   <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="17" fill="#c8a894">
-    <text x="600" y="335" text-anchor="middle">// PILOT A SWARM OF CLAUDES · ONE COCKPIT · ZERO MERCY</text>
-    <rect x="868" y="323" width="10" height="16" fill="#ff8a5b">
+    <text x="600" y="335" text-anchor="middle">// PILOT AN ARMY OF CLAWDS · ONE COCKPIT · ZERO FRICTION</text>
+    <rect x="884" y="323" width="10" height="16" fill="#ff8a5b">
       <animate attributeName="opacity" values="1;0;1" dur="1s" repeatCount="indefinite"/>
     </rect>
   </g>

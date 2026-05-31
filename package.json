@@ -1,7 +1,8 @@
 {
-  "name": "cockpit",
+  "name": "clarmy",
   "version": "0.1.0",
   "private": true,
+  "description": "Clarmy — master cockpit for an army of clawds. One socket, N parallel Claude Code sessions, six states, zero friction.",
   "type": "module",
   "scripts": {
     "dev": "node --experimental-transform-types server.ts",
