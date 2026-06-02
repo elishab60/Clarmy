@@ -3,8 +3,17 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useCockpit } from "@/lib/client/store";
+import { Claude, Codex, Antigravity, type IconType } from "@lobehub/icons";
 import { PROVIDERS } from "@/lib/shared/providers";
 import type { ProviderId } from "@/lib/shared/types";
+
+// Icon-only provider chips in the header. Mono variants follow `currentColor`,
+// so every glyph renders in one uniform color (CSS-driven), not its brand hue.
+const PROVIDER_ICON: Record<ProviderId, IconType> = {
+  claude: Claude,
+  codex: Codex,
+  gemini: Antigravity,
+};
 
 function titleFor(pathname: string): string {
   if (pathname === "/") return "Sessions · dashboard";
@@ -71,18 +80,19 @@ export function Topbar() {
           // Multi-select: every visible provider's sessions show on the dashboard
           // at once. The button toggles its provider in/out of that set.
           const on = mounted && visibleProviders.includes(p.id);
+          const Ico = PROVIDER_ICON[p.id];
           return (
           <button
             key={p.id}
             suppressHydrationWarning
             aria-pressed={on}
+            aria-label={p.label}
             className={`provider-tab${on ? " on" : ""}`}
             style={{ ["--provider-accent" as string]: p.accent }}
             onClick={() => toggleProvider(p.id)}
             title={`${p.tagline} — click to show/hide`}
           >
-            <span className="provider-dot" />
-            {p.label}
+            <Ico size={18} color="currentColor" />
           </button>
           );
         })}

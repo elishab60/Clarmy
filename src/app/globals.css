@@ -169,31 +169,22 @@ kbd, code, .mono { font-family: var(--font-mono); font-feature-settings: 'zero',
 .provider-tab {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 3px 10px;
-  font-size: 11.5px;
+  justify-content: center;
+  padding: 5px 9px;
   color: var(--fg-muted);
+  opacity: 0.55;
   border-radius: calc(var(--radius) - 1px);
-  letter-spacing: 0.01em;
-  transition: color 0.15s, background 0.15s, box-shadow 0.15s;
+  background: var(--bg-tile);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--provider-accent) 38%, transparent);
+  transition: color 0.15s, opacity 0.15s, background 0.15s, box-shadow 0.15s;
 }
-.provider-tab:hover { color: var(--fg-dim); }
-.provider-tab .provider-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--provider-accent);
-  opacity: 0.4;
-  transition: opacity 0.15s, box-shadow 0.15s;
-}
+.provider-tab svg { display: block; }
+.provider-tab:hover { color: var(--fg-dim); opacity: 0.85; }
 .provider-tab.on {
   color: var(--fg);
-  background: color-mix(in srgb, var(--provider-accent) 16%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--provider-accent) 42%, transparent);
-}
-.provider-tab.on .provider-dot {
   opacity: 1;
-  box-shadow: 0 0 6px var(--provider-accent);
+  background: color-mix(in srgb, var(--provider-accent) 12%, var(--bg-tile));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--provider-accent) 70%, transparent);
 }
 
 /* SIDEBAR */
@@ -265,7 +256,7 @@ kbd, code, .mono { font-family: var(--font-mono); font-feature-settings: 'zero',
   background: linear-gradient(180deg, var(--brand), color-mix(in srgb, var(--brand) 82%, #000));
   color: var(--accent-foreground);
   font-weight: 600;
-  font-size: 14px;
+  font-size: 13px;
   border-radius: var(--radius);
   display: flex;
   align-items: center;

@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import { homedir } from "node:os";
 import { createLogger } from "@/lib/util/logger";
@@ -29,14 +30,38 @@ interface UsageResp {
   seven_day_sonnet?: UsageWindowRaw | null;
 }
 
-function readToken(): string | null {
+function pickToken(raw: string): string | null {
+  const j = JSON.parse(raw) as { claudeAiOauth?: { accessToken?: unknown } };
+  const t = j.claudeAiOauth?.accessToken;
+  return typeof t === "string" && t ? t : null;
+}
+
+// On macOS the CLI keeps the live, auto-refreshed OAuth token in the login
+// Keychain (service "Claude Code-credentials"); the ~/.claude/.credentials.json
+// file is a stale legacy copy that can sit expired for days. Read the Keychain
+// first there so we send a valid token instead of a dead one (which the usage
+// endpoint answers with a misleading 429). First access may prompt the user to
+// allow the keychain item once.
+function readTokenFromKeychain(): string | null {
+  if (process.platform !== "darwin") return null;
   try {
-    const j = JSON.parse(
-      readFileSync(resolve(homedir(), ".claude", ".credentials.json"), "utf8"),
-    ) as { claudeAiOauth?: { accessToken?: unknown } };
-    const t = j.claudeAiOauth?.accessToken;
-    return typeof t === "string" && t ? t : null;
+    const raw = execFileSync(
+      "security",
+      ["find-generic-password", "-s", "Claude Code-credentials", "-w"],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
+    );
+    return pickToken(raw.trim());
   } catch { return null; }
+}
+
+function readTokenFromFile(): string | null {
+  try {
+    return pickToken(readFileSync(resolve(homedir(), ".claude", ".credentials.json"), "utf8"));
+  } catch { return null; }
+}
+
+function readToken(): string | null {
+  return readTokenFromKeychain() ?? readTokenFromFile();
 }
 
 function toWindow(
