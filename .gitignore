@@ -9,3 +9,10 @@ coverage
 .cockpit
 .vscode
 .claude
+
+# stray build artifacts / scratch dumped at repo root
+.codex-pet-runs/
+previews/
+avatar-*.js
+codex-avatar-*.js
+main-*.js
