@@ -1,4 +1,4 @@
-import { readdirSync, statSync, readFileSync } from "node:fs";
+import { readdirSync, statSync, readFileSync, type Dirent } from "node:fs";
 import { resolve, join } from "node:path";
 import { homedir } from "node:os";
 import { createLogger } from "../util/logger.ts";
@@ -38,6 +38,7 @@ export interface CCSession {
   readonly cacheCreate1hTokens: number;
   readonly state: "done" | "error" | "ongoing";
   readonly file: string;
+  readonly isSubagent: boolean;
   readonly usage: readonly CCUsageRecord[];
 }
 
@@ -76,6 +77,29 @@ const cache: Cache = {
 
 const DIR_SCAN_TTL_MS = 15_000;
 
+// Subagent / Workflow transcripts live in nested dirs the CLI writes under a
+// session, e.g. <project>/<session-uuid>/subagents/**/*.jsonl (and
+// subagents/workflows/wf_*/agent-*.jsonl). Walk the whole project subtree so
+// their token usage is not dropped from the cost metric. Depth-capped as a
+// runaway guard; the real layout is only a few levels deep.
+function listJsonlFiles(dir: string, depth = 0): string[] {
+  if (depth > 6) return [];
+  let out: string[] = [];
+  let entries: Dirent[];
+  try { entries = readdirSync(dir, { withFileTypes: true }); }
+  catch { return out; }
+  for (const e of entries) {
+    const p = join(dir, e.name);
+    if (e.isDirectory()) {
+      if (e.name.startsWith(".")) continue;
+      out = out.concat(listJsonlFiles(p, depth + 1));
+    } else if (e.isFile() && e.name.endsWith(".jsonl")) {
+      out.push(p);
+    }
+  }
+  return out;
+}
+
 export function scanAll(): CCSession[] {
   let dirs: string[] = [];
   try {
@@ -91,9 +115,9 @@ export function scanAll(): CCSession[] {
 
   for (const d of dirs) {
     const full = join(ROOT, d);
-    let files: string[];
-    try { files = readdirSync(full).filter((f) => f.endsWith(".jsonl")); }
-    catch { continue; }
+    // Absolute paths, including nested subagent/workflow transcripts.
+    const files = listJsonlFiles(full);
+    if (files.length === 0) continue;
 
     let dirSessions = cache.sessionsByDir.get(full);
     const missing: string[] = [];
@@ -101,8 +125,7 @@ export function scanAll(): CCSession[] {
     if (!dirSessions || stale) { dirSessions = []; missing.push(...files); }
     else {
       const known = new Set(dirSessions.map((s) => s.file));
-      for (const f of files) {
-        const path = join(full, f);
+      for (const path of files) {
         let mt = 0;
         try { mt = statSync(path).mtimeMs; } catch { continue; }
         const prev = cache.perFileMtime.get(path);
@@ -110,8 +133,7 @@ export function scanAll(): CCSession[] {
       }
     }
 
-    for (const f of missing) {
-      const path = f.startsWith(full) ? f : join(full, f);
+    for (const path of missing) {
       const sess = parseSession(path, full);
       if (sess) {
         const idx = dirSessions.findIndex((s) => s.file === path);
@@ -126,8 +148,70 @@ export function scanAll(): CCSession[] {
   }
 
   cache.lastDirScan = now;
-  all.sort((a, b) => b.endedAt - a.endedAt);
-  return all;
+  // Fold subagent transcripts into their parent session (shared sessionId) so a
+  // session's cost includes the work its Task/Workflow subagents did.
+  const merged = mergeBySession(all);
+  merged.sort((a, b) => b.endedAt - a.endedAt);
+  return merged;
+}
+
+// Subagent transcripts carry the parent's `sessionId`, so parseSession gives
+// them the same `id` as the main transcript. Group by id and fold children into
+// the main session; orphan subagents (no main transcript scanned) keep their own
+// row so their cost is still counted.
+function mergeBySession(sessions: CCSession[]): CCSession[] {
+  const groups = new Map<string, CCSession[]>();
+  for (const s of sessions) {
+    const arr = groups.get(s.id);
+    if (arr) arr.push(s);
+    else groups.set(s.id, [s]);
+  }
+  const out: CCSession[] = [];
+  for (const group of groups.values()) {
+    if (group.length === 1) { out.push(group[0]!); continue; }
+    const base = group.find((g) => !g.isSubagent)
+      ?? group.reduce((a, b) => (a.startedAt <= b.startedAt ? a : b));
+    out.push(foldGroup(base, group));
+  }
+  return out;
+}
+
+function foldGroup(base: CCSession, group: readonly CCSession[]): CCSession {
+  let input = 0, output = 0, cacheRead = 0, cacheCreate = 0, cacheCreate5m = 0, cacheCreate1h = 0;
+  let messageCount = 0, toolUses = 0;
+  let startedAt = Number.POSITIVE_INFINITY;
+  let endedAt = 0;
+  const usage: CCUsageRecord[] = [];
+  for (const s of group) {
+    input += s.inputTokens;
+    output += s.outputTokens;
+    cacheRead += s.cacheReadTokens;
+    cacheCreate += s.cacheCreateTokens;
+    cacheCreate5m += s.cacheCreate5mTokens;
+    cacheCreate1h += s.cacheCreate1hTokens;
+    messageCount += s.messageCount;
+    toolUses += s.toolUses;
+    if (s.startedAt && s.startedAt < startedAt) startedAt = s.startedAt;
+    if (s.endedAt > endedAt) endedAt = s.endedAt;
+    usage.push(...s.usage);
+  }
+  if (!Number.isFinite(startedAt)) startedAt = base.startedAt;
+  const end = endedAt || base.endedAt;
+  return {
+    ...base,
+    startedAt,
+    endedAt: end,
+    durationMs: Math.max(0, end - startedAt),
+    messageCount,
+    toolUses,
+    inputTokens: input,
+    outputTokens: output,
+    cacheReadTokens: cacheRead,
+    cacheCreateTokens: cacheCreate,
+    cacheCreate5mTokens: cacheCreate5m,
+    cacheCreate1hTokens: cacheCreate1h,
+    usage,
+  };
 }
 
 export function projectsFromSessions(sessions: readonly CCSession[]): CCProject[] {
@@ -299,6 +383,7 @@ function parseSession(file: string, projectDir: string): CCSession | null {
       cacheCreate1hTokens: cacheCreate1h,
       state,
       file,
+      isSubagent: file.includes("/subagents/"),
       usage,
     };
   } catch (err) {
