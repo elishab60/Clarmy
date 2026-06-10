@@ -20,6 +20,16 @@ export class SessionTailer {
   private offset = 0;
   private totals = { input: 0, output: 0, cacheRead: 0, cacheCreate5m: 0, cacheCreate1h: 0 };
   private lastContext = 0;
+  // Subagent (Task / Workflow) usage for this session lives in nested
+  // <session>/subagents/**/*.jsonl files the main transcript never inlines.
+  // Tail them separately (own offsets + dedup), price per record, and fold the
+  // result into cost / tools so the live meters reflect the whole session.
+  private subSeen = new Set<string>();
+  private subOffsets = new Map<string, number>();
+  private subCost = 0;
+  private subInput = 0;
+  private subOutput = 0;
+  private subTools = 0;
   private seenMsgKeys = new Set<string>();
   private rawModel: string | undefined;
   private toolsUsed = 0;
@@ -65,24 +75,115 @@ export class SessionTailer {
       this.tool = null;
       this.todoList = [];
       this.lastEmitted = {};
+      this.lastContext = 0;
+      this.subSeen = new Set();
+      this.subOffsets = new Map();
+      this.subCost = 0;
+      this.subInput = 0;
+      this.subOutput = 0;
+      this.subTools = 0;
     }
     const file = this.file;
     if (!file) return;
+    let changed = false;
     let size = 0;
     try { size = statSync(file).size; } catch { this.file = null; return; }
-    if (size <= this.offset) return;
-    const chunk = readFromOffset(file, this.offset);
-    if (!chunk) return;
-    const parts = chunk.split("\n");
-    const partial = parts.pop() ?? "";
-    const consumed = chunk.length - Buffer.byteLength(partial, "utf8");
-    this.offset += consumed;
-    let changed = false;
-    for (const line of parts) {
-      if (!line.trim()) continue;
-      if (this.apply(line)) changed = true;
+    if (size > this.offset) {
+      const chunk = readFromOffset(file, this.offset);
+      if (chunk) {
+        const parts = chunk.split("\n");
+        const partial = parts.pop() ?? "";
+        const consumed = chunk.length - Buffer.byteLength(partial, "utf8");
+        this.offset += consumed;
+        for (const line of parts) {
+          if (!line.trim()) continue;
+          if (this.apply(line)) changed = true;
+        }
+      }
     }
+    // Subagents may advance while the main transcript is idle (the main agent
+    // waiting on them), so poll them even when the main file had no new bytes.
+    if (this.tickSub(file)) changed = true;
     if (changed) this.emit();
+  }
+
+  // Ingest new bytes from every subagent transcript under <session>/subagents/.
+  private tickSub(mainFile: string): boolean {
+    const root = `${mainFile.replace(/\.jsonl$/, "")}/subagents`;
+    const files = this.listSubFiles(root, 0);
+    let changed = false;
+    for (const path of files) {
+      let size = 0;
+      try { size = statSync(path).size; } catch { continue; }
+      const off = this.subOffsets.get(path) ?? 0;
+      if (size <= off) continue;
+      const chunk = readFromOffset(path, off);
+      if (!chunk) continue;
+      const parts = chunk.split("\n");
+      const partial = parts.pop() ?? "";
+      this.subOffsets.set(path, off + (chunk.length - Buffer.byteLength(partial, "utf8")));
+      for (const line of parts) {
+        if (!line.trim()) continue;
+        if (this.applySub(line)) changed = true;
+      }
+    }
+    return changed;
+  }
+
+  private listSubFiles(dir: string, depth: number): string[] {
+    if (depth > 5) return [];
+    let names: string[];
+    try { names = readdirSync(dir); } catch { return []; }
+    const out: string[] = [];
+    for (const name of names) {
+      if (name.startsWith(".")) continue;
+      const p = join(dir, name);
+      let st;
+      try { st = statSync(p); } catch { continue; }
+      if (st.isDirectory()) out.push(...this.listSubFiles(p, depth + 1));
+      else if (name.endsWith(".jsonl")) out.push(p);
+    }
+    return out;
+  }
+
+  // Accumulate one subagent transcript line into the per-session subagent
+  // totals (cost priced per record by the message's own model; tool count).
+  private applySub(line: string): boolean {
+    let rec: Record<string, unknown>;
+    try { rec = JSON.parse(line.trim()) as Record<string, unknown>; }
+    catch { return false; }
+    if (rec.type !== "assistant") return false;
+    const msg = rec.message as Record<string, unknown> | undefined;
+    if (!msg) return false;
+    let changed = false;
+    const usage = msg.usage as Record<string, unknown> | undefined;
+    const msgId = typeof msg.id === "string" ? msg.id : null;
+    const reqId = typeof rec.requestId === "string" ? rec.requestId : null;
+    const key = msgId && reqId ? `${msgId}:${reqId}` : null;
+    if (usage && (!key || !this.subSeen.has(key))) {
+      if (key) this.subSeen.add(key);
+      const cc = usage.cache_creation as Record<string, unknown> | undefined;
+      const inT = num(usage.input_tokens);
+      const outT = num(usage.output_tokens);
+      const crT = num(usage.cache_read_input_tokens);
+      const c5 = cc ? num(cc.ephemeral_5m_input_tokens) : num(usage.cache_creation_input_tokens);
+      const c1 = cc ? num(cc.ephemeral_1h_input_tokens) : 0;
+      const model = typeof msg.model === "string" ? msg.model : (this.rawModel ?? this.model);
+      this.subCost += estimateCost(model, { input: inT, output: outT, cacheRead: crT, cacheCreate5m: c5, cacheCreate1h: c1 });
+      this.subInput += inT;
+      this.subOutput += outT;
+      changed = true;
+    }
+    const content = msg.content;
+    if (Array.isArray(content)) {
+      for (const b of content) {
+        if (b && typeof b === "object" && (b as { type?: unknown }).type === "tool_use") {
+          this.subTools += 1;
+          changed = true;
+        }
+      }
+    }
+    return changed;
   }
 
   private findLatestFile(): string | null {
@@ -234,20 +335,21 @@ export class SessionTailer {
   }
 
   private emit(): void {
+    // Cost / tools / token totals fold in subagents; context stays main-thread.
     const cost = estimateCost(this.rawModel ?? this.model ?? "", {
       input: this.totals.input,
       output: this.totals.output,
       cacheRead: this.totals.cacheRead,
       cacheCreate5m: this.totals.cacheCreate5m,
       cacheCreate1h: this.totals.cacheCreate1h,
-    });
+    }) + this.subCost;
     const done = this.todoList.filter((t) => t.status === "done").length;
     const patch: TailPatch = {
       cost,
       tool: this.tool,
-      toolsUsed: this.toolsUsed,
-      inputTokens: this.totals.input,
-      outputTokens: this.totals.output,
+      toolsUsed: this.toolsUsed + this.subTools,
+      inputTokens: this.totals.input + this.subInput,
+      outputTokens: this.totals.output + this.subOutput,
       contextTokens: this.lastContext || undefined,
       model: this.model,
       resumeSessionId: this.resumeSessionId,
