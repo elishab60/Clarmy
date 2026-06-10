@@ -23,6 +23,23 @@ function fmtTokens(n: number): string {
   return `${n}`;
 }
 
+// Build an ASCII fill bar: solid blocks + a sub-cell edge glyph (eighth-blocks)
+// for smooth growth, padded with light shade. Rendered in three spans so the
+// filled run can shimmer and the edge can blink like a terminal cursor.
+function asciiBar(pct: number, cells = 26): { full: string; edge: string; empty: string } {
+  const exact = Math.max(0, Math.min(cells, (pct / 100) * cells));
+  const full = Math.floor(exact);
+  const frac = exact - full;
+  const eighths = ["", "▏", "▎", "▍", "▌", "▋", "▊", "▉"];
+  const hasEdge = full < cells && frac >= 0.05;
+  const edge = hasEdge ? (eighths[Math.min(7, Math.max(1, Math.round(frac * 8)))] ?? "▌") : "";
+  return {
+    full: "█".repeat(full),
+    edge,
+    empty: "░".repeat(Math.max(0, cells - full - (hasEdge ? 1 : 0))),
+  };
+}
+
 function fmtElapsedMs(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000));
   const m = Math.floor(s / 60);
@@ -187,15 +204,22 @@ export function FocusView({ id }: { id: string }) {
           if (!used || !max) return null;
           const pct = Math.min(100, (used / max) * 100);
           const tone = pct >= 90 ? "crit" : pct >= 75 ? "warn" : "ok";
+          const { full, edge, empty } = asciiBar(pct);
           return (
             <div className="focus-side-group">
               <h3>Context</h3>
-              <div className="ctx-meter" data-tone={tone}>
+              <div className="ctx-ascii" data-tone={tone}>
                 <div className="ctx-head">
-                  <span className="ctx-tok">{fmtTokens(used)} / {fmtTokens(max)}</span>
+                  <span className="ctx-tok">{fmtTokens(used)} / {fmtTokens(max)} tok</span>
                   <span className="ctx-pct">{pct < 10 ? pct.toFixed(1) : pct.toFixed(0)}%</span>
                 </div>
-                <div className="ctx-bar"><span className="ctx-fill" style={{ width: `${pct}%` }} /></div>
+                <div className="ctx-track" aria-hidden="true">
+                  <span className="ctx-bracket">[</span>
+                  <span className="ctx-fillchars">{full}</span>
+                  <span className="ctx-edge">{edge}</span>
+                  <span className="ctx-emptychars">{empty}</span>
+                  <span className="ctx-bracket">]</span>
+                </div>
               </div>
             </div>
           );

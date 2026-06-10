@@ -1049,33 +1049,49 @@ kbd, code, .mono { font-family: var(--font-mono); font-feature-settings: 'zero',
   font-weight: 500;
   font-family: var(--font-mono);
 }
-.ctx-meter { display: flex; flex-direction: column; gap: 6px; }
-.ctx-head {
+/* ASCII context meter — terminal-style fill bar, animated. */
+.ctx-ascii { --ctx-col: var(--state-running); display: flex; flex-direction: column; gap: 5px; }
+.ctx-ascii[data-tone="warn"] { --ctx-col: #f59e0b; }
+.ctx-ascii[data-tone="crit"] { --ctx-col: var(--state-error); }
+.ctx-ascii .ctx-head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   font-family: var(--font-mono);
   font-size: 11px;
 }
-.ctx-head .ctx-tok { color: var(--fg-muted); }
-.ctx-head .ctx-pct { color: var(--fg); font-variant-numeric: tabular-nums; }
-.ctx-bar {
-  position: relative;
-  height: 6px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--fg-faint) 22%, transparent);
-  overflow: hidden;
+.ctx-ascii .ctx-tok { color: var(--fg-muted); }
+.ctx-ascii .ctx-pct { color: var(--ctx-col); font-variant-numeric: tabular-nums; }
+.ctx-track {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1;
+  white-space: pre;
+  user-select: none;
 }
-.ctx-fill {
-  position: absolute;
-  inset: 0 auto 0 0;
-  border-radius: 999px;
-  background: var(--state-running);
-  transition: width 0.4s ease;
+.ctx-track .ctx-bracket { color: var(--fg-faint); }
+.ctx-track .ctx-emptychars { color: color-mix(in srgb, var(--fg-faint) 55%, transparent); }
+.ctx-track .ctx-fillchars {
+  color: var(--ctx-col);
+  background: linear-gradient(
+    90deg,
+    var(--ctx-col) 0%,
+    color-mix(in srgb, var(--ctx-col) 42%, #ffffff) 50%,
+    var(--ctx-col) 100%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: ctx-shimmer 2.4s linear infinite;
 }
-.ctx-meter[data-tone="warn"] .ctx-fill { background: #f59e0b; }
-.ctx-meter[data-tone="crit"] .ctx-fill { background: var(--state-error); }
-.ctx-meter[data-tone="crit"] .ctx-head .ctx-pct { color: var(--state-error); }
+.ctx-track .ctx-edge { color: var(--ctx-col); animation: ctx-blink 1.05s steps(1) infinite; }
+@keyframes ctx-shimmer { from { background-position: 220% 0; } to { background-position: -220% 0; } }
+@keyframes ctx-blink { 0%, 55% { opacity: 1; } 56%, 100% { opacity: 0.28; } }
+@media (prefers-reduced-motion: reduce) {
+  .ctx-track .ctx-fillchars { animation: none; -webkit-text-fill-color: var(--ctx-col); }
+  .ctx-track .ctx-edge { animation: none; }
+}
 
 .kv-list { display: flex; flex-direction: column; gap: 6px; }
 .kv-list .kv {
