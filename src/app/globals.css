@@ -1028,9 +1028,7 @@ kbd, code, .mono { font-family: var(--font-mono); font-feature-settings: 'zero',
   font-family: var(--font-mono);
 }
 /* Context meter header (tokens / %), sits above a shared .ascii-bar. */
-.ctx-ascii { --ctx-col: var(--state-running); display: flex; flex-direction: column; gap: 5px; }
-.ctx-ascii[data-tone="warn"] { --ctx-col: #f59e0b; }
-.ctx-ascii[data-tone="crit"] { --ctx-col: var(--state-error); }
+.ctx-ascii { display: flex; flex-direction: column; gap: 5px; }
 .ctx-ascii .ctx-head {
   display: flex;
   align-items: baseline;
@@ -1039,11 +1037,13 @@ kbd, code, .mono { font-family: var(--font-mono); font-feature-settings: 'zero',
   font-size: 11px;
 }
 .ctx-ascii .ctx-tok { color: var(--fg-muted); }
-.ctx-ascii .ctx-pct { color: var(--ctx-col); font-variant-numeric: tabular-nums; }
+.ctx-ascii .ctx-pct { color: var(--accent); font-variant-numeric: tabular-nums; }
 
-/* Shared terminal-style ASCII fill bar (context meter + quota gauges). */
+/* Shared terminal-style ASCII fill bar (context meter + quota gauges). Filled
+   and unfilled both use the user's accent colour (filled solid, empty faded);
+   a slow shimmer keeps it alive without blinking. */
 .ascii-bar {
-  --ab-col: var(--state-running);
+  --ab-col: var(--accent, var(--brand, #d97757));
   font-family: var(--font-mono);
   font-size: 12px;
   line-height: 1;
@@ -1051,26 +1051,66 @@ kbd, code, .mono { font-family: var(--font-mono); font-feature-settings: 'zero',
   user-select: none;
 }
 .ascii-bar.sm { font-size: 9.5px; }
-.ascii-bar[data-tone="warn"] { --ab-col: #f59e0b; }
-.ascii-bar[data-tone="crit"] { --ab-col: var(--state-error); }
 .ascii-bar .ab-bracket { color: var(--fg-faint); }
-/* Unfilled track uses the user's accent colour. */
-.ascii-bar .ab-empty { color: color-mix(in srgb, var(--accent, var(--brand, #6b7280)) 55%, transparent); }
+.ascii-bar .ab-empty { color: color-mix(in srgb, var(--ab-col) 28%, transparent); }
+.ascii-bar .ab-edge { color: var(--ab-col); }
 .ascii-bar .ab-fill {
   color: var(--ab-col);
-  background: linear-gradient(90deg, var(--ab-col) 0%, color-mix(in srgb, var(--ab-col) 42%, #ffffff) 50%, var(--ab-col) 100%);
+  background: linear-gradient(90deg, var(--ab-col) 0%, color-mix(in srgb, var(--ab-col) 72%, #ffffff) 50%, var(--ab-col) 100%);
   background-size: 220% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: ascii-shimmer 2.4s linear infinite;
+  animation: ascii-shimmer 3.4s linear infinite;
 }
-.ascii-bar .ab-edge { color: var(--ab-col); animation: ascii-blink 1.05s steps(1) infinite; }
 @keyframes ascii-shimmer { from { background-position: 220% 0; } to { background-position: -220% 0; } }
-@keyframes ascii-blink { 0%, 55% { opacity: 1; } 56%, 100% { opacity: 0.28; } }
 @media (prefers-reduced-motion: reduce) {
   .ascii-bar .ab-fill { animation: none; -webkit-text-fill-color: var(--ab-col); }
-  .ascii-bar .ab-edge { animation: none; }
+}
+
+/* Tokenmaxing rank card (sidebar, under quotas). */
+.tokenmax { padding: 8px 0 12px; }
+.tokenmax .nav-label { margin-bottom: 4px; }
+.tmx-card {
+  position: relative;
+  overflow: hidden;
+  margin: 0 12px;
+  padding: 12px 13px 13px;
+  border-radius: var(--radius);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  background:
+    radial-gradient(130% 90% at 0% 0%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 62%),
+    color-mix(in srgb, var(--bg-elev) 78%, transparent);
+}
+.tmx-rank {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 13.5px;
+  letter-spacing: 0.035em;
+  line-height: 1.12;
+  text-transform: uppercase;
+  background: linear-gradient(90deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 52%, #fff) 50%, var(--accent) 100%);
+  background-size: 230% 100%;
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  animation: tmx-sweep 3.6s linear infinite;
+}
+.tmx-sub { margin-top: 2px; font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--fg-faint); }
+.tmx-stats { display: flex; align-items: baseline; gap: 8px; margin: 10px 0 9px; flex-wrap: wrap; }
+.tmx-cost { font-family: var(--font-mono); font-weight: 700; font-size: 22px; line-height: 1; color: var(--fg); font-variant-numeric: tabular-nums; }
+.tmx-tok { font-family: var(--font-mono); font-size: 10px; color: var(--fg-muted); }
+.tmx-next { margin-top: 8px; font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.02em; color: var(--fg-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@keyframes tmx-sweep { from { background-position: 230% 0; } to { background-position: -230% 0; } }
+.tokenmax[data-tier="3"] .tmx-card {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  animation: tmx-glow 3s ease-in-out infinite;
+}
+@keyframes tmx-glow {
+  0%, 100% { box-shadow: inset 0 0 18px -12px color-mix(in srgb, var(--accent) 55%, transparent); }
+  50% { box-shadow: 0 0 20px -8px color-mix(in srgb, var(--accent) 42%, transparent), inset 0 0 22px -9px color-mix(in srgb, var(--accent) 72%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tmx-rank { animation: none; -webkit-text-fill-color: var(--accent); }
+  .tokenmax[data-tier="3"] .tmx-card { animation: none; }
 }
 
 .kv-list { display: flex; flex-direction: column; gap: 6px; }

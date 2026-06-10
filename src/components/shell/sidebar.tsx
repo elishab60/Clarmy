@@ -7,6 +7,7 @@ import { useCockpit } from "@/lib/client/store";
 import { Icon, type IconName } from "./icons";
 import { Clawd } from "./clawd";
 import { QuotaMeters } from "./quota-meters";
+import { TokenmaxRank } from "./tokenmax-rank";
 
 const NAV_PRIMARY: { k: string; href: string; label: string; icon: IconName; badge?: string }[] = [
   { k: "sessions", href: "/",         label: "Sessions", icon: "sessions" },
@@ -160,6 +161,7 @@ export function Sidebar() {
       </div>
 
       <QuotaMeters />
+      <TokenmaxRank />
     </aside>
   );
 }

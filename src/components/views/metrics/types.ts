@@ -18,10 +18,10 @@ export interface SessionRow {
   readonly messages: number;
   readonly cost: number;
   readonly state: "done" | "error" | "ongoing";
-  // Per-day breakdown by message timestamp (cost `c`, output tokens `o`), so
-  // multi-day sessions attribute spend to the day it actually happened rather
-  // than dumping it all on the end date.
-  readonly daily: Record<string, { c: number; o: number }>;
+  // Per-day breakdown by message timestamp (cost `c`, output tokens `o`, total
+  // tokens `t`), so multi-day sessions attribute spend to the day it actually
+  // happened rather than dumping it all on the end date.
+  readonly daily: Record<string, { c: number; o: number; t: number }>;
 }
 
 export interface MetricsPayload {
