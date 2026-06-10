@@ -21,7 +21,7 @@ export async function GET() {
   const seen = new Set<string>();
   const rows = sessions.map((s) => {
     let cost = 0, input = 0, output = 0, cacheRead = 0, cacheCreate = 0;
-    const daily: Record<string, { c: number; o: number; t: number }> = {};
+    const daily: Record<string, { c: number; o: number }> = {};
     for (const r of s.usage) {
       if (r.key) {
         const dedupKey = `${s.provider}:${r.key}`;
@@ -42,10 +42,9 @@ export async function GET() {
       cost += rc;
       if (r.ts) {
         const dk = new Date(r.ts).toISOString().slice(0, 10);
-        const e = (daily[dk] ??= { c: 0, o: 0, t: 0 });
+        const e = (daily[dk] ??= { c: 0, o: 0 });
         e.c += rc;
         e.o += r.outputTokens;
-        e.t += r.inputTokens + r.outputTokens + r.cacheReadTokens + r.cacheCreate5mTokens + r.cacheCreate1hTokens;
       }
     }
     const endedAt = s.endedAt || s.startedAt;
