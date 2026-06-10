@@ -21,6 +21,18 @@ export interface ModelSpec {
 export const MODELS: readonly ModelSpec[] = [
   // ---- Anthropic / Claude -------------------------------------------------
   {
+    id: "mythos",
+    provider: "claude",
+    // UI label is "Mythos" (vanity); the real API model stays claude-fable-5.
+    apiId: "claude-fable-5",
+    label: "Mythos",
+    tagline: "most capable, newest",
+    aliasFrom: ["claude-fable-5"],
+    // Same reasoning-effort ladder as Opus (incl. cockpit's runtime ultracode).
+    effortLevels: ["low", "medium", "high", "xhigh", "max", "ultracode"],
+    defaultEffort: "xhigh",
+  },
+  {
     id: "opus-4.8",
     provider: "claude",
     apiId: "claude-opus-4-8",
@@ -256,4 +268,25 @@ export function coerceEffortFor(id: string, wanted: Effort | null | undefined): 
 
 export function modelSupportsEffortFor(id: string): boolean {
   return effortLevelsFor(id).length > 0;
+}
+
+// Max context window per model, for the live context meter (denominator). Codex
+// reports its own `model_context_window` in token_count events, so its entries
+// are only a fallback before that arrives; Claude/Gemini have no live window
+// signal, so the registry value is authoritative. 0 / absent = unknown (the UI
+// hides the meter).
+const CONTEXT_WINDOWS: Record<string, number> = {
+  "mythos": 1_000_000,
+  "opus-4.8": 1_000_000,
+  "sonnet-4.6": 1_000_000,
+  "haiku-4.5": 200_000,
+  "gemini-3-flash-preview": 1_000_000,
+  "gemini-3.1-pro-preview": 1_000_000,
+  "gemini-2.5-pro": 1_000_000,
+  "gemini-2.5-flash": 1_000_000,
+  "gemini-2.5-flash-lite": 1_000_000,
+};
+
+export function contextWindowFor(id: string): number {
+  return CONTEXT_WINDOWS[id] ?? 0;
 }

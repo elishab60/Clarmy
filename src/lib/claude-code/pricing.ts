@@ -22,6 +22,7 @@ const LITELLM_URL = "https://raw.githubusercontent.com/BerriAI/litellm/main/mode
 const TTL_MS = 60 * 60 * 1000;
 
 const FALLBACK_PER_TOKEN: Record<string, Pricing> = {
+  "claude-fable-5":             { input: 10e-6,   output: 50e-6,   cacheRead: 1e-6,    cacheCreate5m: 12.5e-6,  cacheCreate1h: 20e-6 },
   "claude-opus-4-8":            { input: 5e-6,    output: 25e-6,   cacheRead: 5e-7,    cacheCreate5m: 6.25e-6,  cacheCreate1h: 10e-6 },
   "claude-opus-4-7":            { input: 5e-6,    output: 25e-6,   cacheRead: 5e-7,    cacheCreate5m: 6.25e-6,  cacheCreate1h: 10e-6 },
   "claude-opus-4-6":            { input: 5e-6,    output: 25e-6,   cacheRead: 5e-7,    cacheCreate5m: 6.25e-6,  cacheCreate1h: 10e-6 },
@@ -110,6 +111,7 @@ function pricingSync(model: string | undefined | null): Pricing {
   const lower = model.toLowerCase();
   const match = Object.keys(table).find((k) => lower.includes(k) || k.includes(lower));
   if (match) return table[match]!;
+  if (lower.includes("fable")) return table["claude-fable-5"] ?? UNKNOWN;
   if (lower.includes("opus-4-8")) return table["claude-opus-4-8"] ?? UNKNOWN;
   if (lower.includes("opus-4-7") || lower.includes("opus-4-6")) return table["claude-opus-4-7"] ?? UNKNOWN;
   if (lower.includes("opus")) return table["claude-opus-4-1"] ?? UNKNOWN;
