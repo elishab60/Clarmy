@@ -19,6 +19,7 @@ export class SessionTailer {
   private file: string | null = null;
   private offset = 0;
   private totals = { input: 0, output: 0, cacheRead: 0, cacheCreate5m: 0, cacheCreate1h: 0 };
+  private lastContext = 0;
   private seenMsgKeys = new Set<string>();
   private rawModel: string | undefined;
   private toolsUsed = 0;
@@ -167,16 +168,19 @@ export class SessionTailer {
       const key = msgId && reqId ? `${msgId}:${reqId}` : null;
       if (usage && (!key || !this.seenMsgKeys.has(key))) {
         if (key) this.seenMsgKeys.add(key);
-        this.totals.input        += num(usage.input_tokens);
-        this.totals.output       += num(usage.output_tokens);
-        this.totals.cacheRead    += num(usage.cache_read_input_tokens);
         const cc = usage.cache_creation as Record<string, unknown> | undefined;
-        if (cc) {
-          this.totals.cacheCreate5m += num(cc.ephemeral_5m_input_tokens);
-          this.totals.cacheCreate1h += num(cc.ephemeral_1h_input_tokens);
-        } else {
-          this.totals.cacheCreate5m += num(usage.cache_creation_input_tokens);
-        }
+        const mIn = num(usage.input_tokens);
+        const mCr = num(usage.cache_read_input_tokens);
+        const mC5 = cc ? num(cc.ephemeral_5m_input_tokens) : num(usage.cache_creation_input_tokens);
+        const mC1 = cc ? num(cc.ephemeral_1h_input_tokens) : 0;
+        this.totals.input        += mIn;
+        this.totals.output       += num(usage.output_tokens);
+        this.totals.cacheRead    += mCr;
+        this.totals.cacheCreate5m += mC5;
+        this.totals.cacheCreate1h += mC1;
+        // Current context occupancy = this request's prompt size (not cumulative).
+        // Skip subagent (sidechain) turns so the meter tracks the main thread.
+        if (rec.isSidechain !== true) this.lastContext = mIn + mCr + mC5 + mC1;
         changed = true;
       }
       const stopReason = msg.stop_reason;
@@ -244,6 +248,7 @@ export class SessionTailer {
       toolsUsed: this.toolsUsed,
       inputTokens: this.totals.input,
       outputTokens: this.totals.output,
+      contextTokens: this.lastContext || undefined,
       model: this.model,
       resumeSessionId: this.resumeSessionId,
       todoList: this.todoList,
