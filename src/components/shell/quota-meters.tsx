@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { CSSProperties } from "react";
 import type { ProviderQuota, QuotaWindow, QuotasResponse } from "@/lib/shared/quota";
+import { AsciiBar } from "./ascii-bar";
 
 type Level = "ok" | "warn" | "crit";
 
@@ -35,22 +35,6 @@ function fmtResetAt(ms: number | null): string | null {
   });
 }
 
-function Bar({ pct }: { pct: number | null }) {
-  const style = { "--p": pct !== null ? pct / 100 : 0 } as CSSProperties;
-  return (
-    <div
-      className="quota-bar"
-      role="progressbar"
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={pct === null ? undefined : Math.round(pct)}
-      style={style}
-    >
-      <span className="quota-fill" data-level={levelFor(pct)} />
-    </div>
-  );
-}
-
 function WindowLine({ w }: { w: QuotaWindow }) {
   const at = fmtResetAt(w.resetsAt);
   const rel = fmtReset(w.resetsAt);
@@ -58,7 +42,7 @@ function WindowLine({ w }: { w: QuotaWindow }) {
   return (
     <div className="quota-wline" title={title}>
       <span className="quota-wlabel">{w.label}</span>
-      <Bar pct={w.usedPercent} />
+      <AsciiBar pct={w.usedPercent} cells={16} tone={levelFor(w.usedPercent)} size="sm" />
       <span className="quota-wpct">{Math.round(w.usedPercent)}%</span>
     </div>
   );
@@ -91,7 +75,7 @@ function QuotaMeter({ q }: { q: ProviderQuota }) {
       </div>
       {hasWindows
         ? q.windows.map((w) => <WindowLine key={w.label} w={w} />)
-        : <Bar pct={pct} />}
+        : <AsciiBar pct={pct} cells={18} tone={levelFor(pct)} size="sm" />}
       {q.detail && !hasWindows && (
         <div className="quota-cap" title={q.detail}>{q.detail}</div>
       )}
@@ -106,7 +90,7 @@ function SkeletonRow({ name }: { name: string }) {
         <span className="quota-name">{name}</span>
         <span className="quota-pct">··</span>
       </div>
-      <Bar pct={null} />
+      <AsciiBar pct={null} cells={18} tone="ok" size="sm" />
     </div>
   );
 }
