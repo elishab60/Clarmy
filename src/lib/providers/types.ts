@@ -10,6 +10,8 @@ export interface TailPatch {
   readonly toolsUsed?: number;
   readonly inputTokens?: number;
   readonly outputTokens?: number;
+  readonly contextTokens?: number;
+  readonly contextWindow?: number;
   readonly model?: ModelId;
   readonly resumeSessionId?: string;
   readonly todoList?: readonly TodoItem[];

@@ -205,7 +205,7 @@ export class PtyRunner {
     const patch: Partial<SessionSnapshot> = {};
     let changed = false;
     const keys: (keyof TailPatch & keyof SessionSnapshot)[] = [
-      "cost", "toolsUsed", "inputTokens", "outputTokens", "model", "resumeSessionId", "todoList", "todos", "todosDone",
+      "cost", "toolsUsed", "inputTokens", "outputTokens", "contextTokens", "contextWindow", "model", "resumeSessionId", "todoList", "todos", "todosDone",
     ];
     for (const k of keys) {
       if (p[k] === undefined) continue;

@@ -82,6 +82,11 @@ export interface SessionSnapshot {
   readonly durationMs?: number;
   readonly inputTokens?: number;
   readonly outputTokens?: number;
+  // Current context-window occupancy (size of the latest request prompt) and the
+  // model's max window, for the live context meter. Optional: providers that
+  // expose no token data (e.g. Gemini transcripts) leave these unset.
+  readonly contextTokens?: number;
+  readonly contextWindow?: number;
   readonly todoList?: readonly TodoItem[];
   readonly editPath?: string;
   readonly diff?: readonly DiffRow[];

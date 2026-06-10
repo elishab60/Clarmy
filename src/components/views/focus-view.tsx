@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCockpit } from "@/lib/client/store";
 import type { Effort } from "@/lib/shared/types";
-import { effortLevelsFor } from "@/lib/shared/models";
+import { effortLevelsFor, contextWindowFor } from "@/lib/shared/models";
 import { providerMeta } from "@/lib/shared/providers";
 import { STATE_META } from "../shell/state-meta";
 import { PtyTerminal } from "../terminal/pty-terminal";
@@ -15,6 +15,12 @@ function fmtCost(n: number): string {
   if (n >= 100) return `$${n.toFixed(0)}`;
   if (n >= 1) return `$${n.toFixed(2)}`;
   return `$${n.toFixed(3)}`;
+}
+
+function fmtTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(n >= 100_000 ? 0 : 1)}k`;
+  return `${n}`;
 }
 
 function fmtElapsedMs(ms: number): string {
@@ -175,6 +181,25 @@ export function FocusView({ id }: { id: string }) {
             <div className="kv"><span className="k">tools used</span><span className="v">{s.toolsUsed}</span></div>
           </div>
         </div>
+        {(() => {
+          const used = s.contextTokens ?? 0;
+          const max = s.contextWindow || contextWindowFor(s.model);
+          if (!used || !max) return null;
+          const pct = Math.min(100, (used / max) * 100);
+          const tone = pct >= 90 ? "crit" : pct >= 75 ? "warn" : "ok";
+          return (
+            <div className="focus-side-group">
+              <h3>Context</h3>
+              <div className="ctx-meter" data-tone={tone}>
+                <div className="ctx-head">
+                  <span className="ctx-tok">{fmtTokens(used)} / {fmtTokens(max)}</span>
+                  <span className="ctx-pct">{pct < 10 ? pct.toFixed(1) : pct.toFixed(0)}%</span>
+                </div>
+                <div className="ctx-bar"><span className="ctx-fill" style={{ width: `${pct}%` }} /></div>
+              </div>
+            </div>
+          );
+        })()}
         <div className="focus-side-group">
           <h3>Todos · {s.todosDone} / {s.todos}</h3>
           <div className="todos">

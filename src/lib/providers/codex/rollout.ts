@@ -13,6 +13,11 @@ export interface CodexTokenUsage {
   readonly outputTokens: number;
   readonly reasoningOutputTokens: number;
   readonly totalTokens: number;
+  // Context-meter inputs: last_token_usage.input_tokens is the current window
+  // occupancy (the last request prompt, cached included); model_context_window
+  // is the max. Both ride in the same token_count info block. 0 when absent.
+  readonly lastInputTokens: number;
+  readonly contextWindow: number;
 }
 
 export interface RolloutLine {
@@ -43,15 +48,20 @@ export function tokenUsageFrom(payload: Record<string, unknown>): CodexTokenUsag
   if (payload.type !== "token_count") return null;
   const info = payload.info;
   if (!info || typeof info !== "object") return null;
-  const total = (info as Record<string, unknown>).total_token_usage;
+  const infoRec = info as Record<string, unknown>;
+  const total = infoRec.total_token_usage;
   if (!total || typeof total !== "object") return null;
   const t = total as Record<string, unknown>;
+  const last = infoRec.last_token_usage;
+  const lastRec = last && typeof last === "object" ? (last as Record<string, unknown>) : null;
   return {
     inputTokens: num(t.input_tokens),
     cachedInputTokens: num(t.cached_input_tokens),
     outputTokens: num(t.output_tokens),
     reasoningOutputTokens: num(t.reasoning_output_tokens),
     totalTokens: num(t.total_tokens),
+    lastInputTokens: lastRec ? num(lastRec.input_tokens) : num(t.input_tokens),
+    contextWindow: num(infoRec.model_context_window),
   };
 }
 

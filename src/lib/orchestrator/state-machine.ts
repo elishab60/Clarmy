@@ -11,7 +11,7 @@ export type StateAction =
   | { type: "result.success"; summary?: string; artifacts?: string[]; cost: number; durationMs?: number; inputTokens?: number; outputTokens?: number }
   | { type: "result.error"; message: string; retryIn?: number; durationMs?: number; inputTokens?: number; outputTokens?: number; cost?: number }
   | { type: "cost.update"; delta: number }
-  | { type: "usage.update"; cost: number; inputTokens: number; outputTokens: number }
+  | { type: "usage.update"; cost: number; inputTokens: number; outputTokens: number; contextTokens?: number; contextWindow?: number }
   | { type: "user.prompt"; line: LogLine }
   | { type: "tool.reset" };
 
@@ -110,7 +110,14 @@ export function reduce(s: SessionSnapshot, a: StateAction): SessionSnapshot {
       return { ...s, cost: s.cost + a.delta };
 
     case "usage.update":
-      return { ...s, cost: a.cost, inputTokens: a.inputTokens, outputTokens: a.outputTokens };
+      return {
+        ...s,
+        cost: a.cost,
+        inputTokens: a.inputTokens,
+        outputTokens: a.outputTokens,
+        contextTokens: a.contextTokens ?? s.contextTokens,
+        contextWindow: a.contextWindow ?? s.contextWindow,
+      };
 
     case "user.prompt":
       return { ...s, state: "running", logs: appendLog(s.logs, a.line) };

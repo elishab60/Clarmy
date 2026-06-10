@@ -1049,6 +1049,34 @@ kbd, code, .mono { font-family: var(--font-mono); font-feature-settings: 'zero',
   font-weight: 500;
   font-family: var(--font-mono);
 }
+.ctx-meter { display: flex; flex-direction: column; gap: 6px; }
+.ctx-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.ctx-head .ctx-tok { color: var(--fg-muted); }
+.ctx-head .ctx-pct { color: var(--fg); font-variant-numeric: tabular-nums; }
+.ctx-bar {
+  position: relative;
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--fg-faint) 22%, transparent);
+  overflow: hidden;
+}
+.ctx-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 999px;
+  background: var(--state-running);
+  transition: width 0.4s ease;
+}
+.ctx-meter[data-tone="warn"] .ctx-fill { background: #f59e0b; }
+.ctx-meter[data-tone="crit"] .ctx-fill { background: var(--state-error); }
+.ctx-meter[data-tone="crit"] .ctx-head .ctx-pct { color: var(--state-error); }
+
 .kv-list { display: flex; flex-direction: column; gap: 6px; }
 .kv-list .kv {
   display: flex; justify-content: space-between;

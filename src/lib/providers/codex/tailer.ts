@@ -116,6 +116,8 @@ export class CodexTailer implements LiveTailer {
       toolsUsed: this.toolsUsed,
       inputTokens: this.usage ? Math.max(0, this.usage.inputTokens - this.usage.cachedInputTokens) : 0,
       outputTokens: this.usage ? this.usage.outputTokens + this.usage.reasoningOutputTokens : 0,
+      contextTokens: this.usage && this.usage.lastInputTokens > 0 ? this.usage.lastInputTokens : undefined,
+      contextWindow: this.usage && this.usage.contextWindow > 0 ? this.usage.contextWindow : undefined,
       model: this.model,
       resumeSessionId: this.resumeSessionId,
     };

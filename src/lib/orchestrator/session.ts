@@ -6,7 +6,7 @@ import { estimateCost, refreshPricing } from "../claude-code/pricing.ts";
 import type { EventBus } from "./events.ts";
 import { reduce, initialSnapshot, type StateAction } from "./state-machine.ts";
 import type { SessionEvent, SessionSnapshot, SpawnConfig, PendingApproval, LogLine, DiffRow } from "../shared/types.ts";
-import { apiIdFor } from "../shared/models.ts";
+import { apiIdFor, contextWindowFor } from "../shared/models.ts";
 
 const log = createLogger("session");
 
@@ -138,16 +138,18 @@ export class SessionRunner {
         if (apiMsg.usage && (!key || !this.seenMsgKeys.has(key))) {
           if (key) this.seenMsgKeys.add(key);
           const u = apiMsg.usage;
-          this.usage.input        += numOr0(u.input_tokens);
-          this.usage.output       += numOr0(u.output_tokens);
-          this.usage.cacheRead    += numOr0(u.cache_read_input_tokens);
           const cc = u.cache_creation as Record<string, unknown> | undefined;
-          if (cc) {
-            this.usage.cacheCreate5m += numOr0(cc.ephemeral_5m_input_tokens);
-            this.usage.cacheCreate1h += numOr0(cc.ephemeral_1h_input_tokens);
-          } else {
-            this.usage.cacheCreate5m += numOr0(u.cache_creation_input_tokens);
-          }
+          // Per-message values (this turn) — accumulate for cost, and reuse the
+          // input side as the live context-window occupancy.
+          const mIn  = numOr0(u.input_tokens);
+          const mCr  = numOr0(u.cache_read_input_tokens);
+          const mC5  = cc ? numOr0(cc.ephemeral_5m_input_tokens) : numOr0(u.cache_creation_input_tokens);
+          const mC1  = cc ? numOr0(cc.ephemeral_1h_input_tokens) : 0;
+          this.usage.input        += mIn;
+          this.usage.output       += numOr0(u.output_tokens);
+          this.usage.cacheRead    += mCr;
+          this.usage.cacheCreate5m += mC5;
+          this.usage.cacheCreate1h += mC1;
           const cost = estimateCost(this.rawModel ?? this.snapshot.model, {
             input: this.usage.input,
             output: this.usage.output,
@@ -155,11 +157,18 @@ export class SessionRunner {
             cacheCreate5m: this.usage.cacheCreate5m,
             cacheCreate1h: this.usage.cacheCreate1h,
           });
+          // Context occupancy = the prompt size of THIS request (not cumulative).
+          // Only report it for main-thread turns: subagent (Task) turns carry a
+          // parent_tool_use_id and have their own window, so they would otherwise
+          // make the meter jump.
+          const isMainThread = (msg as { parent_tool_use_id?: string | null }).parent_tool_use_id == null;
           this.apply({
             type: "usage.update",
             cost,
             inputTokens: this.usage.input,
             outputTokens: this.usage.output,
+            contextTokens: isMainThread ? mIn + mCr + mC5 + mC1 : undefined,
+            contextWindow: contextWindowFor(this.snapshot.model) || undefined,
           });
         }
         for (const block of msg.message.content) {
