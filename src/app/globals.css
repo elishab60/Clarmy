@@ -2307,6 +2307,29 @@ kbd, code, .mono { font-family: var(--font-mono); font-feature-settings: 'zero',
   cursor: not-allowed;
 }
 
+/* Retention banner: Claude Code's 30-day transcript cleanup erodes CLARMY's
+   data; amber warning with a one-click fix, green once applied. */
+.retention-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  border: 1px solid color-mix(in srgb, #f5a524 45%, transparent);
+  background: color-mix(in srgb, #f5a524 9%, transparent);
+  animation: metric-rise .4s cubic-bezier(.2,.7,.2,1) both;
+}
+.retention-banner.ok {
+  border-color: color-mix(in srgb, #3fb950 45%, transparent);
+  background: color-mix(in srgb, #3fb950 9%, transparent);
+}
+.retention-banner .rb-ico { font-size: 13px; color: #f5a524; }
+.retention-banner.ok .rb-ico { color: #3fb950; }
+.retention-banner .rb-text { flex: 1; font-size: 12.5px; color: var(--fg-dim); line-height: 1.45; }
+.retention-banner .rb-text strong { color: var(--fg); }
+.retention-banner .rb-btn { white-space: nowrap; }
+
 .settings-layout {
   display: grid;
   grid-template-columns: 220px 1fr;

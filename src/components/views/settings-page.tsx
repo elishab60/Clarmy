@@ -37,6 +37,62 @@ const cardStyle: CSSProperties = { padding: 0, borderRadius: 8 };
 const rowStyle: CSSProperties = { position: "relative", padding: "6px 0" };
 const riseOf = (i: number): CSSProperties => ({ animation: "metric-rise .5s cubic-bezier(.2,.7,.2,1) both", animationDelay: `${i * 40}ms` });
 
+interface RetentionState { cleanupPeriodDays: number; persistent: boolean }
+
+// Claude Code prunes transcripts after cleanupPeriodDays (default 30). All of
+// CLARMY's history and metrics come from those files, so surface a one-click
+// fix whenever the user's retention is still finite.
+function RetentionBanner() {
+  const [state, setState] = useState<RetentionState | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [justFixed, setJustFixed] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/settings/retention", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (alive && j) setState(j as RetentionState); })
+      .catch(() => { /* banner just stays hidden */ });
+    return () => { alive = false; };
+  }, []);
+
+  const fix = async () => {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/settings/retention", { method: "POST" });
+      if (res.ok) {
+        const j = await res.json() as RetentionState;
+        setState(j);
+        setJustFixed(true);
+      }
+    } catch { /* keep the button */ }
+    finally { setBusy(false); }
+  };
+
+  if (!state) return null;
+  if (state.persistent && !justFixed) return null;
+  if (justFixed) {
+    return (
+      <div className="retention-banner ok" role="status">
+        <span className="rb-ico">✓</span>
+        <span className="rb-text">Claude Code history is now persistent ({state.cleanupPeriodDays.toLocaleString()} days retention).</span>
+      </div>
+    );
+  }
+  return (
+    <div className="retention-banner" role="alert">
+      <span className="rb-ico">▲</span>
+      <span className="rb-text">
+        Claude Code deletes transcripts after <strong>{state.cleanupPeriodDays} days</strong>.
+        CLARMY's history, metrics and costs are built from them and will silently erode.
+      </span>
+      <button className="btn primary rb-btn" onClick={() => void fix()} disabled={busy}>
+        {busy ? "Applying…" : "Make history persistent"}
+      </button>
+    </div>
+  );
+}
+
 export function SettingsPage() {
   const [tab, setTab] = useState<Tab>("general");
   const [defaultModel, setDefaultModel] = useState<ModelId>(DEFAULT_MODEL_ID);
@@ -100,6 +156,8 @@ export function SettingsPage() {
           <button className="btn primary" onClick={onSave} aria-disabled={!dirty} disabled={!dirty} style={saveStyle}>Save changes</button>
         </div>
       </div>
+
+      <RetentionBanner />
 
       <div className="settings-layout">
         <nav className="settings-nav">
