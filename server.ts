@@ -26,10 +26,8 @@ if (r !== "app") {
   getManager().restore();
   startCronScheduler();
   // Watch transcript roots so /api/metrics serves from cache and clients get
-  // a WS nudge instead of polling. Warm the index in the background so the
-  // first request after boot is a cache read, not a full cold scan.
+  // a WS nudge instead of polling.
   getMetricsIndex().startWatching();
-  void getMetricsIndex().payload().catch(() => { /* first request will retry */ });
 }
 
 const server = createServer((req, res) => {
@@ -49,4 +47,32 @@ else attachWebSocket(server);
 
 server.listen(port, () => {
   log.info("cockpit listening", { port, dev, role: r, mock: process.env.COCKPIT_MOCK === "1" });
+  if (r !== "app") {
+    // Warm the metrics index AFTER we are serving: the underlying scanners are
+    // synchronous, so the cold scan blocks the event loop for a few seconds.
+    // Deferring it keeps the first health checks and page loads snappy; the
+    // block then happens once, in one chunk, instead of on a user request.
+    setTimeout(() => {
+      void getMetricsIndex().payload().catch(() => { /* first request will retry */ });
+    }, 1_500).unref();
+  }
 });
+
+// Graceful shutdown: kill child CLIs (and their MCP configs), stop the fs
+// watchers, close the listener. A hard exit fallback guarantees we never hang.
+let shuttingDown = false;
+async function shutdown(signal: string): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  log.info("shutting down", { signal });
+  setTimeout(() => process.exit(0), 4_500).unref(); // hard stop fallback
+  try { getMetricsIndex().stopWatching(); } catch { /* best effort */ }
+  if (r !== "app") {
+    try { await getManager().shutdownAll(); } catch { /* best effort */ }
+  }
+  server.close(() => process.exit(0));
+  // Keep-alive sockets would otherwise hold close() open until the fallback.
+  server.closeAllConnections();
+}
+process.on("SIGTERM", () => void shutdown("SIGTERM"));
+process.on("SIGINT", () => void shutdown("SIGINT"));

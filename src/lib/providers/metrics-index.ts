@@ -1,41 +1,21 @@
-import { watch, type FSWatcher } from "node:fs";
+import { watch, existsSync, type FSWatcher } from "node:fs";
+import { join } from "node:path";
+import { Worker } from "node:worker_threads";
 import { scanAllProviders } from "./scan-all.ts";
-import { estimateCost, refreshPricing } from "../claude-code/pricing.ts";
+import { refreshPricing } from "../claude-code/pricing.ts";
 import { projectsDir } from "../claude-code/paths.ts";
 import { codexSessionsDir } from "./codex/paths.ts";
 import { geminiHome } from "./gemini/paths.ts";
-import { modelFromApiId } from "../shared/models.ts";
-import type { ProviderId } from "../shared/providers.ts";
+import { computeRows, type MetricsRow } from "./metrics-rows.ts";
 import { createLogger } from "../util/logger.ts";
+
+export type { MetricsRow } from "./metrics-rows.ts";
 
 const log = createLogger("metrics-index");
 
-// One compact row per recorded session, the expensive half of /api/metrics
-// (tree walk + per-record dedup + pricing). Shape matches the client's
-// SessionRow exactly.
-export interface MetricsRow {
-  readonly id: string;
-  readonly provider: ProviderId;
-  readonly cwd: string;
-  readonly project: string;
-  readonly model: string;
-  readonly rawModel: string | null;
-  readonly startedAt: number;
-  readonly endedAt: number;
-  readonly day: string | null;
-  readonly input: number;
-  readonly output: number;
-  readonly cacheRead: number;
-  readonly cacheCreate: number;
-  readonly toolUses: number;
-  readonly messages: number;
-  readonly cost: number;
-  readonly state: "done" | "error" | "ongoing";
-  readonly daily: Record<string, { c: number; o: number }>;
-}
-
 const DEBOUNCE_MS = 1_500;
-const FALLBACK_TTL_MS = 60_000; // safety net when fs.watch is unavailable
+const FALLBACK_TTL_MS = 60_000;   // safety net when fs.watch is unavailable
+const WORKER_TIMEOUT_MS = 120_000;
 
 // The store is shared across BOTH module graphs (server.ts's node graph and
 // Next's compiled route graph) via globalThis, like the SessionManager.
@@ -50,7 +30,9 @@ class MetricsIndex {
   private listeners = new Set<() => void>();
 
   // Cached rows, rebuilt only when transcripts changed. Concurrent callers
-  // share one in-flight build.
+  // share one in-flight build. Stale-while-revalidate: once we have ANY rows,
+  // requests never wait on a rebuild; they get the previous snapshot and the
+  // WS metrics.dirty push makes clients refetch when the fresh one lands.
   async payload(): Promise<{ generatedAt: number; rows: MetricsRow[] }> {
     const stale = !this.watching && Date.now() - this.generatedAt > FALLBACK_TTL_MS;
     if (this.rows && !this.dirty && !stale) {
@@ -58,6 +40,9 @@ class MetricsIndex {
     }
     if (!this.building) {
       this.building = this.build().finally(() => { this.building = null; });
+    }
+    if (this.rows) {
+      return { generatedAt: this.generatedAt, rows: this.rows };
     }
     const rows = await this.building;
     return { generatedAt: this.generatedAt, rows };
@@ -96,6 +81,7 @@ class MetricsIndex {
     for (const w of this.watchers) { try { w.close(); } catch { /* ignore */ } }
     this.watchers = [];
     this.watching = false;
+    if (this.debounceTimer) { clearTimeout(this.debounceTimer); this.debounceTimer = null; }
   }
 
   private markDirty(): void {
@@ -112,65 +98,48 @@ class MetricsIndex {
 
   private async build(): Promise<MetricsRow[]> {
     const t0 = Date.now();
-    await refreshPricing().catch(() => { /* fallback table */ });
-    const sessions = scanAllProviders();
-    const seen = new Set<string>();
-    const rows = sessions.map((s) => {
-      let cost = 0, input = 0, output = 0, cacheRead = 0, cacheCreate = 0;
-      const daily: Record<string, { c: number; o: number }> = {};
-      for (const r of s.usage) {
-        if (r.key) {
-          const dedupKey = `${s.provider}:${r.key}`;
-          if (seen.has(dedupKey)) continue;
-          seen.add(dedupKey);
-        }
-        input += r.inputTokens;
-        output += r.outputTokens;
-        cacheRead += r.cacheReadTokens;
-        cacheCreate += r.cacheCreate5mTokens + r.cacheCreate1hTokens;
-        const rc = estimateCost(r.model ?? s.model, {
-          input: r.inputTokens,
-          output: r.outputTokens,
-          cacheRead: r.cacheReadTokens,
-          cacheCreate5m: r.cacheCreate5mTokens,
-          cacheCreate1h: r.cacheCreate1hTokens,
-        });
-        cost += rc;
-        if (r.ts) {
-          const dk = new Date(r.ts).toISOString().slice(0, 10);
-          const e = (daily[dk] ??= { c: 0, o: 0 });
-          e.c += rc;
-          e.o += r.outputTokens;
-        }
-      }
-      const endedAt = s.endedAt || s.startedAt;
-      return {
-        id: s.id,
-        provider: s.provider,
-        cwd: s.cwd,
-        project: s.project,
-        model: modelFromApiId(s.model ?? null) ?? s.model ?? "unknown",
-        rawModel: s.model ?? null,
-        startedAt: s.startedAt,
-        endedAt,
-        day: endedAt ? new Date(endedAt).toISOString().slice(0, 10) : null,
-        input,
-        output,
-        cacheRead,
-        cacheCreate,
-        toolUses: s.toolUses,
-        messages: s.messageCount,
-        cost,
-        state: s.state,
-        daily,
-      };
-    });
+    let rows: MetricsRow[];
+    let via = "worker";
+    try {
+      rows = await buildInWorker();
+    } catch (err) {
+      // The scanners are synchronous; this blocks the loop for the duration of
+      // the scan, so the worker is strongly preferred. Keep the fallback so a
+      // broken worker path degrades to slow, never to broken.
+      via = "sync";
+      log.warn("worker build failed; building inline", { err: String(err) });
+      await refreshPricing().catch(() => { /* fallback table */ });
+      rows = computeRows(scanAllProviders());
+    }
     this.rows = rows;
     this.generatedAt = Date.now();
     this.dirty = false;
-    log.info("metrics index rebuilt", { rows: rows.length, ms: Date.now() - t0 });
+    log.info("metrics index rebuilt", { rows: rows.length, ms: Date.now() - t0, via });
     return rows;
   }
+}
+
+// Spawn the build in a worker thread so the synchronous transcript scan never
+// blocks the event loop. The worker file is resolved from the repo root (the
+// process always boots from there via server.ts / bin/clarmy), not via
+// import.meta.url, which would point inside Next's compiled bundle.
+function buildInWorker(): Promise<MetricsRow[]> {
+  const entry = join(process.cwd(), "src", "lib", "providers", "metrics-build-worker.ts");
+  if (!existsSync(entry)) return Promise.reject(new Error(`worker entry missing: ${entry}`));
+  return new Promise((resolve, reject) => {
+    const w = new Worker(entry);
+    const timer = setTimeout(() => {
+      void w.terminate();
+      reject(new Error("worker build timed out"));
+    }, WORKER_TIMEOUT_MS);
+    w.once("message", (msg: { ok: boolean; rows?: MetricsRow[]; error?: string }) => {
+      clearTimeout(timer);
+      void w.terminate();
+      if (msg.ok && msg.rows) resolve(msg.rows);
+      else reject(new Error(msg.error ?? "worker build failed"));
+    });
+    w.once("error", (err) => { clearTimeout(timer); reject(err); });
+  });
 }
 
 interface Holder { __cockpitMetricsIndex?: MetricsIndex }

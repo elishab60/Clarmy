@@ -176,6 +176,19 @@ export class SessionManager {
     return true;
   }
 
+  // Orderly process shutdown: kill every runner (stops tailers, removes the
+  // per-session MCP configs, terminates the child CLIs) so nothing is left
+  // orphaned when the daemon receives SIGTERM. Errors on one runner never
+  // block the others; the whole sweep is capped so shutdown can't hang.
+  async shutdownAll(timeoutMs = 4_000): Promise<void> {
+    const kills = [...this.runners.values()].map((r) => r.kill().catch(() => { /* best effort */ }));
+    this.runners.clear();
+    await Promise.race([
+      Promise.allSettled(kills),
+      new Promise((res) => setTimeout(res, timeoutMs)),
+    ]);
+  }
+
   async fork(id: string, prompt: string): Promise<string | null> {
     const src = this.runners.get(id);
     if (!src) return null;

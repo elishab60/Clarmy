@@ -52,7 +52,7 @@ function readPid() {
 
 async function healthy() {
   try {
-    const res = await fetch(`http://127.0.0.1:${PORT}/api/quotas`, { signal: AbortSignal.timeout(2000) });
+    const res = await fetch(`http://127.0.0.1:${PORT}/api/health`, { signal: AbortSignal.timeout(5000) });
     return res.ok;
   } catch { return false; }
 }
@@ -124,6 +124,45 @@ async function status() {
   console.log(`logs    ${LOG_FILE}`);
 }
 
+// Environment diagnostics for first-run and bug reports. Read-only.
+async function doctor() {
+  const rows = [];
+  const check = (name, ok, note) => rows.push([ok === true ? "✓" : ok === false ? "✗" : "△", name, note]);
+
+  const major = Number(process.versions.node.split(".")[0]);
+  check("node >= 22", major >= 22, `v${process.versions.node}`);
+  check("pnpm", sh("pnpm", ["--version"]).code === 0, sh("pnpm", ["--version"]).out || "not found");
+
+  for (const cli of ["claude", "codex", "gemini"]) {
+    const r = sh("which", [cli]);
+    check(`${cli} CLI`, r.code === 0 ? true : null, r.code === 0 ? r.out : "not installed (optional)");
+  }
+
+  const projects = join(homedir(), ".claude", "projects");
+  check("transcripts", existsSync(projects), projects);
+
+  let retention = null;
+  try {
+    const s = JSON.parse(readFileSync(join(homedir(), ".claude", "settings.json"), "utf8"));
+    const days = typeof s.cleanupPeriodDays === "number" ? s.cleanupPeriodDays : 30;
+    retention = days >= 3650;
+    check("history persistent", retention, `cleanupPeriodDays=${days}${retention ? "" : " (fix in Settings)"}`);
+  } catch {
+    check("history persistent", false, "settings.json unreadable; default 30d cleanup");
+  }
+
+  check("mcp key", existsSync(join(DIR, "mcp.key")), join(DIR, "mcp.key"));
+  check("prod build", existsSync(join(ROOT, ".next", "BUILD_ID")), existsSync(join(ROOT, ".next", "BUILD_ID")) ? "ready" : "run: clarmy start (builds automatically)");
+
+  const up = await healthy();
+  check(`daemon :${PORT}`, up ? true : null, up ? "healthy" : "not running");
+
+  const w = Math.max(...rows.map(([, n]) => n.length));
+  for (const [icon, name, note] of rows) console.log(` ${icon} ${name.padEnd(w + 2)} ${note}`);
+  const bad = rows.filter(([i]) => i === "✗").length;
+  console.log(bad ? `\n${bad} issue(s) need attention` : "\nall good · clarmy is ready");
+}
+
 switch (cmd) {
   case "up":
   case undefined:
@@ -136,11 +175,13 @@ switch (cmd) {
     stop(); await start({ open: false }); break;
   case "status":
     await status(); break;
+  case "doctor":
+    await doctor(); break;
   case "logs":
     spawn("tail", ["-f", LOG_FILE], { stdio: "inherit" }); break;
   case "dev":
     spawnSync("pnpm", ["dev"], { cwd: ROOT, stdio: "inherit" }); break;
   default:
-    console.log("usage: clarmy [start|stop|restart|status|logs|dev]");
+    console.log("usage: clarmy [start|stop|restart|status|logs|doctor|dev]");
     process.exit(2);
 }
