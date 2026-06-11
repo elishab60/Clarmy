@@ -33,6 +33,7 @@ function connect(): void {
       const msg = JSON.parse(ev.data) as ServerMessage;
       if (msg.type === "hello") useCockpit.getState().hydrateSessions(msg.sessions);
       else if (msg.type === "session.event") useCockpit.getState().applyEvent(msg.event);
+      else if (msg.type === "metrics.dirty") useCockpit.getState().bumpMetrics();
     } catch { /* ignore */ }
   });
 

@@ -3,6 +3,7 @@ import type { Socket } from "node:net";
 import { WebSocketServer, WebSocket } from "ws";
 import { WS_PATH, WS_PROTOCOL_VERSION, type ServerMessage, type ClientMessage } from "../shared/ws-protocol.ts";
 import { getManager } from "./manager.ts";
+import { getMetricsIndex } from "../providers/metrics-index.ts";
 import { createLogger } from "../util/logger.ts";
 
 const log = createLogger("ws");
@@ -74,6 +75,9 @@ export function attachWebSocket(server: Server): WebSocketServer {
   const unsub = manager.subscribe((event) => {
     broadcast(wss, { type: "session.event", event });
   });
+  const unsubMetrics = getMetricsIndex().subscribe(() => {
+    broadcast(wss, { type: "metrics.dirty", at: Date.now() });
+  });
 
   wss.on("connection", (ws: WebSocket) => {
     log.info("client connected", { clients: wss.clients.size });
@@ -89,7 +93,7 @@ export function attachWebSocket(server: Server): WebSocketServer {
     ws.on("close", () => log.info("client disconnected", { clients: wss.clients.size - 1 }));
   });
 
-  wss.on("close", () => unsub());
+  wss.on("close", () => { unsub(); unsubMetrics(); });
   return wss;
 }
 

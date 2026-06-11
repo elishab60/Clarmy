@@ -38,6 +38,7 @@ export function MetricsPage() {
   const [now, setNow] = useState(() => Date.now());
 
   const provider = useCockpit((s) => s.provider);
+  const metricsVersion = useCockpit((s) => s.metricsVersion);
   const [filters, setFilters] = useState<Filters>({ range: "all", projects: [], models: [] });
   const [heatMetric, setHeatMetric] = useState<HeatMetric>("sessions");
 
@@ -55,7 +56,10 @@ export function MetricsPage() {
     finally { setLoading(false); setRefreshing(false); }
   };
 
-  useEffect(() => { void refresh(); const id = setInterval(() => void refresh(), 15_000); return () => clearInterval(id); }, []);
+  // Refetch when the server signals fresh data over WS (metrics.dirty);
+  // the slow interval is only a fallback for dropped sockets.
+  useEffect(() => { void refresh(); }, [metricsVersion]);
+  useEffect(() => { const id = setInterval(() => void refresh(), 60_000); return () => clearInterval(id); }, []);
 
   const rows = useMemo(
     () => (payload?.sessions ?? []).filter((r) => r.provider === provider),

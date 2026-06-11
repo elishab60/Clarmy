@@ -45,6 +45,7 @@ export function Sidebar() {
   const router = useRouter();
   const sessions = useCockpit((s) => s.sessions);
   const visibleProviders = useCockpit((s) => s.visibleProviders);
+  const metricsVersion = useCockpit((s) => s.metricsVersion);
   const scoped = Object.values(sessions).filter((v) => visibleProviders.includes(v.provider));
   const count = scoped.length;
   const [stats, setStats] = useState<SideStats>({ projects: 0, history: 0, metrics: 0 });
@@ -82,9 +83,9 @@ export function Sidebar() {
       } catch { /* ignore */ }
     };
     void load();
-    const id = setInterval(load, 20_000);
+    const id = setInterval(load, 60_000); // fallback only; WS drives refreshes
     return () => { cancelled = true; clearInterval(id); };
-  }, [visibleProviders]);
+  }, [visibleProviders, metricsVersion]);
 
   const BADGES: Record<string, number | string> = {
     sessions: count,

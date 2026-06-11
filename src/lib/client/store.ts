@@ -58,6 +58,9 @@ interface CockpitState {
 
   hydrateSessions: (list: readonly SessionSnapshot[]) => void;
   applyEvent: (e: SessionEvent) => void;
+  // Bumped by the ws client on metrics.dirty; metrics consumers refetch on it.
+  metricsVersion: number;
+  bumpMetrics: () => void;
 }
 
 export const useCockpit = create<CockpitState>((set, get) => ({
@@ -70,6 +73,8 @@ export const useCockpit = create<CockpitState>((set, get) => ({
   tweaks: loadTweaks(),
   provider: loadProvider(),
   visibleProviders: loadVisibleProviders(),
+  metricsVersion: 0,
+  bumpMetrics: () => set((s) => ({ metricsVersion: s.metricsVersion + 1 })),
 
   // Picking an active provider (e.g. spawning a session for it) also makes it
   // visible, so the new tile is never hidden by the current filter.
