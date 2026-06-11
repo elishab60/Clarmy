@@ -42,7 +42,7 @@ function WindowLine({ w }: { w: QuotaWindow }) {
   return (
     <div className="quota-wline" title={title}>
       <span className="quota-wlabel">{w.label}</span>
-      <AsciiBar pct={w.usedPercent} cells={16} tone={levelFor(w.usedPercent)} size="sm" />
+      <AsciiBar pct={w.usedPercent} cells={11} tone={levelFor(w.usedPercent)} size="sm" />
       <span className="quota-wpct">{Math.round(w.usedPercent)}%</span>
     </div>
   );
@@ -75,7 +75,7 @@ function QuotaMeter({ q }: { q: ProviderQuota }) {
       </div>
       {hasWindows
         ? q.windows.map((w) => <WindowLine key={w.label} w={w} />)
-        : <AsciiBar pct={pct} cells={18} tone={levelFor(pct)} size="sm" />}
+        : <AsciiBar pct={pct} cells={16} tone={levelFor(pct)} size="sm" />}
       {q.detail && !hasWindows && (
         <div className="quota-cap" title={q.detail}>{q.detail}</div>
       )}
@@ -90,7 +90,7 @@ function SkeletonRow({ name }: { name: string }) {
         <span className="quota-name">{name}</span>
         <span className="quota-pct">··</span>
       </div>
-      <AsciiBar pct={null} cells={18} tone="ok" size="sm" />
+      <AsciiBar pct={null} cells={16} tone="ok" size="sm" />
     </div>
   );
 }

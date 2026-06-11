@@ -471,11 +471,15 @@ kbd, code, .mono { font-family: var(--font-mono); font-feature-settings: 'zero',
 }
 .quota-wline {
   display: grid;
-  grid-template-columns: 48px 1fr 30px;
+  grid-template-columns: 44px 1fr auto;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   margin-top: 4px;
 }
+/* Let the fixed-width ASCII bar shrink/clip inside its track instead of forcing
+   the grid wider than the sidebar (which would push the % column out of line). */
+.quota-wline .ascii-bar,
+.quota-row > .ascii-bar { min-width: 0; overflow: hidden; }
 .quota-wlabel {
   font-family: var(--font-mono);
   font-size: 9px;
@@ -491,6 +495,7 @@ kbd, code, .mono { font-family: var(--font-mono); font-feature-settings: 'zero',
   font-size: 9.5px;
   color: var(--fg-muted);
   text-align: right;
+  justify-self: end;
   font-variant-numeric: tabular-nums;
 }
 .quota-row[data-state="loading"] { opacity: 0.6; }
