@@ -66,16 +66,12 @@ const ROOT = resolve(homedir(), ".claude", "projects");
 interface Cache {
   sessionsByDir: Map<string, CCSession[]>;
   perFileMtime: Map<string, number>;
-  lastDirScan: number;
 }
 
 const cache: Cache = {
   sessionsByDir: new Map(),
   perFileMtime: new Map(),
-  lastDirScan: 0,
 };
-
-const DIR_SCAN_TTL_MS = 15_000;
 
 // Subagent / Workflow transcripts live in nested dirs the CLI writes under a
 // session, e.g. <project>/<session-uuid>/subagents/**/*.jsonl (and
@@ -109,28 +105,25 @@ export function scanAll(): CCSession[] {
     return [];
   }
 
-  const now = Date.now();
-  const stale = now - cache.lastDirScan > DIR_SCAN_TTL_MS;
   const all: CCSession[] = [];
 
   for (const d of dirs) {
     const full = join(ROOT, d);
     // Absolute paths, including nested subagent/workflow transcripts.
     const files = listJsonlFiles(full);
-    if (files.length === 0) continue;
+    if (files.length === 0) { cache.sessionsByDir.delete(full); continue; }
 
-    let dirSessions = cache.sessionsByDir.get(full);
+    // mtime decides what gets reparsed, every scan. (A TTL used to force a
+    // full directory reparse here, which made every warm rebuild a cold one.)
+    const fileSet = new Set(files);
+    let dirSessions = (cache.sessionsByDir.get(full) ?? []).filter((s) => fileSet.has(s.file));
+    const known = new Set(dirSessions.map((s) => s.file));
     const missing: string[] = [];
-
-    if (!dirSessions || stale) { dirSessions = []; missing.push(...files); }
-    else {
-      const known = new Set(dirSessions.map((s) => s.file));
-      for (const path of files) {
-        let mt = 0;
-        try { mt = statSync(path).mtimeMs; } catch { continue; }
-        const prev = cache.perFileMtime.get(path);
-        if (!known.has(path) || prev == null || prev < mt) missing.push(path);
-      }
+    for (const path of files) {
+      let mt = 0;
+      try { mt = statSync(path).mtimeMs; } catch { continue; }
+      const prev = cache.perFileMtime.get(path);
+      if (!known.has(path) || prev == null || prev < mt) missing.push(path);
     }
 
     for (const path of missing) {
@@ -147,7 +140,6 @@ export function scanAll(): CCSession[] {
     for (const s of dirSessions) all.push(s);
   }
 
-  cache.lastDirScan = now;
   // Fold subagent transcripts into their parent session (shared sessionId) so a
   // session's cost includes the work its Task/Workflow subagents did.
   const merged = mergeBySession(all);

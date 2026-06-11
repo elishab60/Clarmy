@@ -3,16 +3,23 @@ import { refreshPricing } from "../claude-code/pricing.ts";
 import { scanAllProviders } from "./scan-all.ts";
 import { computeRows } from "./metrics-rows.ts";
 
-// Worker entry for the metrics index build. The transcript scanners are
+// Long-lived worker for metrics index builds. The transcript scanners are
 // synchronous (readFileSync loops over hundreds of files), so running them on
-// the main thread would freeze every request for seconds on a cold scan.
-// Here they block this worker instead; the main loop stays responsive.
-async function run(): Promise<void> {
-  await refreshPricing().catch(() => { /* fallback price table */ });
-  const rows = computeRows(scanAllProviders());
-  parentPort?.postMessage({ ok: true, rows });
-}
+// the main thread would freeze every request; here they block this worker
+// instead. The worker is PERSISTENT on purpose: the scanners keep per-file
+// mtime caches in module state, so the first build is a cold full parse and
+// every later build only re-reads files that actually changed.
+interface BuildMsg { readonly type: "build"; readonly seq: number }
 
-run().catch((err) => {
-  parentPort?.postMessage({ ok: false, error: String(err) });
+parentPort?.on("message", (msg: BuildMsg) => {
+  if (!msg || msg.type !== "build") return;
+  void (async () => {
+    try {
+      await refreshPricing().catch(() => { /* fallback price table */ });
+      const rows = computeRows(scanAllProviders());
+      parentPort?.postMessage({ seq: msg.seq, ok: true, rows });
+    } catch (err) {
+      parentPort?.postMessage({ seq: msg.seq, ok: false, error: String(err) });
+    }
+  })();
 });

@@ -82,6 +82,7 @@ class MetricsIndex {
     this.watchers = [];
     this.watching = false;
     if (this.debounceTimer) { clearTimeout(this.debounceTimer); this.debounceTimer = null; }
+    disposeWorker();
   }
 
   private markDirty(): void {
@@ -119,26 +120,65 @@ class MetricsIndex {
   }
 }
 
-// Spawn the build in a worker thread so the synchronous transcript scan never
-// blocks the event loop. The worker file is resolved from the repo root (the
-// process always boots from there via server.ts / bin/clarmy), not via
-// import.meta.url, which would point inside Next's compiled bundle.
-function buildInWorker(): Promise<MetricsRow[]> {
+// Builds run in ONE persistent worker thread: the synchronous transcript scan
+// never blocks the event loop, and because the worker survives across builds
+// the scanners' per-file mtime caches stay warm; only the first build is a
+// full cold parse, later ones re-read just the changed files. The worker file
+// is resolved from the repo root (the process always boots from there via
+// server.ts / bin/clarmy), not via import.meta.url, which would point inside
+// Next's compiled bundle. A crashed or timed-out worker is dropped and
+// respawned on the next build.
+interface PendingBuild {
+  readonly resolve: (rows: MetricsRow[]) => void;
+  readonly reject: (err: Error) => void;
+  readonly timer: ReturnType<typeof setTimeout>;
+}
+
+let worker: Worker | null = null;
+let seq = 0;
+const pending = new Map<number, PendingBuild>();
+
+function failAll(err: Error): void {
+  for (const p of pending.values()) { clearTimeout(p.timer); p.reject(err); }
+  pending.clear();
+}
+
+function disposeWorker(): void {
+  failAll(new Error("worker disposed"));
+  if (worker) { void worker.terminate(); worker = null; }
+}
+
+function ensureWorker(): Worker {
+  if (worker) return worker;
   const entry = join(process.cwd(), "src", "lib", "providers", "metrics-build-worker.ts");
-  if (!existsSync(entry)) return Promise.reject(new Error(`worker entry missing: ${entry}`));
+  if (!existsSync(entry)) throw new Error(`worker entry missing: ${entry}`);
+  const w = new Worker(entry);
+  w.unref(); // never hold the process open
+  w.on("message", (msg: { seq: number; ok: boolean; rows?: MetricsRow[]; error?: string }) => {
+    const p = pending.get(msg.seq);
+    if (!p) return;
+    pending.delete(msg.seq);
+    clearTimeout(p.timer);
+    if (msg.ok && msg.rows) p.resolve(msg.rows);
+    else p.reject(new Error(msg.error ?? "worker build failed"));
+  });
+  w.on("error", (err) => { failAll(err instanceof Error ? err : new Error(String(err))); worker = null; });
+  w.on("exit", () => { failAll(new Error("worker exited")); worker = null; });
+  worker = w;
+  return w;
+}
+
+function buildInWorker(): Promise<MetricsRow[]> {
+  const w = ensureWorker();
+  const id = ++seq;
   return new Promise((resolve, reject) => {
-    const w = new Worker(entry);
     const timer = setTimeout(() => {
-      void w.terminate();
+      pending.delete(id);
+      disposeWorker(); // a wedged worker is replaced on the next build
       reject(new Error("worker build timed out"));
     }, WORKER_TIMEOUT_MS);
-    w.once("message", (msg: { ok: boolean; rows?: MetricsRow[]; error?: string }) => {
-      clearTimeout(timer);
-      void w.terminate();
-      if (msg.ok && msg.rows) resolve(msg.rows);
-      else reject(new Error(msg.error ?? "worker build failed"));
-    });
-    w.once("error", (err) => { clearTimeout(timer); reject(err); });
+    pending.set(id, { resolve, reject, timer });
+    w.postMessage({ type: "build", seq: id });
   });
 }
 
