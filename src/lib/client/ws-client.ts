@@ -34,6 +34,7 @@ function connect(): void {
       if (msg.type === "hello") useCockpit.getState().hydrateSessions(msg.sessions);
       else if (msg.type === "session.event") useCockpit.getState().applyEvent(msg.event);
       else if (msg.type === "metrics.dirty") useCockpit.getState().bumpMetrics();
+      else if (msg.type === "quotas.update") useCockpit.getState().setQuotas(msg.payload);
     } catch { /* ignore */ }
   });
 

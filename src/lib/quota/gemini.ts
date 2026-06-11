@@ -1,8 +1,8 @@
 import { readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { homedir } from "node:os";
-import { createLogger } from "@/lib/util/logger";
-import type { ProviderQuota } from "@/lib/shared/quota";
+import { createLogger } from "../util/logger.ts";
+import type { ProviderQuota } from "../shared/quota.ts";
 
 const log = createLogger("quota/gemini");
 

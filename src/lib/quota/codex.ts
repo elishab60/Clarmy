@@ -1,8 +1,8 @@
 import { readdirSync, readFileSync, statSync, type Dirent } from "node:fs";
 import { resolve, join } from "node:path";
 import { homedir } from "node:os";
-import { createLogger } from "@/lib/util/logger";
-import type { ProviderQuota, QuotaWindow } from "@/lib/shared/quota";
+import { createLogger } from "../util/logger.ts";
+import type { ProviderQuota, QuotaWindow } from "../shared/quota.ts";
 
 const log = createLogger("quota/codex");
 

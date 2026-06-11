@@ -10,6 +10,7 @@
 
 <br/>
 
+[![CI](https://img.shields.io/github/actions/workflow/status/elishab60/Clarmy/ci.yml?style=for-the-badge&label=CI&logo=githubactions&logoColor=fff)](https://github.com/elishab60/Clarmy/actions/workflows/ci.yml)
 ![Next.js](https://img.shields.io/badge/Next.js_15-000?style=for-the-badge&logo=next.js&logoColor=fff)
 ![React 19](https://img.shields.io/badge/React_19-149ECA?style=for-the-badge&logo=react&logoColor=fff)
 ![TypeScript](https://img.shields.io/badge/TypeScript_5.7-3178C6?style=for-the-badge&logo=typescript&logoColor=fff)

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { ProviderQuota, QuotaWindow, QuotasResponse } from "@/lib/shared/quota";
 import { AsciiBar } from "./ascii-bar";
+import { useCockpit } from "@/lib/client/store";
 
 type Level = "ok" | "warn" | "crit";
 
@@ -98,8 +99,11 @@ function SkeletonRow({ name }: { name: string }) {
 const PLACEHOLDER = ["Claude", "Codex", "Gemini"];
 
 export function QuotaMeters() {
+  // Live snapshots arrive over WS (quotas.update); the fetch covers the first
+  // paint before the socket delivers, and a slow timer covers dropped sockets.
+  const pushed = useCockpit((s) => s.quotas);
   // null = still loading the first response; [] = loaded but nothing to show.
-  const [providers, setProviders] = useState<readonly ProviderQuota[] | null>(null);
+  const [fetched, setFetched] = useState<readonly ProviderQuota[] | null>(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
@@ -111,18 +115,20 @@ export function QuotaMeters() {
         if (!res.ok) throw new Error(`status ${res.status}`);
         const j = (await res.json()) as QuotasResponse;
         if (!alive) return;
-        setProviders(j.providers ?? []);
+        setFetched(j.providers ?? []);
         setFailed(false);
       } catch {
         if (!alive) return;
         setFailed(true);
-        setProviders((prev) => prev ?? []);
+        setFetched((prev) => prev ?? []);
       }
     };
     void load();
-    const id = setInterval(load, 15_000);
+    const id = setInterval(load, 300_000); // fallback only; WS drives updates
     return () => { alive = false; clearInterval(id); };
   }, []);
+
+  const providers = pushed ? pushed.providers : fetched;
 
   // Always render the section so the gauges never silently vanish.
   return (

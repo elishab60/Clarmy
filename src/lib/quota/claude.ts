@@ -1,11 +1,11 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { homedir } from "node:os";
-import { scanAll, type CCUsageRecord } from "@/lib/claude-code/history";
-import { estimateCost, refreshPricing } from "@/lib/claude-code/pricing";
-import { createLogger } from "@/lib/util/logger";
-import { fetchClaudeUsageWindows } from "@/lib/quota/claude-usage";
-import type { ProviderQuota } from "@/lib/shared/quota";
+import { scanAll, type CCUsageRecord } from "../claude-code/history.ts";
+import { estimateCost, refreshPricing } from "../claude-code/pricing.ts";
+import { createLogger } from "../util/logger.ts";
+import { fetchClaudeUsageWindows } from "./claude-usage.ts";
+import type { ProviderQuota } from "../shared/quota.ts";
 
 const log = createLogger("quota/claude");
 const HOUR_MS = 3_600_000;

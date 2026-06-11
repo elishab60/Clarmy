@@ -1,4 +1,5 @@
 import type { SessionEvent, SessionSnapshot } from "./types.ts";
+import type { QuotasResponse } from "./quota.ts";
 
 export type ServerMessage =
   | { type: "hello"; version: string; sessions: readonly SessionSnapshot[] }
@@ -6,6 +7,9 @@ export type ServerMessage =
   // Transcript data changed on disk; clients refetch /api/metrics (now a
   // cache read) instead of polling on a timer.
   | { type: "metrics.dirty"; at: number }
+  // Periodic provider quota snapshot, pushed only when it changed; clients
+  // render it directly instead of polling /api/quotas.
+  | { type: "quotas.update"; payload: QuotasResponse }
   | { type: "pong"; at: number };
 
 export type ClientMessage =

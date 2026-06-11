@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import type { SessionSnapshot, SessionEvent } from "../shared/types";
+import type { QuotasResponse } from "../shared/quota";
 import { coerceProviderId, DEFAULT_PROVIDER, PROVIDER_IDS, type ProviderId } from "../shared/providers";
 import {
   buildAccentTokens,
@@ -61,6 +62,9 @@ interface CockpitState {
   // Bumped by the ws client on metrics.dirty; metrics consumers refetch on it.
   metricsVersion: number;
   bumpMetrics: () => void;
+  // Latest quota snapshot pushed over WS; null until the first push lands.
+  quotas: QuotasResponse | null;
+  setQuotas: (q: QuotasResponse) => void;
 }
 
 export const useCockpit = create<CockpitState>((set, get) => ({
@@ -75,6 +79,8 @@ export const useCockpit = create<CockpitState>((set, get) => ({
   visibleProviders: loadVisibleProviders(),
   metricsVersion: 0,
   bumpMetrics: () => set((s) => ({ metricsVersion: s.metricsVersion + 1 })),
+  quotas: null,
+  setQuotas: (q) => set({ quotas: q }),
 
   // Picking an active provider (e.g. spawning a session for it) also makes it
   // visible, so the new tile is never hidden by the current filter.

@@ -4,6 +4,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { WS_PATH, WS_PROTOCOL_VERSION, type ServerMessage, type ClientMessage } from "../shared/ws-protocol.ts";
 import { getManager } from "./manager.ts";
 import { getMetricsIndex } from "../providers/metrics-index.ts";
+import { buildQuotas } from "../quota/all.ts";
 import { createLogger } from "../util/logger.ts";
 
 const log = createLogger("ws");
@@ -79,9 +80,29 @@ export function attachWebSocket(server: Server): WebSocketServer {
     broadcast(wss, { type: "metrics.dirty", at: Date.now() });
   });
 
+  // Push quota snapshots so clients stop polling /api/quotas. The providers
+  // cache + backoff internally, so this stays cheap; only changes are sent
+  // (generatedAt excluded from the comparison).
+  let lastQuotas = "";
+  let lastQuotasPayload: ServerMessage | null = null;
+  const pushQuotas = async () => {
+    try {
+      const q = await buildQuotas();
+      const key = JSON.stringify(q.providers);
+      if (key === lastQuotas) return;
+      lastQuotas = key;
+      lastQuotasPayload = { type: "quotas.update", payload: q };
+      broadcast(wss, lastQuotasPayload);
+    } catch { /* readers degrade on their own; never kill the timer */ }
+  };
+  const quotaTimer = setInterval(() => void pushQuotas(), 60_000);
+  quotaTimer.unref();
+  void pushQuotas();
+
   wss.on("connection", (ws: WebSocket) => {
     log.info("client connected", { clients: wss.clients.size });
     send(ws, { type: "hello", version: WS_PROTOCOL_VERSION, sessions: manager.list() });
+    if (lastQuotasPayload) send(ws, lastQuotasPayload); // fresh client paints gauges instantly
 
     ws.on("message", (raw: Buffer) => {
       try {
@@ -93,7 +114,7 @@ export function attachWebSocket(server: Server): WebSocketServer {
     ws.on("close", () => log.info("client disconnected", { clients: wss.clients.size - 1 }));
   });
 
-  wss.on("close", () => { unsub(); unsubMetrics(); });
+  wss.on("close", () => { unsub(); unsubMetrics(); clearInterval(quotaTimer); });
   return wss;
 }
 

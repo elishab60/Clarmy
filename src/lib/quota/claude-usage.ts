@@ -2,8 +2,8 @@ import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import { homedir } from "node:os";
-import { createLogger } from "@/lib/util/logger";
-import type { QuotaWindow } from "@/lib/shared/quota";
+import { createLogger } from "../util/logger.ts";
+import type { QuotaWindow } from "../shared/quota.ts";
 
 const log = createLogger("quota/claude-usage");
 
