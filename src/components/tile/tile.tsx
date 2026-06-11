@@ -22,6 +22,9 @@ function fmtCost(n: number): string {
 }
 
 function elapsedFrom(startedAt: number): string {
+  // Snapshots without a usable start (replayed fixtures, restored sessions
+  // mid-hydration) must render a placeholder, not NaN:NaN.
+  if (!Number.isFinite(startedAt) || startedAt <= 0) return "--:--";
   const total = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
   const m = Math.floor(total / 60);
   const s = total % 60;

@@ -39,7 +39,7 @@ describe("state machine", () => {
   });
 
   it("approval flow: allow resumes the tool, deny goes idle", () => {
-    const pending = { id: "a1", tool: "Bash", input: "rm -rf /tmp/x", requestedAt: Date.now() };
+    const pending = { toolUseId: "a1", tool: "Bash", args: { command: "rm -rf /tmp/x" }, destructive: true };
     let s = apply(boot(),
       { type: "assistant.tool_use", tool: "Bash" },
       { type: "pre_tool_use.approval", approval: pending });

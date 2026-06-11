@@ -16,3 +16,7 @@ previews/
 avatar-*.js
 codex-avatar-*.js
 main-*.js
+
+# playwright
+/test-results/
+/playwright-report/
