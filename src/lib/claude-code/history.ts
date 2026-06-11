@@ -1,6 +1,7 @@
 import { readdirSync, statSync, readFileSync, type Dirent } from "node:fs";
 import { resolve, join } from "node:path";
 import { homedir } from "node:os";
+import { projectsDir } from "./paths.ts";
 import { createLogger } from "../util/logger.ts";
 
 const log = createLogger("cc-history");
@@ -61,7 +62,6 @@ export interface CCProject {
   readonly branches: readonly string[];
 }
 
-const ROOT = resolve(homedir(), ".claude", "projects");
 
 interface Cache {
   sessionsByDir: Map<string, CCSession[]>;
@@ -99,16 +99,16 @@ function listJsonlFiles(dir: string, depth = 0): string[] {
 export function scanAll(): CCSession[] {
   let dirs: string[] = [];
   try {
-    dirs = readdirSync(ROOT).filter((d) => !d.startsWith("."));
+    dirs = readdirSync(projectsDir()).filter((d) => !d.startsWith("."));
   } catch (err) {
-    log.error("root not readable", { err: String(err), root: ROOT });
+    log.error("root not readable", { err: String(err), root: projectsDir() });
     return [];
   }
 
   const all: CCSession[] = [];
 
   for (const d of dirs) {
-    const full = join(ROOT, d);
+    const full = join(projectsDir(), d);
     // Absolute paths, including nested subagent/workflow transcripts.
     const files = listJsonlFiles(full);
     if (files.length === 0) { cache.sessionsByDir.delete(full); continue; }

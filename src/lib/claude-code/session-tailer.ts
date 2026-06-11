@@ -1,6 +1,7 @@
 import { readdirSync, statSync, openSync, readSync, closeSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { homedir } from "node:os";
+import { projectsDir } from "./paths.ts";
 import { createLogger } from "../util/logger.ts";
 import { estimateCost, refreshPricing } from "./pricing.ts";
 import type { ModelId, TodoItem } from "../shared/types.ts";
@@ -11,7 +12,6 @@ export type { TailPatch } from "../providers/types.ts";
 
 const log = createLogger("session-tailer");
 
-const ROOT = resolve(homedir(), ".claude", "projects");
 const POLL_MS = 2_000;
 
 export class SessionTailer {
@@ -187,7 +187,7 @@ export class SessionTailer {
   }
 
   private findLatestFile(): string | null {
-    const primary = join(ROOT, this.cwd.replace(/\//g, "-"));
+    const primary = join(projectsDir(), this.cwd.replace(/\//g, "-"));
     const dirs = this.candidateDirs(primary);
     let best: { path: string; mtime: number } | null = null;
     for (const d of dirs) {
@@ -213,9 +213,9 @@ export class SessionTailer {
     const out: string[] = [];
     try { if (statSync(primary).isDirectory()) out.push(primary); } catch { /* ignore */ }
     try {
-      for (const d of readdirSync(ROOT)) {
+      for (const d of readdirSync(projectsDir())) {
         if (d.startsWith(".")) continue;
-        const full = join(ROOT, d);
+        const full = join(projectsDir(), d);
         if (out.includes(full)) continue;
         out.push(full);
       }
