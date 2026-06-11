@@ -12,6 +12,10 @@ import { createLogger } from "./src/lib/util/logger.ts";
 
 const log = createLogger("server");
 const port = Number(process.env.COCKPIT_PORT ?? process.env.PORT ?? 3010);
+// Loopback by default: the cockpit exposes a PTY (a shell on this machine) and
+// unauthenticated session control, so listening on 0.0.0.0 would hand both to
+// the whole LAN. Set COCKPIT_HOST=0.0.0.0 only behind your own auth layer.
+const host = process.env.COCKPIT_HOST ?? "127.0.0.1";
 const dev = process.env.NODE_ENV !== "production";
 const r = role();
 
@@ -45,8 +49,8 @@ const server = createServer((req, res) => {
 if (r === "app") attachProxyWs(server);
 else attachWebSocket(server);
 
-server.listen(port, () => {
-  log.info("cockpit listening", { port, dev, role: r, mock: process.env.COCKPIT_MOCK === "1" });
+server.listen(port, host, () => {
+  log.info("cockpit listening", { host, port, dev, role: r, mock: process.env.COCKPIT_MOCK === "1" });
   if (r !== "app") {
     // Warm the metrics index AFTER we are serving: the underlying scanners are
     // synchronous, so the cold scan blocks the event loop for a few seconds.

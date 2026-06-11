@@ -72,6 +72,24 @@ export function FocusView({ id }: { id: string }) {
   }
   const canKill = true;
   const isDead = s.state === "done" || s.state === "error";
+  const [forking, setForking] = useState(false);
+
+  async function handleFork() {
+    if (!s || forking) return;
+    setForking(true);
+    try {
+      const res = await fetch(`/api/sessions/${s.id}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "fork" }),
+      });
+      if (res.ok) {
+        const j = await res.json() as { id?: string };
+        if (j.id) { router.push(`/focus/${j.id}`); return; }
+      }
+    } catch { /* stay on this session */ }
+    setForking(false);
+  }
 
   async function handleKill() {
     if (!s || !canKill) return;
@@ -97,8 +115,9 @@ export function FocusView({ id }: { id: string }) {
           <span className="path">{s.project}/</span>
           <h2>{s.name}</h2>
           <div className="actions">
-            <button>Pause</button>
-            <button>Fork</button>
+            <button onClick={() => void handleFork()} disabled={forking || !isOwned} title="Spawn a sibling session resuming this conversation">
+              {forking ? "Forking…" : "Fork"}
+            </button>
             {canKill && (
               <button
                 className="danger"

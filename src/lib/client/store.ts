@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import type { SessionSnapshot, SessionEvent } from "../shared/types";
 import type { QuotasResponse } from "../shared/quota";
+import { maybeNotifyTransition } from "./notify";
 import { coerceProviderId, DEFAULT_PROVIDER, PROVIDER_IDS, type ProviderId } from "../shared/providers";
 import {
   buildAccentTokens,
@@ -136,6 +137,7 @@ export const useCockpit = create<CockpitState>((set, get) => ({
     const { sessions, order } = get();
     if (event.kind === "init") {
       const { snapshot } = event;
+      maybeNotifyTransition(sessions[snapshot.id], snapshot);
       set({
         sessions: { ...sessions, [snapshot.id]: snapshot },
         order: order.includes(snapshot.id) ? order : [...order, snapshot.id],
@@ -152,7 +154,9 @@ export const useCockpit = create<CockpitState>((set, get) => ({
     if (event.kind === "patch") {
       const existing = sessions[event.id];
       if (!existing) return;
-      set({ sessions: { ...sessions, [event.id]: { ...existing, ...event.patch } } });
+      const next = { ...existing, ...event.patch };
+      maybeNotifyTransition(existing, next);
+      set({ sessions: { ...sessions, [event.id]: next } });
       return;
     }
     if (event.kind === "log") {

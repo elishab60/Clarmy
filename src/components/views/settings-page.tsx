@@ -6,6 +6,7 @@ import { MODELS as MODEL_REGISTRY, DEFAULT_MODEL_ID } from "@/lib/shared/models"
 import { ToggleSwitch } from "@/components/ui/toggle-switch";
 import { Segmented } from "@/components/ui/segmented";
 import { MoonIcon, SunIcon, MonitorIcon, EyeIcon, EyeOffIcon } from "@/components/ui/icons";
+import { notificationsEnabled, setNotificationsEnabled } from "@/lib/client/notify";
 
 type Tab = "general" | "models" | "approvals" | "telemetry";
 
@@ -101,6 +102,7 @@ export function SettingsPage() {
   const [theme, setTheme] = useState<"dark" | "light" | "system">("dark");
   const [telemetry, setTelemetry] = useState(true);
   const [notifications, setNotifications] = useState(true);
+  useEffect(() => { setNotifications(notificationsEnabled()); }, []);
   const [allowList, setAllowList] = useState(DEFAULT_ALLOW);
   const [denyList, setDenyList] = useState(DEFAULT_DENY);
   const [dirty, setDirty] = useState(false);
@@ -217,7 +219,7 @@ export function SettingsPage() {
                 <div className="field-grid">
                   <div className="k">Desktop notifications</div>
                   <div className="v" style={rowStyle}>
-                    <ToggleSwitch checked={notifications} onChange={(v) => mark(setNotifications)(v)} label="Desktop notifications" />
+                    <ToggleSwitch checked={notifications} onChange={(v) => { setNotificationsEnabled(v); mark(setNotifications)(v); }} label="Desktop notifications" />
                     <div className="hint">Notify on pending approvals and session errors while Cockpit is in the background.</div>
                   </div>
                   <div className="k">Command palette</div>
