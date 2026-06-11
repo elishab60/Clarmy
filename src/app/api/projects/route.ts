@@ -1,12 +1,19 @@
 import { NextResponse } from "next/server";
 import { getControl } from "@/lib/orchestrator/control";
-import { scanAll, projectsFromSessions, aggregateUsage } from "@/lib/claude-code/history";
+import { projectsFromSessions } from "@/lib/claude-code/history";
+import { getMetricsIndex } from "@/lib/providers/metrics-index";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// Sessions and per-cwd aggregates come from the metrics index
+// (stale-while-revalidate): no transcript walk on the request path. Live
+// counts stay per-request; they are free.
 export async function GET() {
-  const live = await getControl().list();
+  const [live, { sessions, perCwd }] = await Promise.all([
+    getControl().list(),
+    getMetricsIndex().sessions(),
+  ]);
   const liveByCwd: Record<string, number> = {};
   const liveByName: Record<string, number> = {};
   for (const s of live) {
@@ -14,10 +21,9 @@ export async function GET() {
     liveByName[s.project] = (liveByName[s.project] ?? 0) + 1;
   }
 
-  const sessions = scanAll();
-  const agg = aggregateUsage(sessions);
+  const agg = new Map(perCwd);
   const projects = projectsFromSessions(sessions).map((p) => {
-    const t = agg.perCwd.get(p.cwd);
+    const t = agg.get(p.cwd);
     return {
       ...p,
       inputTokens: t?.inputTokens ?? 0,

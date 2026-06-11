@@ -1,5 +1,6 @@
 import { parentPort } from "node:worker_threads";
 import { refreshPricing } from "../claude-code/pricing.ts";
+import { scanAll, aggregateUsage } from "../claude-code/history.ts";
 import { scanAllProviders } from "./scan-all.ts";
 import { computeRows } from "./metrics-rows.ts";
 
@@ -17,7 +18,15 @@ parentPort?.on("message", (msg: BuildMsg) => {
     try {
       await refreshPricing().catch(() => { /* fallback price table */ });
       const rows = computeRows(scanAllProviders());
-      parentPort?.postMessage({ seq: msg.seq, ok: true, rows });
+      // Light claude sessions for /api/history and /api/projects: same scan
+      // (the call below is a pure cache read after scanAllProviders), usage
+      // records stripped to keep the structured-clone payload small.
+      const full = scanAll();
+      const sessions = full.map(({ usage: _usage, ...rest }) => rest);
+      // Per-cwd token aggregates for /api/projects (needs the usage records,
+      // which never leave the worker).
+      const perCwd = [...aggregateUsage(full).perCwd.entries()];
+      parentPort?.postMessage({ seq: msg.seq, ok: true, rows, sessions, perCwd });
     } catch (err) {
       parentPort?.postMessage({ seq: msg.seq, ok: false, error: String(err) });
     }

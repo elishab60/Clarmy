@@ -206,7 +206,7 @@ function foldGroup(base: CCSession, group: readonly CCSession[]): CCSession {
   };
 }
 
-export function projectsFromSessions(sessions: readonly CCSession[]): CCProject[] {
+export function projectsFromSessions(sessions: readonly Omit<CCSession, "usage">[]): CCProject[] {
   const by = new Map<string, CCProject>();
   for (const s of sessions) {
     const key = s.cwd;

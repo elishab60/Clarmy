@@ -2,6 +2,7 @@ import { watch, existsSync, type FSWatcher } from "node:fs";
 import { join } from "node:path";
 import { Worker } from "node:worker_threads";
 import { scanAllProviders } from "./scan-all.ts";
+import { scanAll, aggregateUsage, type CCSession, type UsageTotals } from "../claude-code/history.ts";
 import { refreshPricing } from "../claude-code/pricing.ts";
 import { projectsDir } from "../claude-code/paths.ts";
 import { codexSessionsDir } from "./codex/paths.ts";
@@ -10,6 +11,11 @@ import { computeRows, type MetricsRow } from "./metrics-rows.ts";
 import { createLogger } from "../util/logger.ts";
 
 export type { MetricsRow } from "./metrics-rows.ts";
+
+// Claude session minus its usage records: enough for the history and projects
+// pages, cheap to structured-clone out of the worker.
+export type LightSession = Omit<CCSession, "usage">;
+export type PerCwdEntry = [string, UsageTotals & { costUsd: number }];
 
 const log = createLogger("metrics-index");
 
@@ -21,6 +27,8 @@ const WORKER_TIMEOUT_MS = 120_000;
 // Next's compiled route graph) via globalThis, like the SessionManager.
 class MetricsIndex {
   private rows: MetricsRow[] | null = null;
+  private light: LightSession[] | null = null;
+  private perCwd: PerCwdEntry[] = [];
   private generatedAt = 0;
   private dirty = true;
   private building: Promise<MetricsRow[]> | null = null;
@@ -46,6 +54,13 @@ class MetricsIndex {
     }
     const rows = await this.building;
     return { generatedAt: this.generatedAt, rows };
+  }
+
+  // Light claude sessions for /api/history and /api/projects, same lifecycle
+  // and stale-while-revalidate semantics as payload().
+  async sessions(): Promise<{ generatedAt: number; sessions: LightSession[]; perCwd: PerCwdEntry[] }> {
+    await this.payload();
+    return { generatedAt: this.generatedAt, sessions: this.light ?? [], perCwd: this.perCwd };
   }
 
   // Notify when the index went dirty (debounced); ws-server fans this out so
@@ -100,9 +115,14 @@ class MetricsIndex {
   private async build(): Promise<MetricsRow[]> {
     const t0 = Date.now();
     let rows: MetricsRow[];
+    let light: LightSession[];
+    let perCwd: PerCwdEntry[];
     let via = "worker";
     try {
-      rows = await buildInWorker();
+      const r = await buildInWorker();
+      rows = r.rows;
+      light = r.sessions;
+      perCwd = r.perCwd;
     } catch (err) {
       // The scanners are synchronous; this blocks the loop for the duration of
       // the scan, so the worker is strongly preferred. Keep the fallback so a
@@ -111,8 +131,13 @@ class MetricsIndex {
       log.warn("worker build failed; building inline", { err: String(err) });
       await refreshPricing().catch(() => { /* fallback table */ });
       rows = computeRows(scanAllProviders());
+      const full = scanAll();
+      light = full.map(({ usage: _usage, ...rest }) => rest);
+      perCwd = [...aggregateUsage(full).perCwd.entries()];
     }
     this.rows = rows;
+    this.light = light;
+    this.perCwd = perCwd;
     this.generatedAt = Date.now();
     this.dirty = false;
     log.info("metrics index rebuilt", { rows: rows.length, ms: Date.now() - t0, via });
@@ -128,8 +153,10 @@ class MetricsIndex {
 // server.ts / bin/clarmy), not via import.meta.url, which would point inside
 // Next's compiled bundle. A crashed or timed-out worker is dropped and
 // respawned on the next build.
+interface BuildResult { readonly rows: MetricsRow[]; readonly sessions: LightSession[]; readonly perCwd: PerCwdEntry[] }
+
 interface PendingBuild {
-  readonly resolve: (rows: MetricsRow[]) => void;
+  readonly resolve: (r: BuildResult) => void;
   readonly reject: (err: Error) => void;
   readonly timer: ReturnType<typeof setTimeout>;
 }
@@ -154,12 +181,12 @@ function ensureWorker(): Worker {
   if (!existsSync(entry)) throw new Error(`worker entry missing: ${entry}`);
   const w = new Worker(entry);
   w.unref(); // never hold the process open
-  w.on("message", (msg: { seq: number; ok: boolean; rows?: MetricsRow[]; error?: string }) => {
+  w.on("message", (msg: { seq: number; ok: boolean; rows?: MetricsRow[]; sessions?: LightSession[]; perCwd?: PerCwdEntry[]; error?: string }) => {
     const p = pending.get(msg.seq);
     if (!p) return;
     pending.delete(msg.seq);
     clearTimeout(p.timer);
-    if (msg.ok && msg.rows) p.resolve(msg.rows);
+    if (msg.ok && msg.rows) p.resolve({ rows: msg.rows, sessions: msg.sessions ?? [], perCwd: msg.perCwd ?? [] });
     else p.reject(new Error(msg.error ?? "worker build failed"));
   });
   w.on("error", (err) => { failAll(err instanceof Error ? err : new Error(String(err))); worker = null; });
@@ -168,7 +195,7 @@ function ensureWorker(): Worker {
   return w;
 }
 
-function buildInWorker(): Promise<MetricsRow[]> {
+function buildInWorker(): Promise<BuildResult> {
   const w = ensureWorker();
   const id = ++seq;
   return new Promise((resolve, reject) => {
