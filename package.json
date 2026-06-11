@@ -2,7 +2,7 @@
   "name": "clarmy",
   "version": "0.1.0",
   "private": true,
-  "description": "Clarmy — master cockpit for an army of clawds. One socket, N parallel Claude Code sessions, six states, zero friction.",
+  "description": "Clarmy \u2014 master cockpit for an army of clawds. One socket, N parallel Claude Code sessions, six states, zero friction.",
   "type": "module",
   "scripts": {
     "dev": "node --experimental-transform-types server.ts",
@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "lint": "next lint",
-    "postinstall": "node scripts/fix-node-pty-perms.mjs"
+    "postinstall": "node scripts/fix-node-pty-perms.mjs",
+    "clarmy": "node bin/clarmy.mjs"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.1.10",
@@ -39,5 +40,8 @@
     "tailwindcss": "^4.0.6",
     "typescript": "^5.7.3",
     "vitest": "^2.1.8"
+  },
+  "bin": {
+    "clarmy": "bin/clarmy.mjs"
   }
 }

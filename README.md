@@ -120,10 +120,13 @@ Every session lives in exactly one of six states (`idle` · `running` · `tool_u
 ```bash
 pnpm install
 cp .env.example .env          # add ANTHROPIC_API_KEY=sk-ant-...
-pnpm dev                      # → http://localhost:3010
 
-# or, without any API key:
-COCKPIT_MOCK=1 pnpm dev       # replays ./mocks/sessions/*.jsonl
+npm i -g . && clarmy          # one command: build, daemonize, open the browser
+#   clarmy stop|status|logs|restart|dev
+
+# or the classic loop:
+pnpm dev                      # → http://localhost:3010
+COCKPIT_MOCK=1 pnpm dev       # zero-key mode: replays ./mocks/sessions/*.jsonl
 ```
 
 | Command          | What it does                                     |
