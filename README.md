@@ -122,7 +122,8 @@ pnpm install
 cp .env.example .env          # add ANTHROPIC_API_KEY=sk-ant-...
 
 npm i -g . && clarmy          # one command: build, daemonize, open the browser
-#   clarmy stop|status|logs|restart|dev
+#   clarmy stop|status|logs|restart|doctor|dev
+#   COCKPIT_NO_RESUME=1 clarmy  # boot without relaunching persisted sessions
 
 # or the classic loop:
 pnpm dev                      # → http://localhost:3010

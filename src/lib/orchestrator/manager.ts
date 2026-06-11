@@ -118,6 +118,14 @@ export class SessionManager {
   restore(): void {
     if (this.restored || this.opts.mock) return;
     this.restored = true;
+    // Resuming relaunches one child CLI per persisted session, which can be
+    // heavy (resumed fleets hammer CPU/disk at boot). COCKPIT_NO_RESUME=1
+    // skips the relaunch while leaving the persisted entries on disk, so a
+    // later normal boot can still resume them.
+    if (process.env.COCKPIT_NO_RESUME === "1") {
+      log.info("session resume skipped (COCKPIT_NO_RESUME=1)");
+      return;
+    }
     const persisted = listPersisted();
     let resumed = 0;
     for (const s of persisted) {
