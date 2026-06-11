@@ -12,9 +12,11 @@ describe("skills + mcp API integration", () => {
   let fx: Fixture;
   beforeEach(() => {
     fx = makeClaudeHome({
+      claudeJson: {
+        mcpServers: { posthog: { command: "echo", args: ["hello"] } },
+      },
       settings: {
         enabledPlugins: { "superpowers@official": true },
-        mcpServers: { posthog: { command: "echo", args: ["hello"] } },
       },
       plugins: {
         "superpowers@official": {

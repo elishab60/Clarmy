@@ -9,6 +9,9 @@ export interface Fixture {
 
 export function makeClaudeHome(opts: {
   settings?: Record<string, unknown>;
+  // Contents of the home-root .claude.json (enabled MCP servers live there,
+  // not in settings.json; claudeJsonPath() maps it under the fixture home).
+  claudeJson?: Record<string, unknown>;
   plugins?: Record<string, { manifest: Record<string, unknown>; skills?: Record<string, string> }>;
   userSkills?: Record<string, string>;
   sessions?: Record<string, string>;
@@ -16,6 +19,7 @@ export function makeClaudeHome(opts: {
   const home = mkdtempSync(join(tmpdir(), "cockpit-test-"));
   mkdirSync(join(home, "plugins", "cache"), { recursive: true });
   if (opts.settings) writeFileSync(join(home, "settings.json"), JSON.stringify(opts.settings, null, 2));
+  if (opts.claudeJson) writeFileSync(join(home, ".claude.json"), JSON.stringify(opts.claudeJson, null, 2));
   writeFileSync(join(home, "plugins", "installed_plugins.json"), JSON.stringify({ version: 2, plugins: {} }, null, 2));
   for (const [fullId, p] of Object.entries(opts.plugins ?? {})) {
     const [name, marketplace] = fullId.split("@");

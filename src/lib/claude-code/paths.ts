@@ -6,7 +6,13 @@ export function claudeHome(): string {
 }
 
 export function settingsPath(): string { return join(claudeHome(), "settings.json"); }
-export function claudeJsonPath(): string { return join(homedir(), ".claude.json"); }
+// ~/.claude.json lives in the HOME ROOT (not under ~/.claude). When the test
+// override is active, treat the override dir as the home root so tests never
+// read or, worse, write the developer's real ~/.claude.json.
+export function claudeJsonPath(): string {
+  const override = process.env.COCKPIT_CLAUDE_HOME;
+  return override ? join(override, ".claude.json") : join(homedir(), ".claude.json");
+}
 export function pluginsCacheDir(): string { return join(claudeHome(), "plugins", "cache"); }
 export function installedPluginsPath(): string { return join(claudeHome(), "plugins", "installed_plugins.json"); }
 export function userSkillsDir(): string { return join(claudeHome(), "skills"); }

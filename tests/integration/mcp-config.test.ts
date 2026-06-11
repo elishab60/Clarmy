@@ -6,8 +6,10 @@ describe("mcp-config", () => {
   let fx: Fixture;
   beforeEach(() => {
     fx = makeClaudeHome({
-      settings: {
+      claudeJson: {
         mcpServers: { posthog: { command: "npx", args: ["-y", "@posthog/mcp-server"] } },
+      },
+      settings: {
         cockpit: { disabledMcpServers: { legacy: { command: "noop" } } },
       },
     });
@@ -24,14 +26,17 @@ describe("mcp-config", () => {
 
   it("toggles a server from enabled to disabled and back", async () => {
     const { toggleMcpServer, settingsFilePath } = await import("../../src/lib/claude-code/mcp-config.ts");
+    const { claudeJsonPath } = await import("../../src/lib/claude-code/paths.ts");
     toggleMcpServer("posthog");
-    const raw1 = JSON.parse(readFileSync(settingsFilePath(), "utf8"));
-    expect(raw1.mcpServers.posthog).toBeUndefined();
-    expect(raw1.cockpit.disabledMcpServers.posthog).toBeDefined();
+    const cj1 = JSON.parse(readFileSync(claudeJsonPath(), "utf8"));
+    const st1 = JSON.parse(readFileSync(settingsFilePath(), "utf8"));
+    expect(cj1.mcpServers.posthog).toBeUndefined();
+    expect(st1.cockpit.disabledMcpServers.posthog).toBeDefined();
     toggleMcpServer("posthog");
-    const raw2 = JSON.parse(readFileSync(settingsFilePath(), "utf8"));
-    expect(raw2.mcpServers.posthog).toBeDefined();
-    expect(raw2.cockpit.disabledMcpServers.posthog).toBeUndefined();
+    const cj2 = JSON.parse(readFileSync(claudeJsonPath(), "utf8"));
+    const st2 = JSON.parse(readFileSync(settingsFilePath(), "utf8"));
+    expect(cj2.mcpServers.posthog).toBeDefined();
+    expect(st2.cockpit.disabledMcpServers.posthog).toBeUndefined();
   });
 
   it("adds and removes a server", async () => {
