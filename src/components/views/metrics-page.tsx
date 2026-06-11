@@ -4,14 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import type { Filters, HeatMetric, MetricsPayload, RangeKey } from "./metrics/types.ts";
 import {
   buildSeries, computeDeltas, computeTotals, dataSpan, filterRows,
-  perDay, perModel, perProject, rangeStartMs, topSlices, type SeriesMetric,
+  perDay, perModel, perProject, rangeStartMs, topSlices,
 } from "./metrics/aggregate.ts";
 import { fmtCost, fmtCostFull, fmtDay, fmtInt, fmtTokens } from "./metrics/format.ts";
 import { FilterBar } from "./metrics/filter-bar.tsx";
 import { StatGrid, type StatDef } from "./metrics/stat-cards.tsx";
 import { Heatmap } from "./metrics/heatmap.tsx";
 import { Donut } from "./metrics/donut.tsx";
-import { AreaChart } from "./metrics/area-chart.tsx";
+import { MultiAreaChart, type ChartSeries } from "./metrics/area-chart.tsx";
 import { GroupTable } from "./metrics/tables.tsx";
 import { useCockpit } from "@/lib/client/store";
 import { providerMeta } from "@/lib/shared/providers";
@@ -21,11 +21,13 @@ const HEAT_OPTS: { k: HeatMetric; label: string }[] = [
   { k: "cost", label: "cost" },
   { k: "output", label: "output" },
 ];
-const AREA_OPTS: { k: SeriesMetric; label: string }[] = [
-  { k: "cost", label: "cost" },
-  { k: "output", label: "output" },
-  { k: "sessions", label: "sessions" },
-];
+// Over-time overlay: each curve uses a variant of the accent color. cost is the
+// base accent, output a lighter tint, sessions a darker shade.
+const SERIES_COLORS = {
+  cost: "var(--brand)",
+  output: "color-mix(in srgb, var(--brand) 46%, #ffffff)",
+  sessions: "color-mix(in srgb, var(--brand) 72%, #000000)",
+};
 
 export function MetricsPage() {
   const [payload, setPayload] = useState<MetricsPayload | null>(null);
@@ -38,7 +40,6 @@ export function MetricsPage() {
   const provider = useCockpit((s) => s.provider);
   const [filters, setFilters] = useState<Filters>({ range: "all", projects: [], models: [] });
   const [heatMetric, setHeatMetric] = useState<HeatMetric>("sessions");
-  const [areaMetric, setAreaMetric] = useState<SeriesMetric>("cost");
 
   const refresh = async () => {
     setRefreshing(true);
@@ -70,11 +71,13 @@ export function MetricsPage() {
     const days = perDay(filtered);
     const span = dataSpan(rows);
     const from = rangeStartMs(filters.range, now) ?? span?.first ?? now;
-    const series = buildSeries(days, areaMetric, from, now);
+    const seriesCost = buildSeries(days, "cost", from, now);
+    const seriesOutput = buildSeries(days, "output", from, now);
+    const seriesSessions = buildSeries(days, "sessions", from, now);
     const costByProject = topSlices(projects, 8, (g) => g.cost);
     const costByModel = topSlices(models, 8, (g) => g.cost);
-    return { filtered, totals, deltas, projects, models, days, from, series, costByProject, costByModel, span };
-  }, [rows, filters, now, areaMetric]);
+    return { filtered, totals, deltas, projects, models, days, from, seriesCost, seriesOutput, seriesSessions, costByProject, costByModel, span };
+  }, [rows, filters, now]);
 
   const allProjects = useMemo(() => perProject(rows).map((g) => ({ key: g.key, label: g.label, sub: g.sub })), [rows]);
   const allModels = useMemo(() => perModel(rows).map((g) => ({ key: g.key, label: g.label })), [rows]);
@@ -99,6 +102,12 @@ export function MetricsPage() {
   const activeProjects = useMemo(() => new Set(filters.projects), [filters.projects]);
   const toggleProject = (cwd: string) =>
     setFilters((f) => ({ ...f, projects: f.projects.includes(cwd) ? f.projects.filter((x) => x !== cwd) : [...f.projects, cwd] }));
+
+  const overTime: ChartSeries[] = [
+    { key: "cost", label: "cost", color: SERIES_COLORS.cost, unit: "", format: fmtCost, points: view.seriesCost },
+    { key: "output", label: "output", color: SERIES_COLORS.output, unit: "tok", format: fmtTokens, points: view.seriesOutput },
+    { key: "sessions", label: "sessions", color: SERIES_COLORS.sessions, unit: "", format: fmtInt, points: view.seriesSessions },
+  ];
 
   return (
     <div className="mx-shell">
@@ -143,9 +152,9 @@ export function MetricsPage() {
           <section className="mx-card mx-wide">
             <div className="mx-card-h">
               <span>Over time</span>
-              <Toggle opts={AREA_OPTS} value={areaMetric} onChange={setAreaMetric} />
+              <Legend items={overTime} />
             </div>
-            <AreaChart points={view.series} format={areaMetric === "cost" ? fmtCost : fmtTokens} unit={areaMetric === "cost" ? "" : areaMetric === "sessions" ? "sessions" : "tok"} />
+            <MultiAreaChart series={overTime} />
           </section>
 
           <div className="mx-donuts">
@@ -173,6 +182,18 @@ function Toggle<T extends string>({ opts, value, onChange }: { opts: { k: T; lab
     <div className="mx-toggle" role="radiogroup">
       {opts.map((o) => (
         <button key={o.k} role="radio" aria-checked={value === o.k} className={value === o.k ? "on" : ""} onClick={() => onChange(o.k)}>{o.label}</button>
+      ))}
+    </div>
+  );
+}
+
+function Legend({ items }: { items: { key: string; label: string; color: string }[] }) {
+  return (
+    <div className="mx-legend">
+      {items.map((it) => (
+        <span key={it.key} className="mx-legend-item">
+          <span className="mx-legend-dot" style={{ background: it.color }} />{it.label}
+        </span>
       ))}
     </div>
   );
