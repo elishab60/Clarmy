@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { buildBlocked, COLS, DECOR, DESKS, floorFrame, ROWS, WORLD_H, WORLD_W } from "./layout";
+import { buildBlocked, COLS, DECOR, DESKS, ROWS, WORLD_H, WORLD_W } from "./layout";
 import { Character } from "./character";
 import { applyState, hash } from "./behavior";
 import { TILE, key, type Desk, type SessionLite } from "./types";
@@ -21,6 +21,7 @@ export class OfficeScene extends Phaser.Scene {
   private showPrompts = false;
   private selectedId: string | null = null;
   private charClicked = false;
+  private lastLabelPass = 0;
 
   constructor() {
     super("office");
@@ -29,7 +30,7 @@ export class OfficeScene extends Phaser.Scene {
   preload(): void {
     this.load.atlas("decor", "/office/atlas.png", "/office/atlas.json");
     for (let p = 0; p < PALETTES; p += 1) {
-      this.load.spritesheet(`char_${p}`, `/office/characters/char_${p}.png`, { frameWidth: 16, frameHeight: 32 });
+      this.load.spritesheet(`char_${p}`, `/office/characters/clawd_${p}.png`, { frameWidth: 16, frameHeight: 32 });
     }
   }
 
@@ -71,7 +72,7 @@ export class OfficeScene extends Phaser.Scene {
     cam.pan(WORLD_W / 2, WORLD_H / 2, 300, "Quad.easeOut");
   }
 
-  update(_time: number, delta: number): void {
+  update(time: number, delta: number): void {
     for (const ch of this.chars.values()) {
       ch.update(delta);
       ch.container.setDepth(ch.container.y);
@@ -79,6 +80,28 @@ export class OfficeScene extends Phaser.Scene {
     for (const list of this.minis.values()) for (const m of list) {
       m.update(delta);
       m.container.setDepth(m.container.y);
+    }
+    if (time - this.lastLabelPass > 300) {
+      this.lastLabelPass = time;
+      this.layoutLabels();
+    }
+  }
+
+  // Labels: hidden when zoomed out (state dot remains), and never overlapping;
+  // close neighbours get stacked vertical offsets.
+  private layoutLabels(): void {
+    const visible = this.cameras.main.zoom >= 2.05;
+    const list = [...this.chars.values()].sort((a, b) => a.container.x - b.container.x);
+    for (let i = 0; i < list.length; i += 1) {
+      const ch = list[i]!;
+      ch.setLabelVisible(visible);
+      let stack = 0;
+      for (let j = 0; j < i; j += 1) {
+        const other = list[j]!;
+        if (Math.abs(other.container.x - ch.container.x) < 34
+          && Math.abs(other.container.y - ch.container.y) < 30) stack += 1;
+      }
+      ch.setTagOffset(stack * 9);
     }
   }
 
@@ -111,6 +134,8 @@ export class OfficeScene extends Phaser.Scene {
     const ch = new Character(this, s, palette, door, () => this.blocked);
     ch.sprite.setInteractive({ useHandCursor: true });
     ch.sprite.on("pointerdown", () => { this.charClicked = true; this.game.events.emit("select", s.id); });
+    ch.sprite.on("pointerover", () => ch.setHovered(true));
+    ch.sprite.on("pointerout", () => ch.setHovered(false));
     ch.setPromptVisible(this.showPrompts);
     this.chars.set(s.id, ch);
     if (this.selectedId !== null) ch.setDimmed(s.id !== this.selectedId);
@@ -186,28 +211,19 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   private drawRoom(): void {
-    // the tileset is light; multiply-tint floor and walls toward the theme
+    // Flat warm floor with a barely-there grid: paper + terminal, no checker.
     const dark = typeof document !== "undefined" && document.documentElement.dataset.theme !== "light";
-    const floorTint = dark ? 0x6a6a74 : 0xffffff;
-    const wallTint = dark ? 0x55555e : 0xffffff;
-    for (let r = 0; r < ROWS; r += 1) {
-      for (let c = 0; c < COLS; c += 1) {
-        if (this.blocked.has(key(c, r)) && (r === 0 || c === 0 || c === COLS - 1 || r === ROWS - 1)) continue;
-        this.add.image(c * TILE, r * TILE, "decor", floorFrame(c, r)).setOrigin(0).setDepth(-10).setTint(floorTint);
-      }
-    }
-    // walls: bitmask pieces (bit0=N, bit1=E, bit2=S, bit3=W neighbour walls)
-    const isWall = (c: number, r: number) => c === 0 || r === 0 || c === COLS - 1 || r === ROWS - 1;
-    for (let r = 0; r < ROWS; r += 1) {
-      for (let c = 0; c < COLS; c += 1) {
-        if (!isWall(c, r)) continue;
-        const mask = (isWall(c, r - 1) && r > 0 ? 1 : 0)
-          | (isWall(c + 1, r) && c < COLS - 1 ? 2 : 0)
-          | (isWall(c, r + 1) && r < ROWS - 1 ? 4 : 0)
-          | (isWall(c - 1, r) && c > 0 ? 8 : 0);
-        this.add.image(c * TILE, r * TILE - TILE, "decor", `wall_${mask}`).setOrigin(0).setDepth(r === 0 ? -5 : r * TILE + TILE).setTint(wallTint);
-      }
-    }
+    const room = dark ? 0x262421 : 0xede9e0;
+    const edge = dark ? 0x36332e : 0xd8d2c4;
+    const gridColor = dark ? 0xede9e0 : 0x2b2926;
+    this.add.rectangle(0, 0, WORLD_W, WORLD_H, room).setOrigin(0).setDepth(-12);
+    const grid = this.add.graphics().setDepth(-11);
+    grid.lineStyle(1, gridColor, 0.06);
+    for (let c = 1; c < COLS; c += 1) grid.lineBetween(c * TILE, 0, c * TILE, WORLD_H);
+    for (let r = 1; r < ROWS; r += 1) grid.lineBetween(0, r * TILE, WORLD_W, r * TILE);
+    const border = this.add.graphics().setDepth(-10);
+    border.lineStyle(2, edge, 1);
+    border.strokeRect(1, 1, WORLD_W - 2, WORLD_H - 2);
     for (const d of DECOR) {
       const y = d.tall ? d.row * TILE - TILE : d.row * TILE;
       this.add.image(d.col * TILE, y, "decor", d.frame).setOrigin(0).setDepth(d.row * TILE + TILE - 0.1);
@@ -226,7 +242,8 @@ export class OfficeScene extends Phaser.Scene {
     const cam = this.cameras.main;
     cam.setBounds(-TILE * 2, -TILE * 3, WORLD_W + TILE * 4, WORLD_H + TILE * 5);
     const fit = Math.min(cam.width / (WORLD_W + TILE * 2), cam.height / (WORLD_H + TILE * 4));
-    cam.setZoom(Math.max(1.6, Math.min(3, fit)));
+    // bias toward closeness: clawds are small and labels show from zoom 2.05
+    cam.setZoom(Math.max(2.2, Math.min(3.2, fit * 1.3)));
     cam.centerOn(WORLD_W / 2, WORLD_H / 2);
     this.input.on("pointermove", (p: Phaser.Input.Pointer) => {
       if (!p.isDown) return;

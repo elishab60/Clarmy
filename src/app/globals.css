@@ -3714,9 +3714,9 @@ button[disabled], button[aria-disabled="true"] {
 .office-hud-counts { display: flex; gap: 6px; flex-wrap: wrap; }
 .office-hud-chip {
   display: inline-flex; align-items: center; gap: 5px;
-  font-family: var(--font-mono); font-size: 10.5px; color: var(--fg-dim);
-  background: color-mix(in srgb, var(--bg-elev) 82%, transparent);
-  border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px;
+  font-family: var(--font-mono); font-size: 10px; color: var(--fg-muted);
+  background: color-mix(in srgb, var(--bg-elev) 65%, transparent);
+  border-radius: 4px; padding: 2px 7px;
 }
 .office-hud-chip .dot { width: 7px; height: 7px; border-radius: 50%; }
 .office-hud-right { display: flex; align-items: center; gap: 8px; }

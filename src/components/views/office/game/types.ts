@@ -42,3 +42,13 @@ export interface Desk {
 export function key(col: number, row: number): string {
   return `${col},${row}`;
 }
+
+// Warm, desaturated state palette (paper + terminal aesthetic).
+export const STATE_TINT: Record<string, number> = {
+  running: 0xd97757,   // Claude orange
+  tool_use: 0xc9924d,  // soft amber
+  idle: 0x8a857c,      // neutral grey
+  approval: 0xd97757,  // orange, pulsed
+  error: 0xb4554a,     // earthy red
+  done: 0x7c9a6e,      // quiet sage
+};

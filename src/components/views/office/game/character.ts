@@ -1,6 +1,6 @@
 import type Phaser from "phaser";
 import { findPath } from "./pathfind";
-import { TILE, key, type CharMode, type Dir, type SessionLite, type Spot } from "./types";
+import { STATE_TINT, TILE, type CharMode, type Dir, type SessionLite, type Spot } from "./types";
 
 const WALK_SPEED = 56;          // px/s (pixel-agents uses 48)
 const FRAME: Record<Dir, number> = { down: 0, up: 7, right: 14, left: 14 };
@@ -13,7 +13,8 @@ export class Character {
   readonly container: Phaser.GameObjects.Container;
   readonly sprite: Phaser.GameObjects.Sprite;
   private readonly tag: Phaser.GameObjects.Text;
-  private readonly bubble: Phaser.GameObjects.Text;
+  private dot!: Phaser.GameObjects.Arc;
+  private aura!: Phaser.GameObjects.Ellipse;
   private readonly palette: number;
   private readonly scene: Phaser.Scene;
   private readonly blocked: () => ReadonlySet<string>;
@@ -27,6 +28,7 @@ export class Character {
   private moveProgress = 0;
   private from: { x: number; y: number } | null = null;
   private onArrive: (() => void) | null = null;
+  private hovered = false;
   private bubbleTween: Phaser.Tweens.Tween | null = null;
   private swayTween: Phaser.Tweens.Tween | null = null;
   private halo: Phaser.GameObjects.Ellipse | null = null;
@@ -49,20 +51,21 @@ export class Character {
     this.row = spawn.row;
 
     this.sprite = scene.add.sprite(0, 0, `char_${palette}`, FRAME.down + 1).setOrigin(0.5, 1);
-    this.tag = scene.add.text(0, -34, shortName(session), {
-      fontFamily: "monospace", fontSize: "7px", color: "#e8e8e8",
-      backgroundColor: "rgba(0,0,0,0.55)", padding: { x: 2, y: 1 },
-    }).setOrigin(0.5, 1).setResolution(4);
-    this.bubble = scene.add.text(0, -40, "", {
-      fontFamily: "monospace", fontSize: "10px", color: "#fff", fontStyle: "bold",
+    const dark = typeof document !== "undefined" && document.documentElement.dataset.theme !== "light";
+    this.tag = scene.add.text(0, -26, shortName(session), {
+      fontFamily: "monospace", fontSize: "6.5px",
+      color: dark ? "#EDE9E0" : "#2B2926",
+      backgroundColor: dark ? "rgba(31,30,28,0.78)" : "rgba(245,242,236,0.82)",
       padding: { x: 3, y: 1 },
-    }).setOrigin(0.5, 1).setResolution(4).setVisible(false);
+    }).setOrigin(0.5, 1).setResolution(4);
+    this.dot = scene.add.circle(0, -18, 2, 0x8a857c, 1);
+    this.aura = scene.add.ellipse(0, -1, 18, 8, 0x8a857c, 0).setVisible(false);
 
     this.halo = scene.add.ellipse(0, -2, 22, 10, 0xd97757, 0.0).setVisible(false);
     this.container = scene.add.container(
       spawn.col * TILE + TILE / 2,
       spawn.row * TILE + TILE,
-      [this.halo, this.sprite, this.tag, this.bubble],
+      [this.halo, this.aura, this.sprite, this.dot, this.tag],
     );
     if (mini) this.container.setScale(0.65);
     this.container.setAlpha(0);
@@ -96,32 +99,33 @@ export class Character {
     this.mode = mode;
     this.face(face);
     const p = this.palette;
+    this.applyIndicator();
     switch (mode) {
       case "sit_type": this.sprite.play(`c${p}-type-${this.animDir()}`); break;
       case "sit_read": case "lounge": this.sprite.play(`c${p}-read-${this.animDir()}`); break;
       case "use_tool": this.sprite.play(`c${p}-read-${this.animDir()}`); break;
       case "alert": {
+        // approval: still, slow orange pulse on dot + aura - asks, not shouts
         this.sprite.stop();
         this.sprite.setFrame(FRAME[this.animDir()] + 1);
-        this.showBubble("!", "#f5a524", true);
         break;
       }
       case "dizzy": {
+        // error: slumped posture, earthy red, slight sway
+        this.sprite.setAngle(-6);
         this.sprite.stop();
         this.sprite.setFrame(FRAME[this.animDir()] + 1);
-        this.showBubble("✕", "#ef4444", false);
         this.swayTween = this.scene.tweens.add({
-          targets: this.sprite, angle: { from: -8, to: 8 },
-          duration: 280, yoyo: true, repeat: -1, ease: "Sine.inOut",
+          targets: this.sprite, angle: { from: -8, to: -3 },
+          duration: 900, yoyo: true, repeat: -1, ease: "Sine.inOut",
         });
         break;
       }
       case "celebrate": {
         this.sprite.stop();
         this.sprite.setFrame(FRAME[this.animDir()] + 1);
-        this.showBubble("✓", "#22c55e", false);
         this.scene.tweens.add({
-          targets: this.sprite, y: -7, duration: 180, yoyo: true, repeat: 4, ease: "Quad.out",
+          targets: this.sprite, y: -5, duration: 170, yoyo: true, repeat: 3, ease: "Quad.out",
           onComplete: () => { this.sprite.y = 0; },
         });
         break;
@@ -130,6 +134,26 @@ export class Character {
         this.sprite.stop();
         this.sprite.setFrame(FRAME[this.animDir()] + 1);
       }
+    }
+  }
+
+  // State dot above the head + a soft aura under the feet, in the warm
+  // palette; approval pulses slowly, done flashes sage then settles.
+  private applyIndicator(): void {
+    const state = this.session.state;
+    const tint = STATE_TINT[state] ?? 0x8a857c;
+    this.bubbleTween?.remove();
+    this.bubbleTween = null;
+    this.dot.setFillStyle(tint, 1).setAlpha(1);
+    this.aura.setFillStyle(tint, 0.16).setVisible(state !== "idle");
+    if (state === "approval") {
+      this.bubbleTween = this.scene.tweens.add({
+        targets: [this.dot, this.aura], alpha: { from: 1, to: 0.3 },
+        duration: 850, yoyo: true, repeat: -1, ease: "Sine.inOut",
+      });
+    } else if (state === "done") {
+      this.aura.setAlpha(0.5);
+      this.scene.tweens.add({ targets: this.aura, alpha: 0.14, duration: 1200, ease: "Quad.out" });
     }
   }
 
@@ -159,6 +183,20 @@ export class Character {
       }
     }
     this.container.setDepth(this.container.y);
+  }
+
+  // Labels hide when zoomed out (the dot stays); hover always reveals.
+  setLabelVisible(visible: boolean): void {
+    this.tag.setVisible(visible || this.hovered);
+  }
+
+  setHovered(h: boolean): void {
+    this.hovered = h;
+    if (h) this.tag.setVisible(true);
+  }
+
+  setTagOffset(extra: number): void {
+    this.tag.setY(-26 - extra);
   }
 
   setPromptVisible(show: boolean): void {
@@ -195,22 +233,13 @@ export class Character {
     });
   }
 
-  private showBubble(text: string, color: string, pulse: boolean): void {
-    this.bubble.setText(text).setColor(color).setVisible(true).setAlpha(1);
-    if (pulse) {
-      this.bubbleTween = this.scene.tweens.add({
-        targets: this.bubble, alpha: { from: 1, to: 0.25 },
-        duration: 420, yoyo: true, repeat: -1,
-      });
-    }
-  }
-
   private clearEffects(): void {
     this.bubbleTween?.remove(); this.bubbleTween = null;
     this.swayTween?.remove(); this.swayTween = null;
     this.sprite.setAngle(0);
     this.sprite.y = 0;
-    this.bubble.setVisible(false);
+    this.dot.setAlpha(1);
+    this.aura.setAlpha(0.16);
   }
 
   private face(dir: Dir): void {
