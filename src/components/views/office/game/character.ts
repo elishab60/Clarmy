@@ -29,6 +29,8 @@ export class Character {
   private onArrive: (() => void) | null = null;
   private bubbleTween: Phaser.Tweens.Tween | null = null;
   private swayTween: Phaser.Tweens.Tween | null = null;
+  private halo: Phaser.GameObjects.Ellipse | null = null;
+  private haloTween: Phaser.Tweens.Tween | null = null;
 
   constructor(
     scene: Phaser.Scene,
@@ -56,10 +58,11 @@ export class Character {
       padding: { x: 3, y: 1 },
     }).setOrigin(0.5, 1).setResolution(4).setVisible(false);
 
+    this.halo = scene.add.ellipse(0, -2, 22, 10, 0xd97757, 0.0).setVisible(false);
     this.container = scene.add.container(
       spawn.col * TILE + TILE / 2,
       spawn.row * TILE + TILE,
-      [this.sprite, this.tag, this.bubble],
+      [this.halo, this.sprite, this.tag, this.bubble],
     );
     if (mini) this.container.setScale(0.65);
     this.container.setAlpha(0);
@@ -161,6 +164,27 @@ export class Character {
   setPromptVisible(show: boolean): void {
     const prompt = this.session.prompt?.trim();
     this.tag.setText(show && prompt ? `${shortName(this.session)}\n${truncate(prompt, 34)}` : shortName(this.session));
+  }
+
+  // Selection halo (accent ring under the feet) + dimming of the others.
+  setSelected(on: boolean): void {
+    if (!this.halo) return;
+    this.haloTween?.remove();
+    this.haloTween = null;
+    if (on) {
+      this.halo.setVisible(true).setFillStyle(0xd97757, 0.4);
+      this.haloTween = this.scene.tweens.add({
+        targets: this.halo, fillAlpha: { from: 0.42, to: 0.18 },
+        scaleX: { from: 1, to: 1.25 }, scaleY: { from: 1, to: 1.25 },
+        duration: 900, yoyo: true, repeat: -1, ease: "Sine.inOut",
+      });
+    } else {
+      this.halo.setVisible(false);
+    }
+  }
+
+  setDimmed(dim: boolean): void {
+    this.scene.tweens.add({ targets: this.container, alpha: dim ? 0.45 : 1, duration: 200 });
   }
 
   fadeOutAndDestroy(onDone: () => void): void {

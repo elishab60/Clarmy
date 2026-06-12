@@ -40,11 +40,28 @@ test("health and quotas endpoints answer", async ({ page }) => {
   expect(quotas.ok()).toBeTruthy();
 });
 
-test("office renders the pixel fleet", async ({ page }) => {
+test("office renders the pixel fleet and opens a terminal", async ({ page }) => {
   await page.goto("/office");
   await expect(page.locator(".office-canvas canvas")).toBeVisible({ timeout: 15_000 });
   await expect(page.locator(".office-hud")).toBeVisible();
   // let the mock fleet walk in and settle at their desks
   await page.waitForTimeout(9_000);
   await page.screenshot({ path: ".github/assets/shot-office.png", fullPage: false });
+
+  // select a character through the test hook: the terminal panel slides in
+  const opened = await page.evaluate(() => {
+    const w = window as unknown as { __officeSessionIds?: string[]; __officeSelect?: (id: string) => void };
+    const id = w.__officeSessionIds?.[0];
+    if (!id || !w.__officeSelect) return null;
+    w.__officeSelect(id);
+    return id;
+  });
+  expect(opened).toBeTruthy();
+  await expect(page.locator(".office-term")).toBeVisible();
+  await expect(page.locator(".office-term-head")).toBeVisible();
+  await page.waitForTimeout(1_200);
+  await page.screenshot({ path: ".github/assets/shot-office-term.png", fullPage: false });
+  // Esc closes
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".office-term")).toHaveCount(0);
 });

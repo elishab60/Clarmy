@@ -12,10 +12,12 @@ import type { SessionLite } from "./game/types";
 // unmount (route change) so the office costs nothing while you work elsewhere.
 export function OfficeCanvas({
   onSelect,
+  selectedId,
   showPrompts,
   recenterKey,
 }: {
-  onSelect: (id: string) => void;
+  onSelect: (id: string | null) => void;
+  selectedId: string | null;
   showPrompts: boolean;
   recenterKey: number;
 }) {
@@ -48,6 +50,7 @@ export function OfficeCanvas({
         prompt: s.prompt, subagents: s.subagents,
       }));
       scene.setSessions(list);
+      (window as unknown as { __officeSessionIds?: string[] }).__officeSessionIds = list.map((x) => x.id);
     };
     game.events.once("office-ready", push);
     game.events.on("select", onSelect);
@@ -74,6 +77,13 @@ export function OfficeCanvas({
   }, []);
 
   useEffect(() => { sceneRef.current?.setShowPrompts(showPrompts); }, [showPrompts]);
+  useEffect(() => { sceneRef.current?.setSelected(selectedId); }, [selectedId]);
+  // test hook: lets e2e open the terminal panel without pixel-perfect clicks
+  useEffect(() => {
+    (window as unknown as { __officeSelect?: (id: string | null) => void }).__officeSelect = onSelect;
+    return () => { delete (window as unknown as { __officeSelect?: unknown }).__officeSelect; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => { if (recenterKey > 0) sceneRef.current?.recenter(); }, [recenterKey]);
 
   return <div ref={hostRef} className="office-canvas" />;

@@ -19,6 +19,8 @@ export class OfficeScene extends Phaser.Scene {
   private pending: SessionLite[] | null = null;
   private created = false;
   private showPrompts = false;
+  private selectedId: string | null = null;
+  private charClicked = false;
 
   constructor() {
     super("office");
@@ -46,6 +48,17 @@ export class OfficeScene extends Phaser.Scene {
     // decides; pending holds the latest list until the world exists.
     if (!this.created) { this.pending = sessions; return; }
     this.syncSessions(sessions);
+  }
+
+  setSelected(id: string | null): void {
+    this.selectedId = id;
+    for (const [cid, ch] of this.chars) {
+      ch.setSelected(cid === id);
+      ch.setDimmed(id !== null && cid !== id);
+    }
+    for (const list of this.minis.values()) for (const m of list) m.setDimmed(id !== null);
+    const target = id ? this.chars.get(id) : null;
+    if (target) this.cameras.main.pan(target.container.x, target.container.y, 350, "Quad.easeOut");
   }
 
   setShowPrompts(show: boolean): void {
@@ -97,9 +110,10 @@ export class OfficeScene extends Phaser.Scene {
     const door = { col: 2 + (this.chars.size % 4), row: ROWS - 3, face: "up" as const };
     const ch = new Character(this, s, palette, door, () => this.blocked);
     ch.sprite.setInteractive({ useHandCursor: true });
-    ch.sprite.on("pointerdown", () => this.game.events.emit("select", s.id));
+    ch.sprite.on("pointerdown", () => { this.charClicked = true; this.game.events.emit("select", s.id); });
     ch.setPromptVisible(this.showPrompts);
     this.chars.set(s.id, ch);
+    if (this.selectedId !== null) ch.setDimmed(s.id !== this.selectedId);
     this.applyBehavior(ch, s);
     this.syncMinis(ch, s);
   }
@@ -218,6 +232,12 @@ export class OfficeScene extends Phaser.Scene {
       if (!p.isDown) return;
       cam.scrollX -= (p.x - p.prevPosition.x) / cam.zoom;
       cam.scrollY -= (p.y - p.prevPosition.y) / cam.zoom;
+    });
+    // click on empty space (no drag, no character) closes the terminal panel
+    this.input.on("pointerup", (p: Phaser.Input.Pointer) => {
+      const dragged = Phaser.Math.Distance.Between(p.downX, p.downY, p.upX, p.upY) > 5;
+      if (!dragged && !this.charClicked) this.game.events.emit("select", null);
+      this.charClicked = false;
     });
     this.input.on("wheel", (_p: unknown, _o: unknown, _dx: number, dy: number) => {
       cam.setZoom(Phaser.Math.Clamp(cam.zoom - dy * 0.0015, 1.2, 5));
