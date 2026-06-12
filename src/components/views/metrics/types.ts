@@ -22,6 +22,10 @@ export interface SessionRow {
   // multi-day sessions attribute spend to the day it actually happened rather
   // than dumping it all on the end date.
   readonly daily: Record<string, { c: number; o: number }>;
+  // Per-model slices (cost/tokens attributed to the model of each record, so
+  // workflow subagents on a different model than the session land correctly).
+  // Optional for backward compatibility with older cached payloads.
+  readonly models?: Record<string, { cost: number; input: number; output: number; cacheRead: number }>;
 }
 
 export interface MetricsPayload {

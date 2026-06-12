@@ -52,7 +52,7 @@ describe("scanAll subagent folding", () => {
     writeFileSync(join(sub, "agent-abc.jsonl"), [
       assistantLine({ msgId: "s1", reqId: "q1", input: 1000, output: 50, sidechain: true }),
       assistantLine({ msgId: "s1", reqId: "q1", input: 1000, output: 50, sidechain: true }),
-      assistantLine({ msgId: "s2", reqId: "q2", input: 2000, output: 70, sidechain: true }),
+      assistantLine({ msgId: "s2", reqId: "q2", input: 2000, output: 70, sidechain: true, model: "claude-fable-5" }),
     ].join("\n") + "\n");
     process.env.COCKPIT_CLAUDE_HOME = fx.home;
   });
@@ -87,5 +87,16 @@ describe("scanAll subagent folding", () => {
     const day = row.daily["2026-06-11"];
     expect(day).toBeDefined();
     expect(day!.o).toBe(130);
+    // per-model attribution: the fable subagent record lands under mythos
+    // (claude-fable-5's registry label), not under the session's opus label
+    expect(row.models["mythos"]).toBeDefined();
+    expect(row.models["mythos"]!.input).toBe(2000);
+    expect(row.models["opus-4.8"]).toBeDefined();
+    expect(row.models["opus-4.8"]!.input).toBe(1100);
+    const fableCost = row.models["mythos"]!.cost;
+    const opusCost = row.models["opus-4.8"]!.cost;
+    expect(fableCost + opusCost).toBeCloseTo(row.cost, 10);
+    // fable output is priced 2x opus: same tokens would cost double
+    expect(fableCost).toBeGreaterThan(0);
   });
 });

@@ -10,7 +10,10 @@ export function rangeStartMs(range: RangeKey, now: number): number | null {
 
 function matchPM(r: SessionRow, f: Filters): boolean {
   if (f.projects.length && !f.projects.includes(r.cwd)) return false;
-  if (f.models.length && !f.models.includes(r.model)) return false;
+  if (f.models.length) {
+    const used = r.models && Object.keys(r.models).length > 0 ? Object.keys(r.models) : [r.model];
+    if (!f.models.some((m) => used.includes(m))) return false;
+  }
   return true;
 }
 
@@ -93,7 +96,35 @@ export function perProject(rows: readonly SessionRow[]): GroupRow[] {
 }
 
 export function perModel(rows: readonly SessionRow[]): GroupRow[] {
-  return group(rows, (r) => r.model, (r) => r.model);
+  // Aggregate from the per-record model slices so subagent spend lands on the
+  // model that actually ran (fable readers under an opus session, etc.). A
+  // session counts once under every model it used; tool uses stay on its main
+  // model since records do not attribute them.
+  const by = new Map<string, GroupRow>();
+  const get = (label: string): GroupRow => {
+    let g = by.get(label);
+    if (!g) {
+      g = { key: label, label, sessions: 0, cost: 0, input: 0, output: 0, cacheRead: 0, toolUses: 0, lastRunAt: 0 };
+      by.set(label, g);
+    }
+    return g;
+  };
+  for (const r of rows) {
+    const slices = r.models && Object.keys(r.models).length > 0
+      ? r.models
+      : { [r.model]: { cost: r.cost, input: r.input, output: r.output, cacheRead: r.cacheRead } };
+    for (const [label, sl] of Object.entries(slices)) {
+      const g = get(label);
+      g.sessions++;
+      g.cost += sl.cost;
+      g.input += sl.input;
+      g.output += sl.output;
+      g.cacheRead += sl.cacheRead;
+      if (r.endedAt > g.lastRunAt) g.lastRunAt = r.endedAt;
+    }
+    get(r.model).toolUses += r.toolUses;
+  }
+  return Array.from(by.values()).sort((a, b) => b.cost - a.cost);
 }
 
 export function perDay(rows: readonly SessionRow[]): Map<string, DayBucket> {
