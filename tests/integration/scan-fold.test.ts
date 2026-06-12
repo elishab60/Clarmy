@@ -46,11 +46,13 @@ describe("scanAll subagent folding", () => {
       userLine("do the thing"),
       assistantLine({ msgId: "m1", reqId: "r1" }),
     ].join("\n") + "\n");
-    // nested subagent: 2 turns, one duplicated (same msg:req replayed)
+    // nested subagent: streaming writes the same msg:req repeatedly with
+    // CUMULATIVE usage (first line output=5, last line the real total);
+    // the last occurrence must win or output undercounts massively
     const sub = join(proj, SID, "subagents");
     mkdirSync(sub, { recursive: true });
     writeFileSync(join(sub, "agent-abc.jsonl"), [
-      assistantLine({ msgId: "s1", reqId: "q1", input: 1000, output: 50, sidechain: true }),
+      assistantLine({ msgId: "s1", reqId: "q1", input: 1000, output: 5, sidechain: true }),
       assistantLine({ msgId: "s1", reqId: "q1", input: 1000, output: 50, sidechain: true }),
       assistantLine({ msgId: "s2", reqId: "q2", input: 2000, output: 70, sidechain: true, model: "claude-fable-5" }),
     ].join("\n") + "\n");
@@ -65,8 +67,10 @@ describe("scanAll subagent folding", () => {
     const s = sessions[0]!;
     // tokens include the children (dup line still raw-summed here; the metrics
     // layer dedups by msg:req key when pricing)
-    expect(s.inputTokens).toBe(100 + 1000 + 1000 + 2000);
-    expect(s.usage.length).toBe(4);
+    // streamed duplicate counted ONCE, with the final (largest) usage
+    expect(s.inputTokens).toBe(100 + 1000 + 2000);
+    expect(s.outputTokens).toBe(10 + 50 + 70);
+    expect(s.usage.length).toBe(3);
     expect(s.isSubagent).toBe(false); // base row is the main transcript
   });
 

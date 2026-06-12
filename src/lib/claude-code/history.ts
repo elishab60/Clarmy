@@ -248,13 +248,13 @@ function parseSession(file: string, projectDir: string): CCSession | null {
     let firstPrompt = "";
     let messageCount = 0;
     let toolUses = 0;
-    let input = 0;
-    let output = 0;
-    let cacheRead = 0;
-    let cacheCreate = 0;
-    let cacheCreate5m = 0;
-    let cacheCreate1h = 0;
-    const usage: CCUsageRecord[] = [];
+    // Streaming writes one assistant line per content block, each carrying the
+    // usage CUMULATIVE AT THAT MOMENT: the first line of a request says
+    // output_tokens=3, the last says the real total. Dedup by msg:req keeping
+    // the LAST occurrence (the file is sequential), or output undercounts by
+    // 10-100x. Session totals are then summed from the deduped records.
+    const byKey = new Map<string, CCUsageRecord>();
+    const keyless: CCUsageRecord[] = [];
     let sawError = false;
     let sawInterrupt = false;
 
@@ -300,12 +300,9 @@ function parseSession(file: string, projectDir: string): CCSession | null {
               c5m = u.cache_creation_input_tokens;
             }
           }
-          input += inTok; output += outTok; cacheRead += crTok;
-          cacheCreate5m += c5m; cacheCreate1h += c1h;
-          cacheCreate += c5m + c1h;
           const msgId = typeof m.id === "string" ? m.id : null;
           const reqId = typeof rec.requestId === "string" ? rec.requestId : null;
-          usage.push({
+          const record: CCUsageRecord = {
             key: msgId && reqId ? `${msgId}:${reqId}` : null,
             ts: Number.isNaN(ts) ? 0 : ts,
             model,
@@ -314,7 +311,9 @@ function parseSession(file: string, projectDir: string): CCSession | null {
             cacheReadTokens: crTok,
             cacheCreate5mTokens: c5m,
             cacheCreate1hTokens: c1h,
-          });
+          };
+          if (record.key) byKey.set(record.key, record); // last occurrence wins
+          else keyless.push(record);
           const content = m.content;
           if (Array.isArray(content)) {
             for (const b of content) {
@@ -350,6 +349,17 @@ function parseSession(file: string, projectDir: string): CCSession | null {
 
     if (!cwd) return null;
     if (firstTs === Number.POSITIVE_INFINITY) firstTs = 0;
+
+    const usage: CCUsageRecord[] = [...byKey.values(), ...keyless];
+    let input = 0, output = 0, cacheRead = 0, cacheCreate5m = 0, cacheCreate1h = 0;
+    for (const r of usage) {
+      input += r.inputTokens;
+      output += r.outputTokens;
+      cacheRead += r.cacheReadTokens;
+      cacheCreate5m += r.cacheCreate5mTokens;
+      cacheCreate1h += r.cacheCreate1hTokens;
+    }
+    const cacheCreate = cacheCreate5m + cacheCreate1h;
 
     const state: CCSession["state"] = sawError ? "error" : sawInterrupt ? "error" : "done";
 

@@ -20,6 +20,10 @@ export class SessionTailer {
   private offset = 0;
   private totals = { input: 0, output: 0, cacheRead: 0, cacheCreate5m: 0, cacheCreate1h: 0 };
   private lastContext = 0;
+  // Streaming repeats the same msg:req line with cumulative usage; count the
+  // DELTA against what we already credited for that key (last value wins).
+  private counted = new Map<string, { i: number; o: number; cr: number; c5: number; c1: number }>();
+  private subCounted = new Map<string, { i: number; o: number; cr: number; c5: number; c1: number }>();
   // Subagent (Task / Workflow) usage for this session lives in nested
   // <session>/subagents/**/*.jsonl files the main transcript never inlines.
   // Tail them separately (own offsets + dedup), price per record, and fold the
@@ -77,6 +81,8 @@ export class SessionTailer {
       this.lastEmitted = {};
       this.lastContext = 0;
       this.subSeen = new Set();
+      this.counted = new Map();
+      this.subCounted = new Map();
       this.subOffsets = new Map();
       this.subCost = 0;
       this.subInput = 0;
@@ -160,19 +166,28 @@ export class SessionTailer {
     const msgId = typeof msg.id === "string" ? msg.id : null;
     const reqId = typeof rec.requestId === "string" ? rec.requestId : null;
     const key = msgId && reqId ? `${msgId}:${reqId}` : null;
-    if (usage && (!key || !this.subSeen.has(key))) {
-      if (key) this.subSeen.add(key);
+    if (usage) {
       const cc = usage.cache_creation as Record<string, unknown> | undefined;
-      const inT = num(usage.input_tokens);
-      const outT = num(usage.output_tokens);
-      const crT = num(usage.cache_read_input_tokens);
-      const c5 = cc ? num(cc.ephemeral_5m_input_tokens) : num(usage.cache_creation_input_tokens);
-      const c1 = cc ? num(cc.ephemeral_1h_input_tokens) : 0;
-      const model = typeof msg.model === "string" ? msg.model : (this.rawModel ?? this.model);
-      this.subCost += estimateCost(model, { input: inT, output: outT, cacheRead: crT, cacheCreate5m: c5, cacheCreate1h: c1 });
-      this.subInput += inT;
-      this.subOutput += outT;
-      changed = true;
+      const now = {
+        i: num(usage.input_tokens),
+        o: num(usage.output_tokens),
+        cr: num(usage.cache_read_input_tokens),
+        c5: cc ? num(cc.ephemeral_5m_input_tokens) : num(usage.cache_creation_input_tokens),
+        c1: cc ? num(cc.ephemeral_1h_input_tokens) : 0,
+      };
+      const prev = key ? this.subCounted.get(key) : undefined;
+      if (!prev || now.o > prev.o || now.i > prev.i) {
+        const base = prev ?? { i: 0, o: 0, cr: 0, c5: 0, c1: 0 };
+        const model = typeof msg.model === "string" ? msg.model : (this.rawModel ?? this.model);
+        this.subCost += estimateCost(model, {
+          input: now.i - base.i, output: now.o - base.o, cacheRead: now.cr - base.cr,
+          cacheCreate5m: now.c5 - base.c5, cacheCreate1h: now.c1 - base.c1,
+        });
+        this.subInput += now.i - base.i;
+        this.subOutput += now.o - base.o;
+        if (key) this.subCounted.set(key, now);
+        changed = true;
+      }
     }
     const content = msg.content;
     if (Array.isArray(content)) {
@@ -267,22 +282,29 @@ export class SessionTailer {
       const msgId = typeof msg.id === "string" ? msg.id : null;
       const reqId = typeof rec.requestId === "string" ? rec.requestId : null;
       const key = msgId && reqId ? `${msgId}:${reqId}` : null;
-      if (usage && (!key || !this.seenMsgKeys.has(key))) {
-        if (key) this.seenMsgKeys.add(key);
+      if (usage) {
         const cc = usage.cache_creation as Record<string, unknown> | undefined;
-        const mIn = num(usage.input_tokens);
-        const mCr = num(usage.cache_read_input_tokens);
-        const mC5 = cc ? num(cc.ephemeral_5m_input_tokens) : num(usage.cache_creation_input_tokens);
-        const mC1 = cc ? num(cc.ephemeral_1h_input_tokens) : 0;
-        this.totals.input        += mIn;
-        this.totals.output       += num(usage.output_tokens);
-        this.totals.cacheRead    += mCr;
-        this.totals.cacheCreate5m += mC5;
-        this.totals.cacheCreate1h += mC1;
-        // Current context occupancy = this request's prompt size (not cumulative).
-        // Skip subagent (sidechain) turns so the meter tracks the main thread.
-        if (rec.isSidechain !== true) this.lastContext = mIn + mCr + mC5 + mC1;
-        changed = true;
+        const now = {
+          i: num(usage.input_tokens),
+          o: num(usage.output_tokens),
+          cr: num(usage.cache_read_input_tokens),
+          c5: cc ? num(cc.ephemeral_5m_input_tokens) : num(usage.cache_creation_input_tokens),
+          c1: cc ? num(cc.ephemeral_1h_input_tokens) : 0,
+        };
+        const prev = key ? this.counted.get(key) : undefined;
+        if (!prev || now.o > prev.o || now.i > prev.i) {
+          const base = prev ?? { i: 0, o: 0, cr: 0, c5: 0, c1: 0 };
+          this.totals.input        += now.i - base.i;
+          this.totals.output       += now.o - base.o;
+          this.totals.cacheRead    += now.cr - base.cr;
+          this.totals.cacheCreate5m += now.c5 - base.c5;
+          this.totals.cacheCreate1h += now.c1 - base.c1;
+          if (key) this.counted.set(key, now);
+          // Current context occupancy = this request's prompt size (not
+          // cumulative); skip subagent (sidechain) turns.
+          if (rec.isSidechain !== true) this.lastContext = now.i + now.cr + now.c5 + now.c1;
+          changed = true;
+        }
       }
       const stopReason = msg.stop_reason;
       const content = msg.content;
