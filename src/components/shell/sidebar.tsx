@@ -9,6 +9,7 @@ import { Clawd } from "./clawd";
 import { QuotaMeters } from "./quota-meters";
 
 const NAV_PRIMARY: { k: string; href: string; label: string; icon: IconName; badge?: string }[] = [
+  { k: "office",   href: "/office",   label: "Office",   icon: "office"   },
   { k: "sessions", href: "/",         label: "Sessions", icon: "sessions" },
   { k: "projects", href: "/projects", label: "Projects", icon: "projects" },
   { k: "history",  href: "/history",  label: "History",  icon: "history"  },
@@ -88,6 +89,7 @@ export function Sidebar() {
   }, [visibleProviders, metricsVersion]);
 
   const BADGES: Record<string, number | string> = {
+    office: count,
     sessions: count,
     projects: stats.projects || "—",
     history: stats.history || "—",

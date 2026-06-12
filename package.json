@@ -2,7 +2,7 @@
   "name": "clarmy",
   "version": "0.1.0",
   "private": true,
-  "description": "Clarmy \u2014 master cockpit for an army of clawds. One socket, N parallel Claude Code sessions, six states, zero friction.",
+  "description": "Clarmy — master cockpit for an army of clawds. One socket, N parallel Claude Code sessions, six states, zero friction.",
   "type": "module",
   "scripts": {
     "dev": "node --experimental-transform-types server.ts",
@@ -26,6 +26,7 @@
     "cmdk": "^1.1.1",
     "next": "15.2.1",
     "node-pty": "^1.1.0",
+    "phaser": "^4.1.0",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "ws": "^8.18.0",

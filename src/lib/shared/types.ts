@@ -87,6 +87,8 @@ export interface SessionSnapshot {
   // expose no token data (e.g. Gemini transcripts) leave these unset.
   readonly contextTokens?: number;
   readonly contextWindow?: number;
+  // Number of subagent transcripts observed for this session (live tailer).
+  readonly subagents?: number;
   readonly todoList?: readonly TodoItem[];
   readonly editPath?: string;
   readonly diff?: readonly DiffRow[];

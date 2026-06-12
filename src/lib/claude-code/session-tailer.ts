@@ -351,6 +351,7 @@ export class SessionTailer {
       inputTokens: this.totals.input + this.subInput,
       outputTokens: this.totals.output + this.subOutput,
       contextTokens: this.lastContext || undefined,
+      subagents: this.subOffsets.size || undefined,
       model: this.model,
       resumeSessionId: this.resumeSessionId,
       todoList: this.todoList,

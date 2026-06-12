@@ -1,10 +1,15 @@
 import type { SVGProps } from "react";
 
-type IconName = "sessions" | "projects" | "history" | "skills" | "mcp" | "plugins" | "hooks" | "settings" | "metrics" | "agents" | "crons";
+type IconName = "office" | "sessions" | "projects" | "history" | "skills" | "mcp" | "plugins" | "hooks" | "settings" | "metrics" | "agents" | "crons";
 
 const stroke = { stroke: "currentColor", strokeWidth: 1.4, fill: "none", strokeLinecap: "round", strokeLinejoin: "round" } as const;
 
 const PATHS: Record<IconName, React.ReactNode> = {
+  office: (<>
+    <rect x="1" y="5" width="10" height="6" rx="0.5" />
+    <path d="M3 5V3.5A1.5 1.5 0 0 1 4.5 2h3A1.5 1.5 0 0 1 9 3.5V5" fill="none" />
+    <rect x="4.75" y="7" width="2.5" height="4" />
+  </>),
   sessions: (<>
     <rect x="1.5" y="1.5" width="4" height="4" {...stroke}/>
     <rect x="7.5" y="1.5" width="4" height="4" {...stroke}/>

@@ -39,3 +39,12 @@ test("health and quotas endpoints answer", async ({ page }) => {
   const quotas = await page.request.get("/api/quotas");
   expect(quotas.ok()).toBeTruthy();
 });
+
+test("office renders the pixel fleet", async ({ page }) => {
+  await page.goto("/office");
+  await expect(page.locator(".office-canvas canvas")).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator(".office-hud")).toBeVisible();
+  // let the mock fleet walk in and settle at their desks
+  await page.waitForTimeout(9_000);
+  await page.screenshot({ path: ".github/assets/shot-office.png", fullPage: false });
+});
