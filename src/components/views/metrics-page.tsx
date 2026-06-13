@@ -37,7 +37,7 @@ export function MetricsPage() {
   const [flashKey, setFlashKey] = useState(0);
   const [now, setNow] = useState(() => Date.now());
 
-  const provider = useCockpit((s) => s.provider);
+  const visibleProviders = useCockpit((s) => s.visibleProviders);
   const metricsVersion = useCockpit((s) => s.metricsVersion);
   const [filters, setFilters] = useState<Filters>({ range: "all", projects: [], models: [] });
   const [heatMetric, setHeatMetric] = useState<HeatMetric>("sessions");
@@ -61,9 +61,11 @@ export function MetricsPage() {
   useEffect(() => { void refresh(); }, [metricsVersion]);
   useEffect(() => { const id = setInterval(() => void refresh(), 60_000); return () => clearInterval(id); }, []);
 
+  // Aggregate across every provider toggled on in the top bar, so selecting
+  // several (Claude + Codex + Grok …) sums their cost/tokens into one map.
   const rows = useMemo(
-    () => (payload?.sessions ?? []).filter((r) => r.provider === provider),
-    [payload, provider],
+    () => (payload?.sessions ?? []).filter((r) => visibleProviders.includes(r.provider)),
+    [payload, visibleProviders],
   );
 
   const view = useMemo(() => {
@@ -93,15 +95,15 @@ export function MetricsPage() {
   const stats: StatDef[] = useMemo(() => {
     const t = view.totals;
     const d = view.deltas;
-    const live = payload?.liveByProvider?.[provider] ?? 0;
+    const live = visibleProviders.reduce((n, p) => n + (payload?.liveByProvider?.[p] ?? 0), 0);
     return [
       { key: "sessions", label: "Sessions", value: t.sessions, format: fmtInt, foot: `${live} live · ${t.done} done · ${t.error} error`, delta: d?.sessions, deltaGood: "up" },
-      { key: "cost", label: "Est. cost", value: t.cost, format: fmtCostFull, foot: `public ${providerMeta(provider).vendor} list prices`, delta: d?.cost, deltaGood: "down", accent: true },
+      { key: "cost", label: "Est. cost", value: t.cost, format: fmtCostFull, foot: `public list prices`, delta: d?.cost, deltaGood: "down", accent: true },
       { key: "output", label: "Output tokens", value: t.output, format: fmtTokens, foot: `${fmtTokens(t.input)} input`, delta: d?.output, deltaGood: "up" },
       { key: "cache", label: "Cache read", value: t.cacheRead, format: fmtTokens, foot: `${fmtTokens(t.cacheCreate)} cache create`, deltaGood: "up" },
       { key: "tools", label: "Tool calls", value: t.toolUses, format: fmtInt, foot: `${fmtInt(t.messages)} messages`, delta: d?.toolUses, deltaGood: "up" },
     ];
-  }, [view.totals, view.deltas, payload?.liveByProvider, provider]);
+  }, [view.totals, view.deltas, payload?.liveByProvider, visibleProviders]);
 
   const activeProjects = useMemo(() => new Set(filters.projects), [filters.projects]);
   const toggleProject = (cwd: string) =>
@@ -113,12 +115,16 @@ export function MetricsPage() {
     { key: "sessions", label: "sessions", color: SERIES_COLORS.sessions, unit: "", format: fmtInt, points: view.seriesSessions },
   ];
 
+  const provLabel = visibleProviders.length === 1 && visibleProviders[0]
+    ? providerMeta(visibleProviders[0]).label
+    : `${visibleProviders.length} providers`;
+
   return (
     <div className="mx-shell">
       <div className="mx-header">
         <div>
-          <h1>Metrics · {providerMeta(provider).label}</h1>
-          <p className="sub">All-time {providerMeta(provider).vendor} usage, from <code>~/{providerMeta(provider).homeDir}</code>. Filter by range, project or model. Refreshes every 15s.</p>
+          <h1>Metrics · {provLabel}</h1>
+          <p className="sub">All-time usage across {provLabel}. Toggle providers in the top bar to combine them. Filter by range, project or model. Refreshes every 15s.</p>
         </div>
         <button className={`btn btn-refresh${refreshing ? " is-spinning" : ""}`} onClick={() => void refresh()} disabled={loading} aria-label="Refresh">
           <RefreshIcon /><span>Refresh</span>
