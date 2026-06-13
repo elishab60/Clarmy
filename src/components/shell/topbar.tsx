@@ -71,13 +71,23 @@ export function Topbar() {
     : null;
   const count = Object.values(sessions).filter((s) => visibleProviders.includes(s.provider)).length;
 
+  // Only chip the providers that actually have live sessions right now (e.g.
+  // Claude + Grok), so the filter row reflects what's running instead of always
+  // listing every vendor. Gated on `mounted` to avoid a hydration mismatch
+  // (server has no session state) and falls back to all providers when nothing
+  // is running yet, so the row never goes empty.
+  const activeProviderIds = new Set(Object.values(sessions).map((s) => s.provider));
+  const shownProviders = mounted && activeProviderIds.size > 0
+    ? PROVIDERS.filter((p) => activeProviderIds.has(p.id))
+    : PROVIDERS;
+
   return (
     <header className="topbar">
       <div className="title">
         <strong>{titleFor(pathname)}</strong>
       </div>
       <div className="provider-tabs" role="group" aria-label="Providers to display">
-        {PROVIDERS.map((p) => {
+        {shownProviders.map((p) => {
           // Multi-select: every visible provider's sessions show on the dashboard
           // at once. The button toggles its provider in/out of that set.
           const on = mounted && visibleProviders.includes(p.id);

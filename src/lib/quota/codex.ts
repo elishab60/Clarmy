@@ -49,22 +49,18 @@ function toWindow(label: string, raw: RateWindowRaw | null | undefined, now: num
   return { label, usedPercent, windowMinutes, resetsAt };
 }
 
-function stub(state: "unconfigured" | "unknown", detail: string): ProviderQuota {
-  return {
-    provider: "codex", label: "Codex", state, plan: null,
-    usedPercent: null, windows: [], detail, source: "stub", asOf: null,
-  };
-}
-
-export function getCodexQuota(): ProviderQuota {
+// Returns null whenever there is no rate-limit reading to show, so the sidebar
+// omits the Codex row entirely (not installed, no sessions, or no usage data yet)
+// rather than rendering a dead gauge.
+export function getCodexQuota(): ProviderQuota | null {
   const home = codexHome();
   const sessionsDir = join(home, "sessions");
-  try { if (!statSync(sessionsDir).isDirectory()) return stub("unconfigured", "Codex not detected"); }
-  catch { return stub("unconfigured", "Codex not detected"); }
+  try { if (!statSync(sessionsDir).isDirectory()) return null; }
+  catch { return null; }
 
   const files: FileEntry[] = [];
   collectSessionFiles(sessionsDir, files);
-  if (files.length === 0) return stub("unknown", "no Codex sessions");
+  if (files.length === 0) return null;
 
   const newest = files.sort((a, b) => b.mtime - a.mtime).slice(0, 12);
   const now = Date.now();
@@ -89,14 +85,14 @@ export function getCodexQuota(): ProviderQuota {
     }
   }
 
-  if (!bestRate) return stub("unknown", "no Codex usage data");
+  if (!bestRate) return null;
 
   const windows: QuotaWindow[] = [];
   const primary = toWindow("5h", bestRate.primary, now);
   const secondary = toWindow("Weekly", bestRate.secondary, now);
   if (primary) windows.push(primary);
   if (secondary) windows.push(secondary);
-  if (windows.length === 0) return stub("unknown", "no Codex usage data");
+  if (windows.length === 0) return null;
 
   const headline = windows.reduce((m, w) => Math.max(m, w.usedPercent), 0);
   const plan = typeof bestRate.plan_type === "string" && bestRate.plan_type

@@ -39,33 +39,29 @@ function nextPacificMidnight(): number {
   return todayLA + 24 * 3_600_000;
 }
 
-function stub(state: "unconfigured" | "unknown", detail: string): ProviderQuota {
-  return {
-    provider: "gemini", label: "Gemini", state, plan: null,
-    usedPercent: null, windows: [], detail, source: "stub", asOf: null,
-  };
-}
-
-export function getGeminiQuota(): ProviderQuota {
+// Returns null whenever there is no real usage to show, so the sidebar omits the
+// Gemini row entirely (no telemetry configured, log unreadable, or zero requests
+// today) rather than rendering a dead "no requests" gauge.
+export function getGeminiQuota(): ProviderQuota | null {
   const logPath = telemetryLog();
-  if (!logPath) return stub("unconfigured", "enable Gemini CLI telemetry");
+  if (!logPath) return null;
 
   let text: string;
   try { text = readFileSync(logPath, "utf8"); }
   catch (err) {
     log.warn("telemetry unreadable", { err: String(err) });
-    return stub("unknown", "telemetry unreadable");
+    return null;
   }
 
   // Best-effort: the log format is unspecified, so count request-metric markers
-  // dated today. Any parse shortfall degrades to an honest unknown.
+  // dated today. Any parse shortfall degrades to omitting the row.
   const day = todayKey();
   let used = 0;
   for (const line of text.split("\n")) {
     if (!line.includes("gemini_cli.api.request.count")) continue;
     if (line.includes(day)) used++;
   }
-  if (used === 0) return stub("unknown", "no Gemini requests today");
+  if (used === 0) return null;
 
   const limit = DEFAULT_RPD;
   const pct = Math.min(100, Math.max(0, (used / limit) * 100));
