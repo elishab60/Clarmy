@@ -236,8 +236,96 @@ export function readUsageRecords(
 // mtime tracks activity even when only files inside the dir are appended (a
 // macOS dir mtime does not change on in-place file growth).
 export function contentMtime(dir: string): number {
-  for (const f of [SUMMARY_FILE, UPDATES_FILE]) {
+  for (const f of [SIGNALS_FILE, SUMMARY_FILE, UPDATES_FILE]) {
     try { return statSync(join(dir, f)).mtimeMs; } catch { /* try next */ }
   }
   return 0;
+}
+
+// ---- signals.json (the /usage aggregates) -------------------------------
+
+const SIGNALS_FILE = "signals.json";
+
+export interface GrokSignals {
+  readonly toolUses: number;
+  readonly contextTokens: number;
+  readonly contextWindow: number;
+  readonly model?: string;
+}
+
+interface RawSignals {
+  toolCallCount?: number;
+  contextTokensUsed?: number;
+  contextWindowTokens?: number;
+  modelsUsed?: string[];
+  primaryModelId?: string;
+}
+
+// Per-session aggregates Grok keeps for its `/usage` view: real tool-call count,
+// current context size and window, and the model(s) used. Tiny file, cheap to
+// read, exact (no estimation).
+export function readSignals(dir: string): GrokSignals | null {
+  let raw: RawSignals;
+  try { raw = JSON.parse(readFileSync(join(dir, SIGNALS_FILE), "utf8")) as RawSignals; }
+  catch { return null; }
+  return {
+    toolUses: raw.toolCallCount ?? 0,
+    contextTokens: raw.contextTokensUsed ?? 0,
+    contextWindow: raw.contextWindowTokens ?? 0,
+    model: raw.primaryModelId ?? raw.modelsUsed?.[0],
+  };
+}
+
+// ---- billed token usage (logs/unified.jsonl) ----------------------------
+
+interface RawUnified {
+  sid?: string;
+  ts?: string;
+  msg?: string;
+  ctx?: {
+    loop_index?: number;
+    prompt_tokens?: number;
+    cached_prompt_tokens?: number;
+    completion_tokens?: number;
+  };
+}
+
+// The real, billed per-call token counts, identical to what `/usage` reports.
+// Grok logs every model call as a `shell.turn.inference_done` line in the GLOBAL
+// rolling log ~/.grok/logs/unified.jsonl. We read it once and group records by
+// session id. The log rotates, so very old sessions may be absent (callers fall
+// back to the context-size reconstruction in readUsageRecords).
+//   - input  = prompt_tokens - cached_prompt_tokens   (uncached prompt)
+//   - cache  = cached_prompt_tokens                    (prompt-cache reads)
+//   - output = completion_tokens                       (incl. reasoning tokens)
+export function readUnifiedUsage(): Map<string, ProviderUsageRecord[]> {
+  const out = new Map<string, ProviderUsageRecord[]>();
+  let text: string;
+  try { text = readFileSync(join(grokHome(), "logs", "unified.jsonl"), "utf8"); }
+  catch { return out; }
+  for (const line of text.split("\n")) {
+    if (!line || !line.includes("inference_done")) continue;
+    let o: RawUnified;
+    try { o = JSON.parse(line) as RawUnified; } catch { continue; }
+    if (o.msg !== "shell.turn.inference_done" || !o.sid || !o.ctx) continue;
+    const c = o.ctx;
+    const prompt = c.prompt_tokens ?? 0;
+    const cached = c.cached_prompt_tokens ?? 0;
+    const output = c.completion_tokens ?? 0;
+    if (prompt === 0 && output === 0) continue;
+    const ts = parseTs(o.ts);
+    const rec: ProviderUsageRecord = {
+      key: `${o.sid}:${ts}:${c.loop_index ?? 0}`,
+      ts,
+      model: undefined, // priced against the session's model in metrics-rows
+      inputTokens: Math.max(0, prompt - cached),
+      outputTokens: output,
+      cacheReadTokens: cached,
+      cacheCreate5mTokens: 0,
+      cacheCreate1hTokens: 0,
+    };
+    const list = out.get(o.sid);
+    if (list) list.push(rec); else out.set(o.sid, [rec]);
+  }
+  return out;
 }
