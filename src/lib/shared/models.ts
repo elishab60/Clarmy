@@ -187,6 +187,33 @@ export const MODELS: readonly ModelSpec[] = [
     effortLevels: ["low", "medium", "high", "xhigh"],
     defaultEffort: "medium",
   },
+
+  // ---- xAI / Grok ---------------------------------------------------------
+  // The Grok CLI (`grok`) pilots xAI coding models through
+  // cli-chat-proxy.grok.com. Both report supports_reasoning_effort=false, so
+  // effortLevels stays empty even though the binary exposes a global --effort
+  // flag. ids are the concrete strings `grok -m <id>` accepts (models_cache.json
+  // on grok-cli v0.2.51).
+  {
+    id: "grok-build",
+    provider: "grok",
+    apiId: "grok-build",
+    label: "Grok Build",
+    tagline: "xAI's latest coding model",
+    aliasFrom: ["grok-build"],
+    effortLevels: [],
+    defaultEffort: null,
+  },
+  {
+    id: "grok-composer-2.5-fast",
+    provider: "grok",
+    apiId: "grok-composer-2.5-fast",
+    label: "Grok Composer 2.5 Fast",
+    tagline: "fast coding model",
+    aliasFrom: ["grok-composer-2.5-fast", "grok-composer"],
+    effortLevels: [],
+    defaultEffort: null,
+  },
 ];
 
 export type ModelId = string;
@@ -285,6 +312,8 @@ const CONTEXT_WINDOWS: Record<string, number> = {
   "gemini-2.5-pro": 1_000_000,
   "gemini-2.5-flash": 1_000_000,
   "gemini-2.5-flash-lite": 1_000_000,
+  "grok-build": 512_000,
+  "grok-composer-2.5-fast": 200_000,
 };
 
 export function contextWindowFor(id: string): number {

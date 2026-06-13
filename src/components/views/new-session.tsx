@@ -256,7 +256,7 @@ export function NewSessionView() {
   return (
     <div className="new-session-view">
       <h1>New session</h1>
-      <p className="lede">Spawn an agent CLI session in a project directory. Pick the provider (Gemini, Claude or Codex), then approve tool calls individually or let a set of them run unattended.</p>
+      <p className="lede">Spawn an agent CLI session in a project directory. Pick the provider (Gemini, Claude, Codex or Grok), then approve tool calls individually or let a set of them run unattended.</p>
 
       <div className="form-card">
         <div className="form-section">

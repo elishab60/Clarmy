@@ -46,6 +46,10 @@ export const codexDriver: CliDriver = {
     return {};
   },
 
+  mcpConfigArgs(): string[] {
+    return []; // Codex manages MCP via `codex mcp` / config.toml, not a flag.
+  },
+
   effortInArgs(): boolean {
     return true;
   },

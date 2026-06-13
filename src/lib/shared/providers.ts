@@ -3,7 +3,7 @@
 // metadata here is client-safe (no node imports) so the topbar, store and forms
 // can render provider chips; the server-side driver (flags + transcript parser)
 // lives in src/lib/providers/<id>.
-export const PROVIDER_IDS = ["gemini", "claude", "codex"] as const;
+export const PROVIDER_IDS = ["gemini", "claude", "codex", "grok"] as const;
 export type ProviderId = typeof PROVIDER_IDS[number];
 
 export const DEFAULT_PROVIDER: ProviderId = "claude";
@@ -50,6 +50,15 @@ export const PROVIDERS: readonly ProviderMeta[] = [
     homeDir: ".codex",
     accent: "#10a37f",
     tagline: "OpenAI Codex CLI",
+  },
+  {
+    id: "grok",
+    label: "Grok",
+    vendor: "xAI",
+    binary: "grok",
+    homeDir: ".grok",
+    accent: "#9b7cff",
+    tagline: "xAI Grok CLI",
   },
 ];
 

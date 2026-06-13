@@ -82,6 +82,12 @@ export interface CliDriver {
   // Extra env vars merged onto the child PATH/TERM env.
   envExtras(cfg: SpawnConfig): Record<string, string>;
 
+  // argv to load cockpit's per-session MCP config file at launch. Claude takes
+  // `--mcp-config <path>`; codex/gemini/grok accept MCP servers only via their
+  // own subcommand/settings and reject an unknown launch flag, so they return []
+  // (the file is cleaned up when unused).
+  mcpConfigArgs(path: string): string[];
+
   // True when buildArgs already delivered this effort as a flag, so the runner
   // need not also send a launch-time slash command.
   effortInArgs(effort: Effort): boolean;

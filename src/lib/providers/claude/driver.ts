@@ -32,6 +32,10 @@ export const claudeDriver: CliDriver = {
     return {};
   },
 
+  mcpConfigArgs(path: string): string[] {
+    return ["--mcp-config", path];
+  },
+
   effortInArgs(effort: Effort): boolean {
     return CLI_EFFORT_FLAGS.has(effort);
   },

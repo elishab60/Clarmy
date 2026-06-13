@@ -117,10 +117,3 @@ export function removeSessionMcpConfig(sessionId: string): void {
     log.warn("failed to remove session mcp config", { sessionId, err: String(err) });
   }
 }
-
-// argv fragment to merge our server into the session's MCP config without
-// disabling the user's own servers (no --strict-mcp-config).
-export function mcpConfigArgs(sessionId: string): string[] {
-  const path = writeSessionMcpConfig(sessionId);
-  return path ? ["--mcp-config", path] : [];
-}

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useCockpit } from "@/lib/client/store";
-import { Claude, Codex, Antigravity, type IconType } from "@lobehub/icons";
+import { Claude, Codex, Antigravity, Grok, type IconType } from "@lobehub/icons";
 import { PROVIDERS } from "@/lib/shared/providers";
 import type { ProviderId } from "@/lib/shared/types";
 
@@ -13,6 +13,7 @@ const PROVIDER_ICON: Record<ProviderId, IconType> = {
   claude: Claude,
   codex: Codex,
   gemini: Antigravity,
+  grok: Grok,
 };
 
 function titleFor(pathname: string): string {

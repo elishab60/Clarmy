@@ -76,7 +76,9 @@ function QuotaMeter({ q }: { q: ProviderQuota }) {
       </div>
       {hasWindows
         ? q.windows.map((w) => <WindowLine key={w.label} w={w} />)
-        : <AsciiBar pct={pct} cells={16} tone={levelFor(pct)} size="sm" />}
+        : pct !== null
+          ? <AsciiBar pct={pct} cells={16} tone={levelFor(pct)} size="sm" />
+          : null}
       {q.detail && !hasWindows && (
         <div className="quota-cap" title={q.detail}>{q.detail}</div>
       )}

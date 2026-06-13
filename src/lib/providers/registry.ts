@@ -3,11 +3,13 @@ import type { CliDriver } from "./types.ts";
 import { claudeDriver } from "./claude/driver.ts";
 import { geminiDriver } from "./gemini/driver.ts";
 import { codexDriver } from "./codex/driver.ts";
+import { grokDriver } from "./grok/driver.ts";
 
 const DRIVERS: Record<ProviderId, CliDriver> = {
   claude: claudeDriver,
   gemini: geminiDriver,
   codex: codexDriver,
+  grok: grokDriver,
 };
 
 export function getDriver(provider: ProviderId): CliDriver {

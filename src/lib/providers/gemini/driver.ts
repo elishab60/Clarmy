@@ -38,6 +38,10 @@ export const geminiDriver: CliDriver = {
     return {};
   },
 
+  mcpConfigArgs(): string[] {
+    return []; // Gemini manages MCP via `gemini mcp` / settings, not a flag.
+  },
+
   effortInArgs(): boolean {
     return false;
   },
