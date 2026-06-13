@@ -1,5 +1,6 @@
 import { readFileSync, openSync, readSync, closeSync, statSync } from "node:fs";
 import { join } from "node:path";
+import type { ProviderUsageRecord } from "../types.ts";
 import { grokHome, SUMMARY_FILE, EVENTS_FILE, UPDATES_FILE } from "./paths.ts";
 
 function parseTs(s: string | undefined): number {
@@ -136,4 +137,107 @@ export function activeSessionIds(): Set<string> {
     }
   } catch { /* absent or unreadable */ }
   return new Set();
+}
+
+// ---- usage reconstruction (updates.jsonl) -------------------------------
+
+// Grok records no billed token counts (no input/output/cache like Claude). The
+// only token signal is `_meta.totalTokens`: the cumulative context size sampled
+// on each streamed chunk. Each model call within a turn is identified by a
+// distinct `_meta.streamStartMs`, and the totalTokens at the start of a stream is
+// the context that call was fed. We reconstruct billed usage from that, modelling
+// the resent context prefix as cache reads (prompt caching) exactly like the
+// Codex scanner splits cached_input_tokens out of input_tokens:
+//   - input  = the growth of context over the running peak (genuinely new tokens)
+//   - cache  = the rest of the context the call re-read
+//   - output = a /4 char estimate of the assistant text + reasoning it generated
+// Output undercounts tool-call arguments (not emitted as text), but for these
+// long-context agentic sessions input dwarfs output, so cost is driven by input.
+
+interface RawUpdateLine {
+  params?: {
+    _meta?: { streamStartMs?: number; totalTokens?: number };
+    update?: {
+      sessionUpdate?: string;
+      content?: { type?: string; text?: string };
+      _meta?: { modelId?: string };
+    };
+  };
+}
+
+interface StreamAcc {
+  firstTokens: number | null;
+  lastTokens: number | null;
+  outChars: number;
+  model: string | undefined;
+}
+
+const TOKENS_PER_CHAR = 1 / 4;
+
+export function readUsageRecords(
+  dir: string,
+  sessionId: string,
+  defaultModel: string | undefined,
+): ProviderUsageRecord[] {
+  let text: string;
+  try { text = readFileSync(join(dir, UPDATES_FILE), "utf8"); } catch { return []; }
+
+  // Group chunks by model-call stream, preserving chronological (insertion) order.
+  const streams = new Map<number, StreamAcc>();
+  for (const line of text.split("\n")) {
+    if (!line || !line.includes("streamStartMs")) continue;
+    let o: RawUpdateLine;
+    try { o = JSON.parse(line) as RawUpdateLine; } catch { continue; }
+    const meta = o.params?._meta;
+    if (!meta || typeof meta.streamStartMs !== "number") continue;
+    const ss = meta.streamStartMs;
+    let acc = streams.get(ss);
+    if (!acc) { acc = { firstTokens: null, lastTokens: null, outChars: 0, model: defaultModel }; streams.set(ss, acc); }
+    const tt = meta.totalTokens;
+    if (typeof tt === "number") {
+      if (acc.firstTokens === null) acc.firstTokens = tt;
+      acc.lastTokens = tt;
+    }
+    const u = o.params?.update;
+    const su = u?.sessionUpdate;
+    if ((su === "agent_message_chunk" || su === "agent_thought_chunk") && u?.content?.type === "text") {
+      acc.outChars += u.content.text?.length ?? 0;
+    }
+    const mid = u?._meta?.modelId;
+    if (typeof mid === "string") acc.model = mid;
+  }
+
+  const out: ProviderUsageRecord[] = [];
+  let peak = 0;
+  for (const [ss, acc] of streams) {
+    const ctxStart = acc.firstTokens ?? acc.lastTokens ?? 0;
+    const input = Math.max(0, ctxStart - peak); // genuinely new context tokens
+    const cacheRead = ctxStart - input; // re-read prefix (= min(ctxStart, peak))
+    const output = Math.round(acc.outChars * TOKENS_PER_CHAR);
+    const top = Math.max(ctxStart, acc.lastTokens ?? 0);
+    if (top > peak) peak = top;
+    if (input === 0 && cacheRead === 0 && output === 0) continue;
+    out.push({
+      key: `${sessionId}:${ss}`,
+      ts: ss,
+      model: acc.model,
+      inputTokens: input,
+      outputTokens: output,
+      cacheReadTokens: cacheRead,
+      cacheCreate5mTokens: 0,
+      cacheCreate1hTokens: 0,
+    });
+  }
+  return out;
+}
+
+// Freshest content timestamp for a session dir, for mtime-cached re-scans.
+// summary.json is rewritten on every update (its updated_at advances), so its
+// mtime tracks activity even when only files inside the dir are appended (a
+// macOS dir mtime does not change on in-place file growth).
+export function contentMtime(dir: string): number {
+  for (const f of [SUMMARY_FILE, UPDATES_FILE]) {
+    try { return statSync(join(dir, f)).mtimeMs; } catch { /* try next */ }
+  }
+  return 0;
 }

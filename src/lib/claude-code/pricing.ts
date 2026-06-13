@@ -45,6 +45,12 @@ const FALLBACK_PER_TOKEN: Record<string, Pricing> = {
   "gpt-5-codex":                { input: 1.25e-6, output: 10e-6,   cacheRead: 1.25e-7,  cacheCreate5m: 1.25e-6,  cacheCreate1h: 1.25e-6 },
   "gpt-5":                      { input: 1.25e-6, output: 10e-6,   cacheRead: 1.25e-7,  cacheCreate5m: 1.25e-6,  cacheCreate1h: 1.25e-6 },
   "o4-mini":                    { input: 1.1e-6,  output: 4.4e-6,  cacheRead: 2.75e-7,  cacheCreate5m: 1.1e-6,   cacheCreate1h: 1.1e-6  },
+  // xAI Grok. The CLI's grok-build / grok-composer models run through a
+  // subscription proxy with no published per-token price, so these are best-effort
+  // list rates from xAI's grok-4 API tier (input/output, cached input at ~1/4).
+  // Usage is reconstructed (see providers/grok), not billed, so cost is an estimate.
+  "grok-build":                 { input: 3e-6,    output: 15e-6,   cacheRead: 7.5e-7,   cacheCreate5m: 3e-6,     cacheCreate1h: 3e-6    },
+  "grok-composer-2.5-fast":     { input: 1e-6,    output: 5e-6,    cacheRead: 2.5e-7,   cacheCreate5m: 1e-6,     cacheCreate1h: 1e-6    },
 };
 
 const UNKNOWN: Pricing = { input: 0, output: 0, cacheRead: 0, cacheCreate5m: 0, cacheCreate1h: 0 };
@@ -123,6 +129,8 @@ function pricingSync(model: string | undefined | null): Pricing {
   if (lower.includes("codex")) return table["gpt-5-codex"] ?? UNKNOWN;
   if (lower.includes("o4-mini")) return table["o4-mini"] ?? UNKNOWN;
   if (lower.includes("gpt-5") || lower.startsWith("gpt")) return table["gpt-5"] ?? UNKNOWN;
+  if (lower.includes("composer")) return table["grok-composer-2.5-fast"] ?? UNKNOWN;
+  if (lower.includes("grok")) return table["grok-build"] ?? UNKNOWN;
   return UNKNOWN;
 }
 
