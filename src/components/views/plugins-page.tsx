@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { ToggleSwitch } from "@/components/ui/toggle-switch";
 import { KebabMenu } from "@/components/ui/kebab-menu";
+import { PluginDetailModal } from "@/components/views/plugins/plugin-detail-modal";
 
-interface Plugin {
+export interface Plugin {
   readonly id: string;
   readonly name: string;
   readonly source: string;
@@ -30,30 +31,43 @@ const PLUGINS: Plugin[] = [
 ];
 
 export function PluginsPage() {
+  const [plugins, setPlugins] = useState<Plugin[]>(PLUGINS);
   const [q, setQ] = useState("");
   const [focused, setFocused] = useState(false);
   const [flashKey, setFlashKey] = useState(0);
+  const [detailId, setDetailId] = useState<string | null>(null);
   const [enabledMap, setEnabledMap] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(PLUGINS.map((p) => [p.id, p.status !== "disabled"]))
   );
   useEffect(() => { setFlashKey((k) => k + 1); }, []);
 
-  const filtered = PLUGINS.filter((p) =>
+  const setEnabled = (id: string, next: boolean) => setEnabledMap((m) => ({ ...m, [id]: next }));
+  const uninstall = (id: string) => {
+    setPlugins((ps) => ps.filter((p) => p.id !== id));
+    setDetailId((d) => (d === id ? null : d));
+  };
+  const update = (id: string) => {
+    setPlugins((ps) => ps.map((p) => (p.id === id ? { ...p, status: "enabled" } : p)));
+    setEnabled(id, true);
+  };
+
+  const filtered = plugins.filter((p) =>
     p.name.toLowerCase().includes(q.toLowerCase()) ||
     p.source.toLowerCase().includes(q.toLowerCase()) ||
     p.desc.toLowerCase().includes(q.toLowerCase()),
   );
 
   const isOn = (p: Plugin) => enabledMap[p.id] ?? false;
-  const total = PLUGINS.length;
-  const enabled = PLUGINS.filter((p) => isOn(p)).length;
-  const updates = PLUGINS.filter((p) => p.status === "update").length;
-  const totalSkills = PLUGINS.reduce((a, p) => a + p.skills, 0);
-  const totalAgents = PLUGINS.reduce((a, p) => a + p.agents, 0);
-  const totalHooks = PLUGINS.reduce((a, p) => a + p.hooks, 0);
+  const total = plugins.length;
+  const enabled = plugins.filter((p) => isOn(p)).length;
+  const updates = plugins.filter((p) => p.status === "update").length;
+  const totalSkills = plugins.reduce((a, p) => a + p.skills, 0);
+  const totalAgents = plugins.reduce((a, p) => a + p.agents, 0);
+  const totalHooks = plugins.reduce((a, p) => a + p.hooks, 0);
   const shipped = totalSkills + totalAgents + totalHooks;
 
-  const maxContent = Math.max(1, ...PLUGINS.map((p) => p.skills + p.agents + p.hooks));
+  const maxContent = Math.max(1, ...plugins.map((p) => p.skills + p.agents + p.hooks));
+  const detail = plugins.find((p) => p.id === detailId) ?? null;
 
   return (
     <div className="cfg-shell metrics-shell">
@@ -83,7 +97,7 @@ export function PluginsPage() {
       </div>
 
       <div className="stat-grid">
-        <StatCard flashKey={flashKey} label="Plugins installed" value={total} foot={`${enabled} enabled · ${PLUGINS.length - enabled} off`} accent />
+        <StatCard flashKey={flashKey} label="Plugins installed" value={total} foot={`${enabled} enabled · ${total - enabled} off`} accent />
         <StatCard flashKey={flashKey} label="Updates available" value={updates} foot={updates ? "run Update to refresh" : "all up to date"} />
         <StatCard flashKey={flashKey} label="Skills shipped"    value={totalSkills} foot={`${shipped} total additions`} />
         <StatCard flashKey={flashKey} label="Subagents shipped" value={totalAgents} foot="attach to every session" />
@@ -142,7 +156,7 @@ export function PluginsPage() {
                 <span style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, color: "var(--fg-muted)", marginLeft: "auto" }}>{p.version}</span>
                 <ToggleSwitch
                   checked={on}
-                  onChange={(next) => setEnabledMap((m) => ({ ...m, [p.id]: next }))}
+                  onChange={(next) => setEnabled(p.id, next)}
                   size="sm"
                   label={`${on ? "Disable" : "Enable"} ${p.name}`}
                 />
@@ -155,15 +169,15 @@ export function PluginsPage() {
                 <span><AnimatedNumber value={p.hooks} /> hooks</span>
               </div>
               <div style={{ position: "relative", display: "flex", gap: 8, marginTop: 6, alignItems: "center" }}>
-                {p.status === "update" && <FooterBtn primary>Update available</FooterBtn>}
-                <FooterBtn>Configure</FooterBtn>
+                {p.status === "update" && <FooterBtn primary onClick={() => update(p.id)}>Update available</FooterBtn>}
+                <FooterBtn onClick={() => setDetailId(p.id)}>Configure</FooterBtn>
                 <div style={{ marginLeft: "auto" }}>
                   <KebabMenu
                     ariaLabel={`Actions for ${p.name}`}
                     actions={[
-                      { label: "Edit", onSelect: () => { /* open edit */ } },
-                      { label: on ? "Disable" : "Enable", onSelect: () => setEnabledMap((m) => ({ ...m, [p.id]: !on })) },
-                      { label: "Uninstall", danger: true, onSelect: () => { /* uninstall */ } },
+                      { label: "Configure", onSelect: () => setDetailId(p.id) },
+                      { label: on ? "Disable" : "Enable", onSelect: () => setEnabled(p.id, !on) },
+                      { label: "Uninstall", danger: true, onSelect: () => uninstall(p.id) },
                     ]}
                   />
                 </div>
@@ -177,6 +191,17 @@ export function PluginsPage() {
           </div>
         )}
       </div>
+
+      {detail && (
+        <PluginDetailModal
+          plugin={detail}
+          enabled={isOn(detail)}
+          onToggle={(next) => setEnabled(detail.id, next)}
+          onUpdate={() => update(detail.id)}
+          onUninstall={() => uninstall(detail.id)}
+          onClose={() => setDetailId(null)}
+        />
+      )}
     </div>
   );
 }
@@ -193,12 +218,13 @@ function StatCard({ label, value, foot, accent = false, flashKey }: { label: str
   );
 }
 
-function FooterBtn({ children, primary = false, ghost = false }: { children: React.ReactNode; primary?: boolean; ghost?: boolean }) {
+function FooterBtn({ children, primary = false, ghost = false, onClick }: { children: React.ReactNode; primary?: boolean; ghost?: boolean; onClick?: () => void }) {
   const cls = `btn${primary ? " primary" : ""}${ghost ? " ghost" : ""}`;
   const flex = ghost ? undefined : 1;
   return (
     <button
       className={cls}
+      onClick={onClick}
       style={{ flex, transition: "border-color .25s, box-shadow .3s, filter .25s, transform .2s" }}
       onMouseEnter={(e) => {
         e.currentTarget.style.borderColor = "color-mix(in srgb, var(--brand) 40%, var(--border))";
