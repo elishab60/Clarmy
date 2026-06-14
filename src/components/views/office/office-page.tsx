@@ -10,10 +10,18 @@ import { OfficeHud } from "./office-hud";
 
 // Phaser only exists client-side; load the whole game bundle on demand so the
 // rest of CLARMY never pays for it.
-const OfficeCanvas = dynamic(() => import("./office-canvas").then((m) => m.OfficeCanvas), {
-  ssr: false,
-  loading: () => <div className="office-loading">booting the office…</div>,
-});
+const OfficeCanvas = dynamic(
+  () => import("./office-canvas").then((m) => m.OfficeCanvas),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="office-loading">
+        <span className="office-loading-title">booting the office…</span>
+        <span className="office-loading-hint">first visit compiles Phaser — ~10s</span>
+      </div>
+    ),
+  },
+);
 
 const PANEL_KEY = "cockpit:office-panel-pct";
 
@@ -88,7 +96,7 @@ export function OfficePage() {
             <div className="office-empty-card">
               <span className="glyph">⌁</span>
               <strong>The office is empty.</strong>
-              <span>Spawn a session and a clawd will walk in.</span>
+              <span>Spawn a session and an agent will walk in.</span>
             </div>
           </div>
         )}

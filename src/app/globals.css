@@ -3702,9 +3702,11 @@ button[disabled], button[aria-disabled="true"] {
 .office-canvas { position: absolute; inset: 0; }
 .office-canvas canvas { image-rendering: pixelated; }
 .office-loading {
-  position: absolute; inset: 0; display: grid; place-items: center;
+  position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 6px;
   font-family: var(--font-mono); font-size: 12px; color: var(--fg-muted);
 }
+.office-loading-title { color: var(--fg-dim); }
+.office-loading-hint { font-size: 10px; color: var(--fg-faint); opacity: 0.85; }
 .office-hud {
   position: absolute; top: 10px; left: 12px; right: 12px;
   display: flex; align-items: center; justify-content: space-between; gap: 10px;

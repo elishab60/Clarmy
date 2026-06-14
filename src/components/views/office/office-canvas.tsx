@@ -46,7 +46,7 @@ export function OfficeCanvas({
     const push = () => {
       const { sessions } = useCockpit.getState();
       const list: SessionLite[] = Object.values(sessions).map((s) => ({
-        id: s.id, state: s.state, name: s.name, project: s.project,
+        id: s.id, provider: s.provider, state: s.state, name: s.name, project: s.project,
         prompt: s.prompt, subagents: s.subagents,
       }));
       scene.setSessions(list);
