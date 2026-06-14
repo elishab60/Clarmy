@@ -1,20 +1,24 @@
-import Phaser from "phaser";
-import { buildBlocked, COLS, DECOR, DESKS, ROWS, WORLD_H, WORLD_W } from "./layout";
+import type * as PhaserNamespace from "phaser";
+import { AGENT_SHEET, type AgentSprite } from "./agents";
+import {
+  buildBlocked, DECOR, DESKS, SPAWN_BY_PROVIDER, WORLD_H, WORLD_W, ZONE_LABELS,
+} from "./layout";
 import { Character } from "./character";
 import { applyState, hash } from "./behavior";
-import { TILE, key, type Desk, type SessionLite } from "./types";
+import { TILE, type Desk, type SessionLite } from "./types";
 
-const PALETTES = 6;
+const AGENT_SPRITES: readonly AgentSprite[] = ["grok", "claude", "gemini", "codex"];
 
 // The office scene. Sessions flow in one direction: the React bridge calls
 // setSessions(); the scene converges characters toward that truth. Clicking a
 // character emits "select" with the session id (React renders the inspector).
-export class OfficeScene extends Phaser.Scene {
+export function createOfficeScene(P: typeof import("phaser")) {
+  class OfficeScene extends P.Scene {
   private chars = new Map<string, Character>();
   private minis = new Map<string, Character[]>();
   private deskOf = new Map<string, Desk>();
   private freeDesks: Desk[] = [...DESKS];
-  private pcs = new Map<number, Phaser.GameObjects.Sprite>();
+  private pcs = new Map<number, PhaserNamespace.GameObjects.Sprite>();
   private blocked = buildBlocked();
   private pending: SessionLite[] | null = null;
   private created = false;
@@ -28,15 +32,22 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   preload(): void {
+    this.load.image("office-bg-dark", "/office/office-bg-dark.png");
+    this.load.image("office-bg-light", "/office/office-bg-light.png");
     this.load.atlas("decor", "/office/atlas.png", "/office/atlas.json");
-    for (let p = 0; p < PALETTES; p += 1) {
-      this.load.spritesheet(`char_${p}`, `/office/characters/clawd_${p}.png`, { frameWidth: 16, frameHeight: 32 });
+    for (const id of AGENT_SPRITES) {
+      const sheet = AGENT_SHEET[id];
+      this.load.spritesheet(`agent_${id}`, `/office/characters/agent_${id}.png`, {
+        frameWidth: sheet.frameWidth, frameHeight: sheet.frameHeight,
+      });
     }
   }
 
   create(): void {
     this.createAnims();
     this.drawRoom();
+    this.drawZoneLabels();
+    this.startAmbience();
     this.setupCamera();
     this.created = true;
     if (this.pending) { this.syncSessions(this.pending); this.pending = null; }
@@ -95,6 +106,7 @@ export class OfficeScene extends Phaser.Scene {
     for (let i = 0; i < list.length; i += 1) {
       const ch = list[i]!;
       ch.setLabelVisible(visible);
+      ch.setQuipVisible(visible);
       let stack = 0;
       for (let j = 0; j < i; j += 1) {
         const other = list[j]!;
@@ -129,9 +141,8 @@ export class OfficeScene extends Phaser.Scene {
   private spawn(s: SessionLite): void {
     const desk = this.freeDesks.shift() ?? DESKS[hash(s.id) % DESKS.length]!;
     this.deskOf.set(s.id, desk);
-    const palette = hash(s.project || s.id) % PALETTES;
-    const door = { col: 2 + (this.chars.size % 4), row: ROWS - 3, face: "up" as const };
-    const ch = new Character(this, s, palette, door, () => this.blocked);
+    const door = SPAWN_BY_PROVIDER[s.provider] ?? SPAWN_BY_PROVIDER.claude;
+    const ch = new Character(this, s, door, () => this.blocked);
     ch.sprite.setInteractive({ useHandCursor: true });
     ch.sprite.on("pointerdown", () => { this.charClicked = true; this.game.events.emit("select", s.id); });
     ch.sprite.on("pointerover", () => ch.setHovered(true));
@@ -166,7 +177,7 @@ export class OfficeScene extends Phaser.Scene {
       const desk = this.deskOf.get(s.id)!;
       const i = list.length;
       const spot = { col: desk.seat.col + (i === 0 ? -1 : 1), row: desk.seat.row + (i === 2 ? 1 : 0), face: "down" as const };
-      const mini = new Character(this, { ...s, id: `${s.id}:sub${i}` }, hash(`${s.id}${i}`) % PALETTES, spot, () => this.blocked, true);
+      const mini = new Character(this, { ...s, id: `${s.id}:sub${i}` }, spot, () => this.blocked, true);
       mini.setPromptVisible(false);
       mini.setMode("sit_read");
       list.push(mini);
@@ -184,21 +195,22 @@ export class OfficeScene extends Phaser.Scene {
 
   // ── world building ─────────────────────────────────────────────────────
   private createAnims(): void {
-    for (let p = 0; p < PALETTES; p += 1) {
+    for (const id of AGENT_SPRITES) {
+      const sheet = `agent_${id}`;
       for (const [dir, base] of [["down", 0], ["up", 7], ["right", 14]] as const) {
         this.anims.create({
-          key: `c${p}-walk-${dir}`,
-          frames: [base, base + 1, base + 2, base + 1].map((f) => ({ key: `char_${p}`, frame: f })),
+          key: `${sheet}-walk-${dir}`,
+          frames: [base, base + 1, base + 2, base + 1].map((f) => ({ key: sheet, frame: f })),
           frameRate: 7, repeat: -1,
         });
         this.anims.create({
-          key: `c${p}-type-${dir}`,
-          frames: [base + 3, base + 4].map((f) => ({ key: `char_${p}`, frame: f })),
+          key: `${sheet}-type-${dir}`,
+          frames: [base + 3, base + 4].map((f) => ({ key: sheet, frame: f })),
           frameRate: 3.3, repeat: -1,
         });
         this.anims.create({
-          key: `c${p}-read-${dir}`,
-          frames: [base + 5, base + 6].map((f) => ({ key: `char_${p}`, frame: f })),
+          key: `${sheet}-read-${dir}`,
+          frames: [base + 5, base + 6].map((f) => ({ key: sheet, frame: f })),
           frameRate: 1.6, repeat: -1,
         });
       }
@@ -211,22 +223,12 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   private drawRoom(): void {
-    // Flat warm floor with a barely-there grid: paper + terminal, no checker.
     const dark = typeof document !== "undefined" && document.documentElement.dataset.theme !== "light";
-    const room = dark ? 0x262421 : 0xede9e0;
-    const edge = dark ? 0x36332e : 0xd8d2c4;
-    const gridColor = dark ? 0xede9e0 : 0x2b2926;
-    this.add.rectangle(0, 0, WORLD_W, WORLD_H, room).setOrigin(0).setDepth(-12);
-    const grid = this.add.graphics().setDepth(-11);
-    grid.lineStyle(1, gridColor, 0.06);
-    for (let c = 1; c < COLS; c += 1) grid.lineBetween(c * TILE, 0, c * TILE, WORLD_H);
-    for (let r = 1; r < ROWS; r += 1) grid.lineBetween(0, r * TILE, WORLD_W, r * TILE);
-    const border = this.add.graphics().setDepth(-10);
-    border.lineStyle(2, edge, 1);
-    border.strokeRect(1, 1, WORLD_W - 2, WORLD_H - 2);
+    this.add.image(0, 0, dark ? "office-bg-dark" : "office-bg-light").setOrigin(0).setDepth(-12);
     for (const d of DECOR) {
-      const y = d.tall ? d.row * TILE - TILE : d.row * TILE;
-      this.add.image(d.col * TILE, y, "decor", d.frame).setOrigin(0).setDepth(d.row * TILE + TILE - 0.1);
+      const y = d.floor ? d.row * TILE : (d.tall ? d.row * TILE - TILE : d.row * TILE);
+      const depth = d.floor ? -9.5 : d.row * TILE + TILE - 0.1;
+      this.add.image(d.col * TILE, y, "decor", d.frame).setOrigin(0).setDepth(depth);
     }
     for (const desk of DESKS) {
       this.add.image(desk.pcCol * TILE, desk.pcRow * TILE, "decor", "DESK_FRONT").setOrigin(0).setDepth(desk.pcRow * TILE + TILE - 0.2);
@@ -238,26 +240,63 @@ export class OfficeScene extends Phaser.Scene {
     }
   }
 
+  private drawZoneLabels(): void {
+    const dark = typeof document !== "undefined" && document.documentElement.dataset.theme !== "light";
+    for (const z of ZONE_LABELS) {
+      const label = this.add.text(z.col * TILE, z.row * TILE, z.text, {
+        fontFamily: "monospace", fontSize: "5px", color: z.color,
+        backgroundColor: dark ? "rgba(20,18,16,0.55)" : "rgba(245,242,236,0.65)",
+        padding: { x: 2, y: 1 },
+      }).setOrigin(0).setResolution(4).setDepth(2).setAlpha(0.7);
+      this.tweens.add({ targets: label, alpha: { from: 0.45, to: 0.85 }, duration: 2_400, yoyo: true, repeat: -1 });
+    }
+  }
+
+  private startAmbience(): void {
+    const zones: Array<{ x: number; y: number; r: number; color: number; depth: number }> = [
+      { x: 4 * TILE, y: 4 * TILE, r: 18, color: 0x9b7cff, depth: 3 },   // Nécropolis
+      { x: 35 * TILE, y: 4 * TILE, r: 16, color: 0xd97757, depth: 3 },   // Bibliothèque
+      { x: 4 * TILE, y: 19 * TILE, r: 14, color: 0x4796e3, depth: 3 },  // Grand Salon
+      { x: 34 * TILE, y: 18 * TILE, r: 20, color: 0x10a37f, depth: 2 },  // Zone Dégout
+    ];
+    for (const z of zones) {
+      const glow = this.add.circle(z.x, z.y, z.r, z.color, 0.1).setDepth(z.depth);
+      this.tweens.add({
+        targets: glow, alpha: { from: 0.04, to: 0.18 },
+        scale: { from: 0.85, to: 1.25 }, duration: 2_000 + z.r * 40,
+        yoyo: true, repeat: -1, ease: "Sine.inOut",
+      });
+    }
+    // TV flicker in the spectator lounge
+    const tvFlicker = this.add.rectangle(31 * TILE + 8, 15 * TILE, 56, 28, 0x4796e3, 0.04).setDepth(2);
+    this.tweens.add({ targets: tvFlicker, alpha: { from: 0.01, to: 0.1 }, duration: 1_400,
+      yoyo: true, repeat: -1, ease: "Steps(3)" });
+  }
+
   private setupCamera(): void {
     const cam = this.cameras.main;
     cam.setBounds(-TILE * 2, -TILE * 3, WORLD_W + TILE * 4, WORLD_H + TILE * 5);
     const fit = Math.min(cam.width / (WORLD_W + TILE * 2), cam.height / (WORLD_H + TILE * 4));
-    // bias toward closeness: clawds are small and labels show from zoom 2.05
-    cam.setZoom(Math.max(2.2, Math.min(3.2, fit * 1.3)));
+    // bias toward closeness: personas are 16×32 and labels show from zoom 2.05
+    cam.setZoom(Math.max(2.4, Math.min(3.4, fit * 1.35)));
     cam.centerOn(WORLD_W / 2, WORLD_H / 2);
-    this.input.on("pointermove", (p: Phaser.Input.Pointer) => {
+    this.input.on("pointermove", (p: PhaserNamespace.Input.Pointer) => {
       if (!p.isDown) return;
       cam.scrollX -= (p.x - p.prevPosition.x) / cam.zoom;
       cam.scrollY -= (p.y - p.prevPosition.y) / cam.zoom;
     });
     // click on empty space (no drag, no character) closes the terminal panel
-    this.input.on("pointerup", (p: Phaser.Input.Pointer) => {
-      const dragged = Phaser.Math.Distance.Between(p.downX, p.downY, p.upX, p.upY) > 5;
+    this.input.on("pointerup", (p: PhaserNamespace.Input.Pointer) => {
+      const dragged = P.Math.Distance.Between(p.downX, p.downY, p.upX, p.upY) > 5;
       if (!dragged && !this.charClicked) this.game.events.emit("select", null);
       this.charClicked = false;
     });
     this.input.on("wheel", (_p: unknown, _o: unknown, _dx: number, dy: number) => {
-      cam.setZoom(Phaser.Math.Clamp(cam.zoom - dy * 0.0015, 1.2, 5));
+      cam.setZoom(P.Math.Clamp(cam.zoom - dy * 0.0015, 1.2, 5));
     });
   }
+  }
+  return OfficeScene;
 }
+
+export type OfficeSceneInstance = InstanceType<ReturnType<typeof createOfficeScene>>;

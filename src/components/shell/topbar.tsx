@@ -3,17 +3,17 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useCockpit } from "@/lib/client/store";
-import { Claude, Codex, Antigravity, Grok, type IconType } from "@lobehub/icons";
+import { ClaudeIcon, CodexIcon, AntigravityIcon, GrokIcon, type ProviderIcon } from "./provider-icons";
 import { PROVIDERS } from "@/lib/shared/providers";
 import type { ProviderId } from "@/lib/shared/types";
 
 // Icon-only provider chips in the header. Mono variants follow `currentColor`,
 // so every glyph renders in one uniform color (CSS-driven), not its brand hue.
-const PROVIDER_ICON: Record<ProviderId, IconType> = {
-  claude: Claude,
-  codex: Codex,
-  gemini: Antigravity,
-  grok: Grok,
+const PROVIDER_ICON: Record<ProviderId, ProviderIcon> = {
+  claude: ClaudeIcon,
+  codex: CodexIcon,
+  gemini: AntigravityIcon,
+  grok: GrokIcon,
 };
 
 function titleFor(pathname: string): string {

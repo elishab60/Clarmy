@@ -1,4 +1,4 @@
-{"kind":"system.init","payload":{"id":"s_f03c","project":"scraper","name":"crawl product catalog","model":"sonnet-4.6"}}
+{"kind":"system.init","payload":{"id":"s_f03c","provider":"codex","project":"scraper","name":"crawl product catalog","model":"gpt-5.3-codex"}}
 {"kind":"assistant.text","payload":{"line":{"t":"gt","v":"fetching catalog feed"}}}
 {"kind":"assistant.text","payload":{"line":{"t":"warn","v":"connection refused, retrying…"}}}
 {"kind":"result.error","payload":{"message":"ECONNREFUSED — upstream api.shop.local:8443 unreachable after 3 retries. Circuit breaker open.","retryIn":8}}

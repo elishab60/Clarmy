@@ -1,4 +1,4 @@
-import type { SessionState } from "@/lib/shared/types";
+import type { ProviderId, SessionState } from "@/lib/shared/types";
 
 export const TILE = 16;
 
@@ -15,10 +15,12 @@ export type CharMode =
   | "alert"       // standing at desk, orange "!" (approval)
   | "dizzy"       // error: sway + red cross
   | "celebrate"   // done: bounce, then heads to the lounge
-  | "lounge";     // sitting in the lounge after done
+  | "lounge"      // sitting in the lounge after done
+  | "spectate";   // codex: watching the poster wall
 
 export interface SessionLite {
   readonly id: string;
+  readonly provider: ProviderId;
   readonly state: SessionState;
   readonly name: string;
   readonly project: string;

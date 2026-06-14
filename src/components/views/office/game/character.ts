@@ -1,13 +1,12 @@
 import type Phaser from "phaser";
+import { AGENT_PERSONAS, AGENT_SHEET, quipFor, quipStyle, spriteForProvider } from "./agents";
 import { findPath } from "./pathfind";
+import { codexSlouchTween, PersonaFxController } from "./persona-fx";
 import { STATE_TINT, TILE, type CharMode, type Dir, type SessionLite, type Spot } from "./types";
 
-const WALK_SPEED = 56;          // px/s (pixel-agents uses 48)
+const WALK_SPEED = 56;
 const FRAME: Record<Dir, number> = { down: 0, up: 7, right: 14, left: 14 };
 
-// One session = one character: sprite + name tag + status bubble grouped so
-// they move and depth-sort together. The mode machine animates; the scene
-// decides goals (state -> behavior mapping lives in behavior.ts).
 export class Character {
   readonly id: string;
   readonly container: Phaser.GameObjects.Container;
@@ -15,9 +14,11 @@ export class Character {
   private readonly tag: Phaser.GameObjects.Text;
   private dot!: Phaser.GameObjects.Arc;
   private aura!: Phaser.GameObjects.Ellipse;
-  private readonly palette: number;
+  private readonly spriteKey: string;
   private readonly scene: Phaser.Scene;
   private readonly blocked: () => ReadonlySet<string>;
+  private readonly mini: boolean;
+  private readonly personaFx: PersonaFxController;
 
   mode: CharMode = "stand";
   col: number;
@@ -31,13 +32,15 @@ export class Character {
   private hovered = false;
   private bubbleTween: Phaser.Tweens.Tween | null = null;
   private swayTween: Phaser.Tweens.Tween | null = null;
+  private codexSlouch: Phaser.Tweens.Tween | null = null;
   private halo: Phaser.GameObjects.Ellipse | null = null;
   private haloTween: Phaser.Tweens.Tween | null = null;
+  private quip: Phaser.GameObjects.Text | null = null;
+  private quipTween: Phaser.Tweens.Tween | null = null;
 
   constructor(
     scene: Phaser.Scene,
     session: SessionLite,
-    palette: number,
     spawn: Spot,
     blocked: () => ReadonlySet<string>,
     mini = false,
@@ -45,14 +48,20 @@ export class Character {
     this.scene = scene;
     this.id = session.id;
     this.session = session;
-    this.palette = palette;
+    this.mini = mini;
+    const agent = spriteForProvider(session.provider);
+    const sheetMeta = AGENT_SHEET[agent];
+    this.spriteKey = `agent_${agent}`;
     this.blocked = blocked;
     this.col = spawn.col;
     this.row = spawn.row;
+    this.personaFx = new PersonaFxController(scene, agent, this.container = scene.add.container(0, 0));
 
-    this.sprite = scene.add.sprite(0, 0, `char_${palette}`, FRAME.down + 1).setOrigin(0.5, 1);
+    this.sprite = scene.add.sprite(0, 0, this.spriteKey, FRAME.down + 1)
+      .setOrigin(0.5, 1).setScale(mini ? sheetMeta.displayScale * 0.58 : sheetMeta.displayScale);
     const dark = typeof document !== "undefined" && document.documentElement.dataset.theme !== "light";
-    this.tag = scene.add.text(0, -26, shortName(session), {
+    const tagY = agent === "grok" ? -44 : -26;
+    this.tag = scene.add.text(0, tagY, displayName(session), {
       fontFamily: "monospace", fontSize: "6.5px",
       color: dark ? "#EDE9E0" : "#2B2926",
       backgroundColor: dark ? "rgba(31,30,28,0.78)" : "rgba(245,242,236,0.82)",
@@ -60,20 +69,16 @@ export class Character {
     }).setOrigin(0.5, 1).setResolution(4);
     this.dot = scene.add.circle(0, -18, 2, 0x8a857c, 1);
     this.aura = scene.add.ellipse(0, -1, 18, 8, 0x8a857c, 0).setVisible(false);
-
     this.halo = scene.add.ellipse(0, -2, 22, 10, 0xd97757, 0.0).setVisible(false);
-    this.container = scene.add.container(
-      spawn.col * TILE + TILE / 2,
-      spawn.row * TILE + TILE,
-      [this.halo, this.aura, this.sprite, this.dot, this.tag],
-    );
-    if (mini) this.container.setScale(0.65);
+    this.container.setPosition(spawn.col * TILE + TILE / 2, spawn.row * TILE + TILE);
+    const shadow = scene.add.ellipse(0, -1, 14, 5, 0x000000, dark ? 0.35 : 0.18);
+    this.container.add([this.halo, shadow, this.aura, this.sprite, this.dot, this.tag]);
+    if (mini) this.container.setScale(0.7);
     this.container.setAlpha(0);
     scene.tweens.add({ targets: this.container, alpha: 1, duration: 350 });
     this.face(spawn.face);
   }
 
-  // Walk to a spot, then switch to `mode` facing the spot's direction.
   goTo(spot: Spot, mode: CharMode): void {
     const path = findPath(this.col, this.row, spot.col, spot.row, this.blocked());
     this.clearEffects();
@@ -98,20 +103,18 @@ export class Character {
   private arrive(mode: CharMode, face: Dir): void {
     this.mode = mode;
     this.face(face);
-    const p = this.palette;
+    const sk = this.spriteKey;
     this.applyIndicator();
+    this.refreshQuip();
     switch (mode) {
-      case "sit_type": this.sprite.play(`c${p}-type-${this.animDir()}`); break;
-      case "sit_read": case "lounge": this.sprite.play(`c${p}-read-${this.animDir()}`); break;
-      case "use_tool": this.sprite.play(`c${p}-read-${this.animDir()}`); break;
-      case "alert": {
-        // approval: still, slow orange pulse on dot + aura - asks, not shouts
+      case "sit_type": this.sprite.play(`${sk}-type-${this.animDir()}`); break;
+      case "sit_read": case "lounge": case "spectate": this.sprite.play(`${sk}-read-${this.animDir()}`); break;
+      case "use_tool": this.sprite.play(`${sk}-read-${this.animDir()}`); break;
+      case "alert":
         this.sprite.stop();
         this.sprite.setFrame(FRAME[this.animDir()] + 1);
         break;
-      }
-      case "dizzy": {
-        // error: slumped posture, earthy red, slight sway
+      case "dizzy":
         this.sprite.setAngle(-6);
         this.sprite.stop();
         this.sprite.setFrame(FRAME[this.animDir()] + 1);
@@ -120,8 +123,7 @@ export class Character {
           duration: 900, yoyo: true, repeat: -1, ease: "Sine.inOut",
         });
         break;
-      }
-      case "celebrate": {
+      case "celebrate":
         this.sprite.stop();
         this.sprite.setFrame(FRAME[this.animDir()] + 1);
         this.scene.tweens.add({
@@ -129,16 +131,22 @@ export class Character {
           onComplete: () => { this.sprite.y = 0; },
         });
         break;
-      }
-      default: {
+      default:
         this.sprite.stop();
         this.sprite.setFrame(FRAME[this.animDir()] + 1);
-      }
+    }
+    if (!this.mini) this.applyPersona(mode);
+  }
+
+  private applyPersona(mode: CharMode): void {
+    this.codexSlouch?.remove();
+    this.codexSlouch = null;
+    this.personaFx.apply(mode, this.session.state);
+    if (spriteForProvider(this.session.provider) === "codex" && mode === "spectate") {
+      this.codexSlouch = codexSlouchTween(this.scene, this.sprite, true);
     }
   }
 
-  // State dot above the head + a soft aura under the feet, in the warm
-  // palette; approval pulses slowly, done flashes sage then settles.
   private applyIndicator(): void {
     const state = this.session.state;
     const tint = STATE_TINT[state] ?? 0x8a857c;
@@ -158,16 +166,16 @@ export class Character {
   }
 
   update(dtMs: number): void {
+    if (!this.mini) this.personaFx.tick(dtMs, this.mode, this.session.state);
     if (this.mode !== "walk") return;
     const step = this.path[0];
     if (!step || !this.from) { this.onArrive?.(); return; }
-    const dist = TILE;
-    this.moveProgress += (WALK_SPEED * dtMs) / 1000 / dist;
+    this.moveProgress += (WALK_SPEED * dtMs) / 1000 / TILE;
     const tx = step.col * TILE + TILE / 2;
     const ty = step.row * TILE + TILE;
     this.face(dirBetween(this.from.x, this.from.y, tx, ty));
-    if (this.sprite.anims.currentAnim?.key !== `c${this.palette}-walk-${this.animDir()}`) {
-      this.sprite.play(`c${this.palette}-walk-${this.animDir()}`);
+    if (this.sprite.anims.currentAnim?.key !== `${this.spriteKey}-walk-${this.animDir()}`) {
+      this.sprite.play(`${this.spriteKey}-walk-${this.animDir()}`);
     }
     const t = Math.min(1, this.moveProgress);
     this.container.setPosition(this.from.x + (tx - this.from.x) * t, this.from.y + (ty - this.from.y) * t);
@@ -185,26 +193,51 @@ export class Character {
     this.container.setDepth(this.container.y);
   }
 
-  // Labels hide when zoomed out (the dot stays); hover always reveals.
-  setLabelVisible(visible: boolean): void {
-    this.tag.setVisible(visible || this.hovered);
-  }
-
-  setHovered(h: boolean): void {
-    this.hovered = h;
-    if (h) this.tag.setVisible(true);
-  }
-
+  setLabelVisible(visible: boolean): void { this.tag.setVisible(visible || this.hovered); }
+  setHovered(h: boolean): void { this.hovered = h; if (h) this.tag.setVisible(true); }
   setTagOffset(extra: number): void {
-    this.tag.setY(-26 - extra);
+    const base = spriteForProvider(this.session.provider) === "grok" ? -44 : -26;
+    this.tag.setY(base - extra);
+    if (this.quip) this.quip.setY(base - 16 - extra);
   }
 
   setPromptVisible(show: boolean): void {
     const prompt = this.session.prompt?.trim();
-    this.tag.setText(show && prompt ? `${shortName(this.session)}\n${truncate(prompt, 34)}` : shortName(this.session));
+    const name = displayName(this.session);
+    this.tag.setText(show && prompt ? `${name}\n${truncate(prompt, 34)}` : name);
   }
 
-  // Selection halo (accent ring under the feet) + dimming of the others.
+  setQuipVisible(show: boolean): void {
+    if (!show) { this.quip?.setVisible(false); return; }
+    this.refreshQuip();
+    this.quip?.setVisible(true);
+  }
+
+  private refreshQuip(): void {
+    const agent = spriteForProvider(this.session.provider);
+    const line = quipFor(agent, this.session.state, this.session.id);
+    if (!line) { this.quip?.setVisible(false); return; }
+    const dark = typeof document !== "undefined" && document.documentElement.dataset.theme !== "light";
+    const style = quipStyle(agent, dark);
+    if (!this.quip) {
+      this.quip = this.scene.add.text(0, -42, line, {
+        fontFamily: "monospace", fontSize: "5.5px",
+        color: style.color, backgroundColor: style.backgroundColor,
+        fontStyle: style.fontStyle ?? "normal",
+        padding: { x: 3, y: 2 }, align: "center", wordWrap: { width: 72 },
+      }).setOrigin(0.5, 1).setResolution(4);
+      this.container.add(this.quip);
+      this.quipTween = this.scene.tweens.add({
+        targets: this.quip, alpha: { from: 0.55, to: 1 },
+        duration: 1400, yoyo: true, repeat: -1, ease: "Sine.inOut",
+      });
+    } else {
+      this.quip.setText(line).setColor(style.color)
+        .setBackgroundColor(style.backgroundColor)
+        .setFontStyle(style.fontStyle ?? "normal");
+    }
+  }
+
   setSelected(on: boolean): void {
     if (!this.halo) return;
     this.haloTween?.remove();
@@ -235,11 +268,13 @@ export class Character {
 
   private clearEffects(): void {
     this.bubbleTween?.remove(); this.bubbleTween = null;
+    this.quipTween?.remove(); this.quipTween = null;
     this.swayTween?.remove(); this.swayTween = null;
-    this.sprite.setAngle(0);
-    this.sprite.y = 0;
+    this.codexSlouch?.remove(); this.codexSlouch = null;
+    this.sprite.setAngle(0).setY(0);
     this.dot.setAlpha(1);
     this.aura.setAlpha(0.16);
+    if (!this.mini) this.personaFx.clear();
   }
 
   private face(dir: Dir): void {
@@ -257,8 +292,9 @@ function dirBetween(x0: number, y0: number, x1: number, y1: number): Dir {
   return y1 > y0 ? "down" : "up";
 }
 
-function shortName(s: SessionLite): string {
-  return truncate(s.project || s.name || s.id, 14);
+function displayName(s: SessionLite): string {
+  const persona = AGENT_PERSONAS[spriteForProvider(s.provider)];
+  return `${persona.label} · ${truncate(s.project || s.name || s.id, 12)}`;
 }
 
 function truncate(text: string, max: number): string {

@@ -1,4 +1,4 @@
-{"kind":"system.init","payload":{"id":"s_78aa","project":"acme-web","name":"improve LCP on product pages","model":"sonnet-4.6"}}
+{"kind":"system.init","payload":{"id":"s_78aa","provider":"grok","project":"acme-web","name":"improve LCP on product pages","model":"grok-build"}}
 {"kind":"assistant.text","payload":{"line":{"t":"ok","v":"lighthouse passed on all product pages"}}}
 {"kind":"todo.update","payload":{"items":[{"status":"done","text":"baseline measurements"},{"status":"done","text":"preload hero image"},{"status":"done","text":"inline critical CSS"},{"status":"done","text":"defer analytics"},{"status":"done","text":"validate LCP drop"}]}}
 {"kind":"result.success","payload":{"summary":"Reduced LCP from 3.1s → 1.6s by preloading hero image, inlining critical CSS, and deferring the analytics bundle.","artifacts":["PR #2847","lighthouse.json","perf-report.md"],"cost":1.24}}
