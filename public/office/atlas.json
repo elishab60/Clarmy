@@ -960,7 +960,7 @@
     "h": 32
    }
   },
-  "KNIGHT_BANNER": {
+  "GOTHIC_ALTAR": {
    "frame": {
     "x": 17,
     "y": 98,
@@ -980,7 +980,7 @@
     "h": 32
    }
   },
-  "POSTER_DEEPSEEK": {
+  "KNIGHT_BANNER": {
    "frame": {
     "x": 34,
     "y": 98,
@@ -1000,7 +1000,7 @@
     "h": 32
    }
   },
-  "POSTER_QWEN": {
+  "ARMOR_STAND": {
    "frame": {
     "x": 51,
     "y": 98,
@@ -1020,7 +1020,7 @@
     "h": 32
    }
   },
-  "POSTER_KIMI": {
+  "POSTER_DEEPSEEK": {
    "frame": {
     "x": 68,
     "y": 98,
@@ -1040,7 +1040,7 @@
     "h": 32
    }
   },
-  "SPECTATOR_CHAIR": {
+  "POSTER_QWEN": {
    "frame": {
     "x": 85,
     "y": 98,
@@ -1060,7 +1060,7 @@
     "h": 32
    }
   },
-  "BOOKSHELF_FANCY": {
+  "POSTER_KIMI": {
    "frame": {
     "x": 102,
     "y": 98,
@@ -1080,9 +1080,109 @@
     "h": 32
    }
   },
-  "GOTHIC_RUG": {
+  "TV_SCREEN": {
    "frame": {
     "x": 119,
+    "y": 98,
+    "w": 16,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 16,
+    "h": 32
+   }
+  },
+  "SPECTATOR_CHAIR": {
+   "frame": {
+    "x": 136,
+    "y": 98,
+    "w": 16,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 16,
+    "h": 32
+   }
+  },
+  "BOOKSHELF_FANCY": {
+   "frame": {
+    "x": 153,
+    "y": 98,
+    "w": 16,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 16,
+    "h": 32
+   }
+  },
+  "LIBRARY_LAMP": {
+   "frame": {
+    "x": 170,
+    "y": 98,
+    "w": 16,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 16,
+    "h": 32
+   }
+  },
+  "POPCORN": {
+   "frame": {
+    "x": 187,
+    "y": 98,
+    "w": 16,
+    "h": 16
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   },
+   "sourceSize": {
+    "w": 16,
+    "h": 16
+   }
+  },
+  "GOTHIC_RUG": {
+   "frame": {
+    "x": 204,
     "y": 98,
     "w": 16,
     "h": 16
@@ -1102,7 +1202,7 @@
   },
   "STONE_FLOOR": {
    "frame": {
-    "x": 136,
+    "x": 221,
     "y": 98,
     "w": 16,
     "h": 16
@@ -1122,7 +1222,7 @@
   },
   "RUG_WOOD": {
    "frame": {
-    "x": 153,
+    "x": 238,
     "y": 98,
     "w": 16,
     "h": 16

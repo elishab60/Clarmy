@@ -57,7 +57,7 @@ export class Character {
     this.personaFx = new PersonaFxController(scene, agent, this.container = scene.add.container(0, 0));
 
     this.sprite = scene.add.sprite(0, 0, this.spriteKey, FRAME.down + 1)
-      .setOrigin(0.5, 1).setScale(mini ? 0.72 : 1.12);
+      .setOrigin(0.5, 1).setScale(mini ? 0.78 : 1.35);
     const dark = typeof document !== "undefined" && document.documentElement.dataset.theme !== "light";
     this.tag = scene.add.text(0, -26, displayName(session), {
       fontFamily: "monospace", fontSize: "6.5px",

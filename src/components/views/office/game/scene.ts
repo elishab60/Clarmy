@@ -1,4 +1,4 @@
-import Phaser from "phaser";
+import type * as PhaserNamespace from "phaser";
 import type { AgentSprite } from "./agents";
 import {
   buildBlocked, DECOR, DESKS, SPAWN_BY_PROVIDER, WORLD_H, WORLD_W, ZONE_LABELS,
@@ -12,12 +12,13 @@ const AGENT_SPRITES: readonly AgentSprite[] = ["grok", "claude", "gemini", "code
 // The office scene. Sessions flow in one direction: the React bridge calls
 // setSessions(); the scene converges characters toward that truth. Clicking a
 // character emits "select" with the session id (React renders the inspector).
-export class OfficeScene extends Phaser.Scene {
+export function createOfficeScene(P: typeof import("phaser")) {
+  class OfficeScene extends P.Scene {
   private chars = new Map<string, Character>();
   private minis = new Map<string, Character[]>();
   private deskOf = new Map<string, Desk>();
   private freeDesks: Desk[] = [...DESKS];
-  private pcs = new Map<number, Phaser.GameObjects.Sprite>();
+  private pcs = new Map<number, PhaserNamespace.GameObjects.Sprite>();
   private blocked = buildBlocked();
   private pending: SessionLite[] | null = null;
   private created = false;
@@ -249,14 +250,24 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   private startAmbience(): void {
-    // Candle glow by the gothic corner
-    const glow = this.add.circle(2 * TILE + 8, 2 * TILE + 20, 6, 0x9b7cff, 0.08).setDepth(3);
-    this.tweens.add({ targets: glow, alpha: { from: 0.04, to: 0.14 }, scale: { from: 0.9, to: 1.2 },
-      duration: 1_800, yoyo: true, repeat: -1, ease: "Sine.inOut" });
-    // Poster wall pulses in the spectator lounge
-    const posterGlow = this.add.rectangle(34 * TILE, 15 * TILE + 14, 48, 4, 0x10a37f, 0.06).setDepth(2);
-    this.tweens.add({ targets: posterGlow, alpha: { from: 0.02, to: 0.12 }, duration: 3_200,
-      yoyo: true, repeat: -1, ease: "Sine.inOut" });
+    const zones: Array<{ x: number; y: number; r: number; color: number; depth: number }> = [
+      { x: 4 * TILE, y: 4 * TILE, r: 18, color: 0x9b7cff, depth: 3 },   // Nécropolis
+      { x: 35 * TILE, y: 4 * TILE, r: 16, color: 0xd97757, depth: 3 },   // Bibliothèque
+      { x: 4 * TILE, y: 19 * TILE, r: 14, color: 0x4796e3, depth: 3 },  // Grand Salon
+      { x: 34 * TILE, y: 18 * TILE, r: 20, color: 0x10a37f, depth: 2 },  // Zone Dégout
+    ];
+    for (const z of zones) {
+      const glow = this.add.circle(z.x, z.y, z.r, z.color, 0.1).setDepth(z.depth);
+      this.tweens.add({
+        targets: glow, alpha: { from: 0.04, to: 0.18 },
+        scale: { from: 0.85, to: 1.25 }, duration: 2_000 + z.r * 40,
+        yoyo: true, repeat: -1, ease: "Sine.inOut",
+      });
+    }
+    // TV flicker in the spectator lounge
+    const tvFlicker = this.add.rectangle(31 * TILE + 8, 15 * TILE, 56, 28, 0x4796e3, 0.04).setDepth(2);
+    this.tweens.add({ targets: tvFlicker, alpha: { from: 0.01, to: 0.1 }, duration: 1_400,
+      yoyo: true, repeat: -1, ease: "Steps(3)" });
   }
 
   private setupCamera(): void {
@@ -266,19 +277,23 @@ export class OfficeScene extends Phaser.Scene {
     // bias toward closeness: personas are 16×32 and labels show from zoom 2.05
     cam.setZoom(Math.max(2.4, Math.min(3.4, fit * 1.35)));
     cam.centerOn(WORLD_W / 2, WORLD_H / 2);
-    this.input.on("pointermove", (p: Phaser.Input.Pointer) => {
+    this.input.on("pointermove", (p: PhaserNamespace.Input.Pointer) => {
       if (!p.isDown) return;
       cam.scrollX -= (p.x - p.prevPosition.x) / cam.zoom;
       cam.scrollY -= (p.y - p.prevPosition.y) / cam.zoom;
     });
     // click on empty space (no drag, no character) closes the terminal panel
-    this.input.on("pointerup", (p: Phaser.Input.Pointer) => {
-      const dragged = Phaser.Math.Distance.Between(p.downX, p.downY, p.upX, p.upY) > 5;
+    this.input.on("pointerup", (p: PhaserNamespace.Input.Pointer) => {
+      const dragged = P.Math.Distance.Between(p.downX, p.downY, p.upX, p.upY) > 5;
       if (!dragged && !this.charClicked) this.game.events.emit("select", null);
       this.charClicked = false;
     });
     this.input.on("wheel", (_p: unknown, _o: unknown, _dx: number, dy: number) => {
-      cam.setZoom(Phaser.Math.Clamp(cam.zoom - dy * 0.0015, 1.2, 5));
+      cam.setZoom(P.Math.Clamp(cam.zoom - dy * 0.0015, 1.2, 5));
     });
   }
+  }
+  return OfficeScene;
 }
+
+export type OfficeSceneInstance = InstanceType<ReturnType<typeof createOfficeScene>>;

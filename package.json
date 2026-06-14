@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "lint": "next lint",
-    "postinstall": "node scripts/fix-node-pty-perms.mjs",
+    "postinstall": "node scripts/fix-node-pty-perms.mjs && node scripts/sync-phaser.mjs",
     "clarmy": "node bin/clarmy.mjs",
     "test:e2e": "playwright test"
   },

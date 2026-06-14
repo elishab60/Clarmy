@@ -99,39 +99,47 @@ export const DECOR: Decor[] = [
   // ── Grok gothic corner (top-left) ──
   { frame: "GOTHIC_RUG", col: 2, row: 3, floor: true },
   { frame: "GOTHIC_RUG", col: 3, row: 3, floor: true },
+  { frame: "GOTHIC_RUG", col: 4, row: 3, floor: true },
+  { frame: "GOTHIC_ALTAR", col: 3, row: 2, block: true, tall: true },
   { frame: "SKULL_CANDLE", col: 2, row: 2, block: true, tall: true },
-  { frame: "SKULL_CANDLE", col: 4, row: 2, block: true, tall: true },
+  { frame: "SKULL_CANDLE", col: 5, row: 2, block: true, tall: true },
   { frame: "PLANT", col: 1, row: 3, block: true, tall: true },
-  { frame: "COFFEE", col: 5, row: 3, block: true, tall: true },
-  { frame: "SMALL_TABLE", col: 6, row: 3, block: true },
+  { frame: "COFFEE", col: 6, row: 3, block: true, tall: true },
+  { frame: "SMALL_TABLE", col: 7, row: 3, block: true },
 
   // ── Claude library (top-right) ──
+  { frame: "RUG_WOOD", col: 32, row: 2, floor: true },
   { frame: "RUG_WOOD", col: 33, row: 2, floor: true },
   { frame: "RUG_WOOD", col: 34, row: 2, floor: true },
   { frame: "BOOKSHELF_FANCY", col: 36, row: 2, block: true, tall: true },
   { frame: "DOUBLE_BOOKSHELF", col: 37, row: 2, block: true, tall: true },
+  { frame: "LIBRARY_LAMP", col: 35, row: 3, block: true, tall: true },
   { frame: "WHITEBOARD", col: 33, row: 4, block: true, tall: true },
   { frame: "CLOCK", col: 38, row: 3, block: true, tall: true },
 
   // ── Gemini knight hall (bottom-left) ──
   { frame: "STONE_FLOOR", col: 2, row: 18, floor: true },
   { frame: "STONE_FLOOR", col: 3, row: 18, floor: true },
+  { frame: "STONE_FLOOR", col: 4, row: 18, floor: true },
   { frame: "STONE_FLOOR", col: 2, row: 19, floor: true },
   { frame: "STONE_FLOOR", col: 3, row: 19, floor: true },
   { frame: "KNIGHT_BANNER", col: 1, row: 17, block: true, tall: true },
-  { frame: "KNIGHT_BANNER", col: 4, row: 17, block: true, tall: true },
+  { frame: "ARMOR_STAND", col: 4, row: 17, block: true, tall: true },
+  { frame: "KNIGHT_BANNER", col: 6, row: 17, block: true, tall: true },
   { frame: "CUSHIONED_BENCH", col: 2, row: 20, block: true },
-  { frame: "COFFEE_TABLE", col: 3, row: 21, block: true },
+  { frame: "COFFEE_TABLE", col: 4, row: 21, block: true },
 
   // ── Codex spectator lounge + Chinese-AI posters (bottom-right) ──
+  { frame: "TV_SCREEN", col: 31, row: 14, block: true, tall: true },
   { frame: "POSTER_DEEPSEEK", col: 32, row: 15, block: true, tall: true },
   { frame: "POSTER_QWEN", col: 34, row: 15, block: true, tall: true },
   { frame: "POSTER_KIMI", col: 36, row: 15, block: true, tall: true },
   { frame: "SPECTATOR_CHAIR", col: 33, row: 18, block: true, tall: true },
   { frame: "SPECTATOR_CHAIR", col: 35, row: 18, block: true, tall: true },
+  { frame: "POPCORN", col: 37, row: 20, block: true },
   { frame: "CUSHIONED_BENCH", col: 32, row: 20, block: true },
   { frame: "CUSHIONED_BENCH", col: 35, row: 20, block: true },
-  { frame: "LARGE_PLANT", col: 37, row: 19, block: true, tall: true },
+  { frame: "LARGE_PLANT", col: 38, row: 19, block: true, tall: true },
 ];
 
 export function buildBlocked(): Set<string> {

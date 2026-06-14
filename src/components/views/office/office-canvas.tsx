@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import Phaser from "phaser";
+import { useEffect, useRef, useState } from "react";
 import { useCockpit } from "@/lib/client/store";
-import { OfficeScene } from "./game/scene";
+import { loadPhaser } from "./phaser-boot";
+import type { OfficeSceneInstance } from "./game/scene";
 import type { SessionLite } from "./game/types";
 
-// Mounts the Phaser game and bridges the cockpit store into it. Strictly
-// unidirectional: WS -> store -> scene.setSessions(); the scene never writes
-// back. Rendering pauses when the tab is hidden and the game is destroyed on
-// unmount (route change) so the office costs nothing while you work elsewhere.
+type BootPhase = "loading" | "ready" | "error";
+
+// Mounts the Phaser game and bridges the cockpit store into it. Phaser itself
+// is fetched from /public/office/phaser.esm.min.js so webpack never compiles a
+// multi-megabyte chunk on first visit.
 export function OfficeCanvas({
   onSelect,
   selectedId,
@@ -22,63 +23,91 @@ export function OfficeCanvas({
   recenterKey: number;
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
-  const gameRef = useRef<Phaser.Game | null>(null);
-  const sceneRef = useRef<OfficeScene | null>(null);
+  const gameRef = useRef<import("phaser").Game | null>(null);
+  const sceneRef = useRef<OfficeSceneInstance | null>(null);
+  const teardownRef = useRef<(() => void) | null>(null);
+  const [phase, setPhase] = useState<BootPhase>("loading");
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const host = hostRef.current;
     if (!host || gameRef.current) return;
 
-    const scene = new OfficeScene();
-    const game = new Phaser.Game({
-      type: Phaser.AUTO,
-      parent: host,
-      pixelArt: true,
-      roundPixels: true,
-      transparent: true,
-      scale: { mode: Phaser.Scale.RESIZE, width: "100%", height: "100%" },
-      scene,
-      banner: false,
-    });
-    gameRef.current = game;
-    sceneRef.current = scene;
+    let cancelled = false;
 
-    const push = () => {
-      const { sessions } = useCockpit.getState();
-      const list: SessionLite[] = Object.values(sessions).map((s) => ({
-        id: s.id, provider: s.provider, state: s.state, name: s.name, project: s.project,
-        prompt: s.prompt, subagents: s.subagents,
-      }));
-      scene.setSessions(list);
-      (window as unknown as { __officeSessionIds?: string[] }).__officeSessionIds = list.map((x) => x.id);
-    };
-    game.events.once("office-ready", push);
-    game.events.on("select", onSelect);
-    const unsub = useCockpit.subscribe((st, prev) => {
-      if (st.sessions !== prev.sessions) push();
-    });
+    void (async () => {
+      try {
+        const [Phaser, { createOfficeScene }] = await Promise.all([
+          loadPhaser(),
+          import("./game/scene"),
+        ]);
+        if (cancelled) return;
 
-    const onVisibility = () => {
-      if (document.hidden) game.loop.sleep();
-      else game.loop.wake();
-    };
-    document.addEventListener("visibilitychange", onVisibility);
+        const OfficeScene = createOfficeScene(Phaser);
+        const scene = new OfficeScene();
+        const game = new Phaser.Game({
+          type: Phaser.AUTO,
+          parent: host,
+          pixelArt: true,
+          roundPixels: true,
+          transparent: true,
+          scale: { mode: Phaser.Scale.RESIZE, width: "100%", height: "100%" },
+          scene,
+          banner: false,
+        });
+        gameRef.current = game;
+        sceneRef.current = scene;
+
+        const push = () => {
+          const { sessions } = useCockpit.getState();
+          const list: SessionLite[] = Object.values(sessions).map((s) => ({
+            id: s.id, provider: s.provider, state: s.state, name: s.name, project: s.project,
+            prompt: s.prompt, subagents: s.subagents,
+          }));
+          scene.setSessions(list);
+          (window as unknown as { __officeSessionIds?: string[] }).__officeSessionIds = list.map((x) => x.id);
+        };
+        game.events.once("office-ready", () => {
+          if (!cancelled) setPhase("ready");
+          push();
+        });
+        game.events.on("select", onSelect);
+        const unsub = useCockpit.subscribe((st, prev) => {
+          if (st.sessions !== prev.sessions) push();
+        });
+
+        const onVisibility = () => {
+          if (document.hidden) game.loop.sleep();
+          else game.loop.wake();
+        };
+        document.addEventListener("visibilitychange", onVisibility);
+
+        teardownRef.current = () => {
+          document.removeEventListener("visibilitychange", onVisibility);
+          unsub();
+          game.events.off("select", onSelect);
+          game.destroy(true);
+          gameRef.current = null;
+          sceneRef.current = null;
+        };
+      } catch (err) {
+        if (!cancelled) {
+          setPhase("error");
+          setError(err instanceof Error ? err.message : "office boot failed");
+        }
+      }
+    })();
 
     return () => {
-      document.removeEventListener("visibilitychange", onVisibility);
-      unsub();
-      game.events.off("select", onSelect);
-      game.destroy(true);
-      gameRef.current = null;
-      sceneRef.current = null;
+      cancelled = true;
+      teardownRef.current?.();
+      teardownRef.current = null;
     };
-    // onSelect is stable from the parent (useCallback)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => { sceneRef.current?.setShowPrompts(showPrompts); }, [showPrompts]);
   useEffect(() => { sceneRef.current?.setSelected(selectedId); }, [selectedId]);
-  // test hook: lets e2e open the terminal panel without pixel-perfect clicks
   useEffect(() => {
     (window as unknown as { __officeSelect?: (id: string | null) => void }).__officeSelect = onSelect;
     return () => { delete (window as unknown as { __officeSelect?: unknown }).__officeSelect; };
@@ -86,5 +115,24 @@ export function OfficeCanvas({
   }, []);
   useEffect(() => { if (recenterKey > 0) sceneRef.current?.recenter(); }, [recenterKey]);
 
-  return <div ref={hostRef} className="office-canvas" />;
+  if (phase === "error") {
+    return (
+      <div className="office-loading">
+        <span className="office-loading-title">office failed to boot</span>
+        <span className="office-loading-hint">{error ?? "unknown error"}</span>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {phase === "loading" && (
+        <div className="office-loading">
+          <span className="office-loading-title">booting the office…</span>
+          <span className="office-loading-hint">loading Phaser + pixel assets</span>
+        </div>
+      )}
+      <div ref={hostRef} className="office-canvas" style={phase === "loading" ? { visibility: "hidden" } : undefined} />
+    </>
+  );
 }

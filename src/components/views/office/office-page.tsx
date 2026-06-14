@@ -17,7 +17,7 @@ const OfficeCanvas = dynamic(
     loading: () => (
       <div className="office-loading">
         <span className="office-loading-title">booting the office…</span>
-        <span className="office-loading-hint">first visit compiles Phaser — ~10s</span>
+        <span className="office-loading-hint">chargement des assets pixel…</span>
       </div>
     ),
   },
