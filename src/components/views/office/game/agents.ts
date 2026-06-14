@@ -3,6 +3,20 @@ import type { SessionState } from "@/lib/shared/types";
 
 export type AgentSprite = "grok" | "claude" | "gemini" | "codex";
 
+export interface AgentSheetMeta {
+  readonly frameWidth: number;
+  readonly frameHeight: number;
+  readonly displayScale: number;
+}
+
+/** Grok uses a 2× HD sheet (Ani-inspired); other agents stay 16×32. */
+export const AGENT_SHEET: Record<AgentSprite, AgentSheetMeta> = {
+  grok: { frameWidth: 32, frameHeight: 64, displayScale: 1.12 },
+  claude: { frameWidth: 16, frameHeight: 32, displayScale: 1.35 },
+  gemini: { frameWidth: 16, frameHeight: 32, displayScale: 1.35 },
+  codex: { frameWidth: 16, frameHeight: 32, displayScale: 1.35 },
+};
+
 export interface AgentPersona {
   readonly sprite: AgentSprite;
   readonly label: string;
@@ -13,7 +27,7 @@ export const AGENT_PERSONAS: Record<AgentSprite, AgentPersona> = {
   grok: {
     sprite: "grok",
     label: "Grok",
-    tagline: "waifu gothique — travaille dans l'ombre",
+    tagline: "Ani — blonde aux couettes, lingerie noire",
   },
   claude: {
     sprite: "claude",

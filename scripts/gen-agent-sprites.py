@@ -6,7 +6,7 @@ type x2, read x2 — same contract as the legacy clawd sheets so scene.ts stays
 compatible. Original pixel art personas, MIT like the repo.
 
 Personas (French brief):
-  Grok   — waifu gothique, cheveux longs, choker violet, cigarette
+  Grok   — Ani (Desktop/Ani.png) : blonde couettes, yeux bleus, lingerie noire HD 32×64
   Claude — nerd classe, lunettes, cravate orange serrée
   Gemini — chevalier poète, heaume, cape bleue, joyau doré, épée
   Codex  — spectateur défait, hoodie vert Copilot, cernes, posture affaissée
@@ -26,9 +26,16 @@ LEGS = {
     "N": ("....dLdL..dLdL..", "................"),
     "B": ("....dL..dLdLdL..", "......l.......l."),
 }
+LEGS_HD = {
+    "A": ("...ddLL................LLdd...", "....ll..................ll...."),
+    "N": ("...ddLdL..............dLdL....", ".............................."),
+    "B": ("...ddL..dLdL..........dLdL....", ".....ll..................ll...."),
+}
 
 TYPING_ARMS = ("dd............dd", ".dd..........dd.")
 READ_ARMS = ("..d...........d..", ".d...........d..")
+TYPING_ARMS_HD = ("dddd........................dddd", ".dddd......................dddd.")
+READ_ARMS_HD = ("..dd........................dd..", ".dd..........................dd.")
 
 
 def blank(n: int = 20) -> list[str]:
@@ -50,6 +57,8 @@ def overlay(base: list[str], patch: list[str], oy: int) -> list[str]:
 
 
 def pose_rows(character: dict, pose: str, frame: int, direction: str) -> list[str]:
+    hd = character.get("width", FRAME_W) > FRAME_W
+    legs = LEGS_HD if hd else LEGS
     if direction == "right" and character.get("side"):
         rows = list(character["side"])
     elif direction == "up" and character.get("back"):
@@ -58,21 +67,21 @@ def pose_rows(character: dict, pose: str, frame: int, direction: str) -> list[st
         rows = list(character["base"])
 
     if pose == "walk":
-        a, b = LEGS[["A", "N", "B"][frame]]
+        a, b = legs[["A", "N", "B"][frame]]
         rows = overlay(rows, [a, b], len(rows) - 2)
     else:
-        a, b = LEGS["N"]
+        a, b = legs["N"]
         rows = overlay(rows, [a, b], len(rows) - 2)
 
     if pose == "type":
-        arm = TYPING_ARMS[frame]
-        rows = overlay(rows, [arm], 2)
+        arm = (TYPING_ARMS_HD if hd else TYPING_ARMS)[frame]
+        rows = overlay(rows, [arm], 3 if hd else 2)
         if character.get("type_extra"):
-            rows = overlay(rows, character["type_extra"][frame], 1)
+            rows = overlay(rows, character["type_extra"][frame], 2 if hd else 1)
 
     if pose == "read":
-        arm = READ_ARMS[frame]
-        rows = overlay(rows, [arm], 2)
+        arm = (READ_ARMS_HD if hd else READ_ARMS)[frame]
+        rows = overlay(rows, [arm], 3 if hd else 2)
         if character.get("read_extra"):
             rows = overlay(rows, character["read_extra"][frame], 4)
         else:
@@ -103,16 +112,19 @@ def pose_rows(character: dict, pose: str, frame: int, direction: str) -> list[st
                     row[x] = "H" if ch in ("E", "B", "G", "K", "V", "M", "U", "J", "X", "S") else "T"
             rows[i] = "".join(row)
 
-    return rows[:20]
+    return rows[: character.get("max_rows", 20)]
 
 
-def draw(im: Image.Image, ox: int, oy: int, rows: list[str], colors: dict[str, str]) -> None:
+def draw(
+    im: Image.Image, ox: int, oy: int, rows: list[str], colors: dict[str, str],
+    frame_h: int = FRAME_H, frame_w: int = FRAME_W,
+) -> None:
     px = im.load()
     height = len(rows)
-    top = oy + FRAME_H - 2 - height
+    top = oy + frame_h - 2 - height
 
     def put(x: int, y: int, hexcolor: str) -> None:
-        if 0 <= x - ox < FRAME_W and 0 <= y - oy < FRAME_H:
+        if 0 <= x - ox < frame_w and 0 <= y - oy < frame_h:
             h = hexcolor.lstrip("#")
             px[x, y] = (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16), 255)
 
@@ -126,65 +138,83 @@ def draw(im: Image.Image, ox: int, oy: int, rows: list[str], colors: dict[str, s
                 put(ox + rx, y, col)
 
 
-# ── Grok: waifu gothique — cape violette, choker, cigarette, yeux améthyste ─
+# ── Grok: Ani — blonde couettes, yeux bleus, lingerie noire, filet, jarretelles ─
+# HD 32×64 (2×) so lace, eyes, heart pendant stay readable in the office.
 
 GROK = {
     "name": "grok",
+    "width": 32,
+    "frame_h": 64,
+    "max_rows": 28,
     "colors": {
-        "S": "#E8C4B8", "H": "#0E0814", "E": "#F5F0FF", "B": "#7C5CFF",
-        "F": "#D4A89A", "T": "#1A1028", "R": "#2A1838", "K": "#9B7CFF",
-        "L": "#140C1C", "l": "#0A0610", "P": "#EDE9E0", "d": "#0A0610",
-        "W": "#6B4CFF", "w": "#9B7CFF", "X": "#C8C0B0", "x": "#D97757",
-        "M": "#9A6078", "U": "#6A4868",
+        "H": "#E8C848", "h": "#FFF0A0", "t": "#1A1018", "E": "#F8FCFF", "B": "#3A88E8",
+        "S": "#F8D0C0", "F": "#E8B0A0", "M": "#E87898", "T": "#141018", "L": "#2A2838",
+        "K": "#9B7CFF", "J": "#C84868", "n": "#4A4068", "b": "#141018", "P": "#EDE9E0",
+        "d": "#0A0810", "l": "#0A0810", "W": "#9B7CFF",
     },
     "base": [
-        "....WWwwWWww....",
-        "..dWWWWWWWWWWd..",
-        ".dHHHHHHHHHHHHd.",
-        "dHHHEEEEEEEHHHd.",
-        "HHHBHHUUMUBHHH..",
-        ".HHHFFFFFFHHH...",
-        ".dHHTTTTTTTTHd..",
-        "..HTTTKKKKTTT...",
-        "..HTTTTTTTTTT...",
-        "..HHTTTTTTTHH...",
-        "..HHTTTTTTTHH...",
-        "..ddX.....dd....",
-        "....dL....dL....",
-        ".....l.......l..",
+        "..ttHH....................HHtt..",
+        "..ttHHHHHHHHHHHHHHHHHHHHHHHHtt..",
+        "....hhhhhhhhhhhhhhhhhhhhhhhh....",
+        "...hhhhEEEEEEEEEEEEEEEEEEhhhh...",
+        "..hhhEEBBBBBBBBBBBBBBBBEEhhh....",
+        "..hhhEEBBBBBBBBBBBBBBBBEEhhh....",
+        "...hhHSFFFFFFMFFFFFFShhh........",
+        "...hhHTTKKKLLLLKKKTTHhhh........",
+        "..ddhhHTTTLLLLLLLLTTThhdd.......",
+        "...hhHTTTTTJJJJTTTTThhhh........",
+        "...hhHTTTTTTTTTTTTTThhhh........",
+        "...hhHTnn........nnTTThh........",
+        "..ddhhHTTTTTTTTTTTTThhdd........",
+        "...hhHTTTLLLLLLLLTTThhhh........",
+        "...hhHTTTTTTTTTTTTTThhhh........",
+        "...hhHTLb.......bLTThhhh........",
+        "...hhHnnL.......LnnThhhh........",
+        "...ddLL..............LLdd.......",
+        "....ll................ll........",
     ],
     "side": [
-        "......WWwwWW....",
-        ".....dHHHHHHd...",
-        "....dHHHEEEEHd..",
-        "....HHHBHUUBH...",
-        "....HHFFFFFFH...",
-        "....dHTTTTTTHd..",
-        ".....HTTKKKTH...",
-        ".....HTTTTTTH...",
-        ".....HTTTTTTH...",
-        ".....HTTTTTHH...",
-        ".....ddX...dd...",
-        "......dL..dL....",
-        ".......l...l....",
+        ".........tt.....................",
+        ".......ttHHHHHHHHHHHHHHtt.......",
+        "......hhhhhhhhhhhhhhhhhh........",
+        ".....hhhEEEEEEEEEEEEhh..........",
+        ".....hhEEBBBBBBBBBBEhh..........",
+        ".....hhEEBBBBBBBBBBEhh..........",
+        "......hHSFFFFFFMFShh............",
+        "......hHTTKKKKKKTTHh............",
+        ".....ddhHTTTLLLLTTThdd..........",
+        "......hHTTTTJJJTTTThh...........",
+        "......hHTTTTTTTTTTThh...........",
+        "......hHTnn.....nnTThh..........",
+        ".....ddhHTTTTTTTTTThdd..........",
+        "......hHTTTLLLLTTTThh...........",
+        "......hHTTTTTTTTTTThh...........",
+        "......hHTLb.....bLTThh..........",
+        "......hHnnL.....LnnThh..........",
+        "......ddLL.........LLdd.........",
+        ".......ll...........ll..........",
     ],
     "back": [
-        "....WWwwWWww....",
-        "..dWWWWWWWWWWd..",
-        ".dHHHHHHHHHHHHd.",
-        "..HHHHHHHHHHHH..",
-        "..HHHHHHHHHHHH..",
-        "..HHHHHHHHHHHH..",
-        "..HHTTTTTTTHHH..",
-        "..HHTTTTTTTHHH..",
-        "..HHTTTTTTTHHH..",
-        "..HHTTTTTTTHHH..",
-        "....dL....dL....",
-        ".....l.......l..",
+        "........tt.............tt.......",
+        "......ttHHHHHHHHHHHHHHHHHHtt....",
+        "....hhhhhhhhhhhhhhhhhhhhhhhh....",
+        "...hhhhhhhhhhhhhhhhhhhhhhhhhh...",
+        "...hhhhhhhhhhhhhhhhhhhhhhhhhh...",
+        "...hhhhhhhhhhhhhhhhhhhhhhhhhh...",
+        "...hhhhhhhhhhhhhhhhhhhhhhhhhh...",
+        "..ddhhHTTTTTTTTTTTTTTThhdd......",
+        "...hhHTTTTTTTTTTTTTTTThhhh......",
+        "...hhHTTTTTTTTTTTTTTTThhhh......",
+        "...hhHTTTLLLLLLLLTTThhhh........",
+        "...hhHTTTTTTTTTTTTTThhhh........",
+        "...hhHTLb.......bLTThhhh........",
+        "...hhHnnL.......LnnThhhh........",
+        "...ddLL..............LLdd.......",
+        "....ll................ll........",
     ],
     "type_extra": [
-        ["................", ".Xx............."],
-        ["................", "..Xx............"],
+        ["................................", "................................"],
+        ["................................", "................................"],
     ],
 }
 
@@ -372,12 +402,14 @@ AGENTS = [GROK, CLAUDE, GEMINI, CODEX]
 
 
 def build_sheet(agent: dict) -> Image.Image:
-    im = Image.new("RGBA", (FRAME_W * COLS_PER_ROW, FRAME_H * 3), (0, 0, 0, 0))
+    fw = agent.get("width", FRAME_W)
+    fh = agent.get("frame_h", FRAME_H)
+    im = Image.new("RGBA", (fw * COLS_PER_ROW, fh * 3), (0, 0, 0, 0))
     poses = [("walk", 0), ("walk", 1), ("walk", 2), ("type", 0), ("type", 1), ("read", 0), ("read", 1)]
     for dir_idx, direction in enumerate(["down", "up", "right"]):
         for col, (pose, frame) in enumerate(poses):
             rows = pose_rows(agent, pose, frame, direction)
-            draw(im, col * FRAME_W, dir_idx * FRAME_H, rows, agent["colors"])
+            draw(im, col * fw, dir_idx * fh, rows, agent["colors"], fh, fw)
     return im
 
 

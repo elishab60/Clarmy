@@ -32,13 +32,8 @@ export class PersonaFxController {
     }
   }
 
-  tick(dtMs: number, mode: CharMode, state: SessionState): void {
-    if (this.sprite !== "grok") return;
-    if (state !== "idle" && mode !== "stand" && mode !== "sit_read") return;
-    this.smokeAcc += dtMs;
-    if (this.smokeAcc < 2_400) return;
-    this.smokeAcc = 0;
-    this.puffSmoke(-4, -22, 0x9b7cff, 0.3);
+  tick(_dtMs: number, _mode: CharMode, _state: SessionState): void {
+    /* Grok/Ani: ambient handled in applyGrok */
   }
 
   clear(): void {
@@ -51,29 +46,27 @@ export class PersonaFxController {
     this.smokeAcc = 0;
   }
 
-  // ── Grok: cigarette smoke + violet aura ──────────────────────────────────
+  // ── Grok/Ani: violet aura + heart glint on the HD sprite ─────────────────
   private applyGrok(mode: CharMode, state: SessionState): void {
-    const aura = this.scene.add.ellipse(0, -2, 20, 9, 0x6b4cff, 0.12);
+    const aura = this.scene.add.ellipse(0, -4, 28, 12, 0x9b7cff, 0.1);
     this.track(aura);
     this.container.addAt(aura, 0);
-    this.tween(aura, { fillAlpha: { from: 0.1, to: 0.28 }, scaleX: 1.15, scaleY: 1.15 },
-      1_100, -1, true);
+    this.tween(aura, { fillAlpha: { from: 0.06, to: 0.22 }, scaleX: 1.12, scaleY: 1.12 },
+      1_400, -1, true);
 
-    if (mode === "sit_read" || mode === "stand" || state === "idle") {
-      this.puffSmoke(-2, -20, 0xb8b0c8, 0.5);
-      const timer = this.scene.time.addEvent({
-        delay: 2_200, loop: true,
-        callback: () => this.puffSmoke(-2, -20, 0xb8b0c8, 0.45),
-      });
-      this.handles.timers.push(timer);
+    if (mode === "sit_type" || state === "running") {
+      const heart = this.scene.add.circle(2, -22, 1.5, 0xc84868, 0.9);
+      this.track(heart);
+      this.container.add(heart);
+      this.tween(heart, { alpha: { from: 0.4, to: 1 } }, 900, -1, true);
     }
     if (state === "approval") {
-      const mark = this.scene.add.text(6, -30, "!", {
+      const mark = this.scene.add.text(8, -48, "!", {
         fontFamily: "monospace", fontSize: "8px", color: "#9B7CFF",
       }).setOrigin(0.5).setResolution(4);
       this.track(mark);
       this.container.add(mark);
-      this.tween(mark, { y: -34, alpha: { from: 1, to: 0.4 } }, 700, -1, true);
+      this.tween(mark, { y: -52, alpha: { from: 1, to: 0.4 } }, 700, -1, true);
     }
   }
 

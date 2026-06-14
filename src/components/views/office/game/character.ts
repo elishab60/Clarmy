@@ -1,5 +1,5 @@
 import type Phaser from "phaser";
-import { AGENT_PERSONAS, quipFor, quipStyle, spriteForProvider } from "./agents";
+import { AGENT_PERSONAS, AGENT_SHEET, quipFor, quipStyle, spriteForProvider } from "./agents";
 import { findPath } from "./pathfind";
 import { codexSlouchTween, PersonaFxController } from "./persona-fx";
 import { STATE_TINT, TILE, type CharMode, type Dir, type SessionLite, type Spot } from "./types";
@@ -50,6 +50,7 @@ export class Character {
     this.session = session;
     this.mini = mini;
     const agent = spriteForProvider(session.provider);
+    const sheetMeta = AGENT_SHEET[agent];
     this.spriteKey = `agent_${agent}`;
     this.blocked = blocked;
     this.col = spawn.col;
@@ -57,9 +58,10 @@ export class Character {
     this.personaFx = new PersonaFxController(scene, agent, this.container = scene.add.container(0, 0));
 
     this.sprite = scene.add.sprite(0, 0, this.spriteKey, FRAME.down + 1)
-      .setOrigin(0.5, 1).setScale(mini ? 0.78 : 1.35);
+      .setOrigin(0.5, 1).setScale(mini ? sheetMeta.displayScale * 0.58 : sheetMeta.displayScale);
     const dark = typeof document !== "undefined" && document.documentElement.dataset.theme !== "light";
-    this.tag = scene.add.text(0, -26, displayName(session), {
+    const tagY = agent === "grok" ? -44 : -26;
+    this.tag = scene.add.text(0, tagY, displayName(session), {
       fontFamily: "monospace", fontSize: "6.5px",
       color: dark ? "#EDE9E0" : "#2B2926",
       backgroundColor: dark ? "rgba(31,30,28,0.78)" : "rgba(245,242,236,0.82)",
@@ -194,8 +196,9 @@ export class Character {
   setLabelVisible(visible: boolean): void { this.tag.setVisible(visible || this.hovered); }
   setHovered(h: boolean): void { this.hovered = h; if (h) this.tag.setVisible(true); }
   setTagOffset(extra: number): void {
-    this.tag.setY(-26 - extra);
-    if (this.quip) this.quip.setY(-42 - extra);
+    const base = spriteForProvider(this.session.provider) === "grok" ? -44 : -26;
+    this.tag.setY(base - extra);
+    if (this.quip) this.quip.setY(base - 16 - extra);
   }
 
   setPromptVisible(show: boolean): void {

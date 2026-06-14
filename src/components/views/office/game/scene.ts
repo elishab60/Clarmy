@@ -1,5 +1,5 @@
 import type * as PhaserNamespace from "phaser";
-import type { AgentSprite } from "./agents";
+import { AGENT_SHEET, type AgentSprite } from "./agents";
 import {
   buildBlocked, DECOR, DESKS, SPAWN_BY_PROVIDER, WORLD_H, WORLD_W, ZONE_LABELS,
 } from "./layout";
@@ -36,7 +36,10 @@ export function createOfficeScene(P: typeof import("phaser")) {
     this.load.image("office-bg-light", "/office/office-bg-light.png");
     this.load.atlas("decor", "/office/atlas.png", "/office/atlas.json");
     for (const id of AGENT_SPRITES) {
-      this.load.spritesheet(`agent_${id}`, `/office/characters/agent_${id}.png`, { frameWidth: 16, frameHeight: 32 });
+      const sheet = AGENT_SHEET[id];
+      this.load.spritesheet(`agent_${id}`, `/office/characters/agent_${id}.png`, {
+        frameWidth: sheet.frameWidth, frameHeight: sheet.frameHeight,
+      });
     }
   }
 
