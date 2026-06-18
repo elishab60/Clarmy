@@ -1,5 +1,6 @@
 import type { DayBucket, Filters, GroupRow, RangeKey, SessionRow, Totals } from "./types.ts";
 import { RANGE_DAYS } from "./types.ts";
+import { providerMeta } from "../../../lib/shared/providers.ts";
 
 const DAY_MS = 86_400_000;
 
@@ -9,6 +10,7 @@ export function rangeStartMs(range: RangeKey, now: number): number | null {
 }
 
 function matchPM(r: SessionRow, f: Filters): boolean {
+  if (f.providers.length && !f.providers.includes(r.provider)) return false;
   if (f.projects.length && !f.projects.includes(r.cwd)) return false;
   if (f.models.length) {
     const used = r.models && Object.keys(r.models).length > 0 ? Object.keys(r.models) : [r.model];
@@ -93,6 +95,10 @@ function group(rows: readonly SessionRow[], keyOf: (r: SessionRow) => string, la
 
 export function perProject(rows: readonly SessionRow[]): GroupRow[] {
   return group(rows, (r) => r.cwd, (r) => r.project, (r) => r.cwd);
+}
+
+export function perProvider(rows: readonly SessionRow[]): GroupRow[] {
+  return group(rows, (r) => r.provider, (r) => providerMeta(r.provider).label);
 }
 
 export function perModel(rows: readonly SessionRow[]): GroupRow[] {

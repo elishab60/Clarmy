@@ -47,6 +47,7 @@ export const RANGE_DAYS: Record<RangeKey, number | null> = {
 
 export interface Filters {
   readonly range: RangeKey;
+  readonly providers: readonly string[]; // ProviderId[]
   readonly projects: readonly string[]; // cwd[]
   readonly models: readonly string[];
 }

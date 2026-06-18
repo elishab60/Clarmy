@@ -20,6 +20,9 @@ export interface Opt {
 export function FilterBar({
   range,
   onRange,
+  providerOpts,
+  selectedProviders,
+  onProviders,
   projectOpts,
   selectedProjects,
   onProjects,
@@ -31,6 +34,9 @@ export function FilterBar({
 }: {
   range: RangeKey;
   onRange: (r: RangeKey) => void;
+  providerOpts: readonly Opt[];
+  selectedProviders: readonly string[];
+  onProviders: (v: string[]) => void;
   projectOpts: readonly Opt[];
   selectedProjects: readonly string[];
   onProjects: (v: string[]) => void;
@@ -40,7 +46,7 @@ export function FilterBar({
   spanLabel: string;
   onClear: () => void;
 }) {
-  const dirty = selectedProjects.length > 0 || selectedModels.length > 0 || range !== "all";
+  const dirty = selectedProviders.length > 0 || selectedProjects.length > 0 || selectedModels.length > 0 || range !== "all";
   return (
     <div className="mx-filters">
       <div className="mx-seg" role="radiogroup" aria-label="Time range">
@@ -50,6 +56,7 @@ export function FilterBar({
           </button>
         ))}
       </div>
+      <MultiSelect label="Providers" options={providerOpts} selected={selectedProviders} onChange={onProviders} />
       <MultiSelect label="Projects" options={projectOpts} selected={selectedProjects} onChange={onProjects} searchable />
       <MultiSelect label="Models" options={modelOpts} selected={selectedModels} onChange={onModels} />
       <span className="mx-span" title="data range">{spanLabel}</span>

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Filters, HeatMetric, MetricsPayload, RangeKey } from "./metrics/types.ts";
 import {
   buildSeries, computeDeltas, computeTotals, dataSpan, filterRows,
-  perDay, perModel, perProject, rangeStartMs, topSlices,
+  perDay, perModel, perProject, perProvider, rangeStartMs, topSlices,
 } from "./metrics/aggregate.ts";
 import { fmtCost, fmtCostFull, fmtDay, fmtInt, fmtTokens } from "./metrics/format.ts";
 import { FilterBar } from "./metrics/filter-bar.tsx";
@@ -39,7 +39,7 @@ export function MetricsPage() {
 
   const visibleProviders = useCockpit((s) => s.visibleProviders);
   const metricsVersion = useCockpit((s) => s.metricsVersion);
-  const [filters, setFilters] = useState<Filters>({ range: "all", projects: [], models: [] });
+  const [filters, setFilters] = useState<Filters>({ range: "all", providers: [], projects: [], models: [] });
   const [heatMetric, setHeatMetric] = useState<HeatMetric>("sessions");
 
   const refresh = async () => {
@@ -72,6 +72,7 @@ export function MetricsPage() {
     const filtered = filterRows(rows, filters, now);
     const totals = computeTotals(filtered);
     const deltas = computeDeltas(rows, filters, now);
+    const providers = perProvider(filtered);
     const projects = perProject(filtered);
     const models = perModel(filtered);
     const days = perDay(filtered);
@@ -80,11 +81,13 @@ export function MetricsPage() {
     const seriesCost = buildSeries(days, "cost", from, now);
     const seriesOutput = buildSeries(days, "output", from, now);
     const seriesSessions = buildSeries(days, "sessions", from, now);
+    const costByProvider = topSlices(providers, 6, (g) => g.cost);
     const costByProject = topSlices(projects, 8, (g) => g.cost);
     const costByModel = topSlices(models, 8, (g) => g.cost);
-    return { filtered, totals, deltas, projects, models, days, from, seriesCost, seriesOutput, seriesSessions, costByProject, costByModel, span };
+    return { filtered, totals, deltas, providers, projects, models, days, from, seriesCost, seriesOutput, seriesSessions, costByProvider, costByProject, costByModel, span };
   }, [rows, filters, now]);
 
+  const allProviders = useMemo(() => perProvider(rows).map((g) => ({ key: g.key, label: g.label })), [rows]);
   const allProjects = useMemo(() => perProject(rows).map((g) => ({ key: g.key, label: g.label, sub: g.sub })), [rows]);
   const allModels = useMemo(() => perModel(rows).map((g) => ({ key: g.key, label: g.label })), [rows]);
 
@@ -108,6 +111,10 @@ export function MetricsPage() {
   const activeProjects = useMemo(() => new Set(filters.projects), [filters.projects]);
   const toggleProject = (cwd: string) =>
     setFilters((f) => ({ ...f, projects: f.projects.includes(cwd) ? f.projects.filter((x) => x !== cwd) : [...f.projects, cwd] }));
+
+  const activeProviders = useMemo(() => new Set(filters.providers), [filters.providers]);
+  const toggleProvider = (id: string) =>
+    setFilters((f) => ({ ...f, providers: f.providers.includes(id) ? f.providers.filter((x) => x !== id) : [...f.providers, id] }));
 
   const overTime: ChartSeries[] = [
     { key: "cost", label: "cost", color: SERIES_COLORS.cost, unit: "", format: fmtCost, points: view.seriesCost },
@@ -139,6 +146,9 @@ export function MetricsPage() {
           <FilterBar
             range={filters.range}
             onRange={(r: RangeKey) => setFilters((f) => ({ ...f, range: r }))}
+            providerOpts={allProviders}
+            selectedProviders={filters.providers}
+            onProviders={(v) => setFilters((f) => ({ ...f, providers: v }))}
             projectOpts={allProjects}
             selectedProjects={filters.projects}
             onProjects={(v) => setFilters((f) => ({ ...f, projects: v }))}
@@ -146,7 +156,7 @@ export function MetricsPage() {
             selectedModels={filters.models}
             onModels={(v) => setFilters((f) => ({ ...f, models: v }))}
             spanLabel={spanLabel}
-            onClear={() => setFilters({ range: "all", projects: [], models: [] })}
+            onClear={() => setFilters({ range: "all", providers: [], projects: [], models: [] })}
           />
 
           <StatGrid stats={stats} flashKey={flashKey} />
@@ -168,9 +178,15 @@ export function MetricsPage() {
           </section>
 
           <div className="mx-donuts">
+            <Donut title="Cost by provider" slices={view.costByProvider} total={view.totals.cost} format={fmtCostFull} centerLabel={fmtCost(view.totals.cost)} />
             <Donut title="Cost by project" slices={view.costByProject} total={view.totals.cost} format={fmtCostFull} centerLabel={fmtCost(view.totals.cost)} />
             <Donut title="Cost by model" slices={view.costByModel} total={view.totals.cost} format={fmtCostFull} centerLabel={fmtCost(view.totals.cost)} />
           </div>
+
+          <section className="mx-card mx-wide">
+            <div className="mx-card-h"><span>Per provider</span><span className="mx-h-sub">click a row to filter</span></div>
+            <GroupTable rows={view.providers} kind="provider" activeKeys={activeProviders} onToggle={toggleProvider} />
+          </section>
 
           <section className="mx-card mx-wide">
             <div className="mx-card-h"><span>Per project</span><span className="mx-h-sub">click a row to filter</span></div>
