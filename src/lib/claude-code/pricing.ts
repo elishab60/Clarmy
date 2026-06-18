@@ -51,6 +51,11 @@ const FALLBACK_PER_TOKEN: Record<string, Pricing> = {
   // Usage is reconstructed (see providers/grok), not billed, so cost is an estimate.
   "grok-build":                 { input: 3e-6,    output: 15e-6,   cacheRead: 7.5e-7,   cacheCreate5m: 3e-6,     cacheCreate1h: 3e-6    },
   "grok-composer-2.5-fast":     { input: 1e-6,    output: 5e-6,    cacheRead: 2.5e-7,   cacheCreate5m: 1e-6,     cacheCreate1h: 1e-6    },
+  // z.ai GLM, reached through opencode's zai-coding-plan. That plan is a flat
+  // subscription and reports $0 per call on disk, so cost is estimated from
+  // user-supplied list rates: a flagship tier and a ~1/3-cheaper air/turbo tier.
+  "zai-glm":                    { input: 1.4e-6,  output: 4.4e-6,  cacheRead: 2.6e-7,   cacheCreate5m: 1.4e-6,   cacheCreate1h: 1.4e-6  },
+  "zai-glm-air":                { input: 0.93e-6, output: 2.93e-6, cacheRead: 1.73e-7,  cacheCreate5m: 0.93e-6,  cacheCreate1h: 0.93e-6 },
 };
 
 const UNKNOWN: Pricing = { input: 0, output: 0, cacheRead: 0, cacheCreate5m: 0, cacheCreate1h: 0 };
@@ -131,6 +136,10 @@ function pricingSync(model: string | undefined | null): Pricing {
   if (lower.includes("gpt-5") || lower.startsWith("gpt")) return table["gpt-5"] ?? UNKNOWN;
   if (lower.includes("composer")) return table["grok-composer-2.5-fast"] ?? UNKNOWN;
   if (lower.includes("grok")) return table["grok-build"] ?? UNKNOWN;
+  if (lower.includes("glm") || lower.includes("zai")) {
+    if (lower.includes("air") || lower.includes("turbo")) return table["zai-glm-air"] ?? UNKNOWN;
+    return table["zai-glm"] ?? UNKNOWN;
+  }
   return UNKNOWN;
 }
 
