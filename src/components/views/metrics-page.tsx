@@ -215,7 +215,7 @@ function Toggle<T extends string>({ opts, value, onChange }: { opts: { k: T; lab
 
 function Legend({ items }: { items: { key: string; label: string; color: string }[] }) {
   return (
-    <div className="mx-legend">
+    <div className="mx-legend-row">
       {items.map((it) => (
         <span key={it.key} className="mx-legend-item">
           <span className="mx-legend-dot" style={{ background: it.color }} />{it.label}
