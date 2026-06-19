@@ -3,10 +3,11 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ApprovalMode, Effort, ModelId, ProviderId } from "@/lib/shared/types";
-import { modelIdsForProvider, defaultModelFor, effortLevelsFor, defaultEffortFor } from "@/lib/shared/models";
+import { defaultModelFor, effortLevelsFor, defaultEffortFor, modelBelongsToProvider } from "@/lib/shared/models";
 import { PROVIDERS, coerceProviderId } from "@/lib/shared/providers";
 import { useCockpit } from "@/lib/client/store";
 import { ProjectSelector, type ProjectOption } from "./project-selector";
+import { ModelPicker } from "./model-picker";
 
 const BUILTIN_TOOLS = ["Bash", "Read", "Edit", "Write", "Grep", "TodoWrite"];
 const EXTRA_TOOLS = ["Glob", "WebFetch", "WebSearch", "Task"];
@@ -40,10 +41,9 @@ export function NewSessionView() {
   const setStoreProvider = useCockpit((s) => s.setProvider);
   const prefs = useMemo(() => loadPrefs(), []);
   const initialProvider = coerceProviderId(prefs.provider ?? storeProvider);
-  const initialModel = (() => {
-    const ids = modelIdsForProvider(initialProvider);
-    return prefs.model && ids.includes(prefs.model) ? prefs.model : defaultModelFor(initialProvider);
-  })();
+  const initialModel = prefs.model && modelBelongsToProvider(initialProvider, prefs.model)
+    ? prefs.model
+    : defaultModelFor(initialProvider);
   const [provider, setProviderState] = useState<ProviderId>(initialProvider);
   const [model, setModel] = useState<ModelId>(initialModel);
   const [effort, setEffort] = useState<Effort | null>(() => {
@@ -62,8 +62,7 @@ export function NewSessionView() {
   };
 
   useEffect(() => {
-    const ids = modelIdsForProvider(provider);
-    setModel((cur) => (ids.includes(cur) ? cur : defaultModelFor(provider)));
+    setModel((cur) => (modelBelongsToProvider(provider, cur) ? cur : defaultModelFor(provider)));
   }, [provider]);
 
   useEffect(() => {
@@ -256,7 +255,7 @@ export function NewSessionView() {
   return (
     <div className="new-session-view">
       <h1>New session</h1>
-      <p className="lede">Spawn an agent CLI session in a project directory. Pick the provider (Gemini, Claude, Codex or Grok), then approve tool calls individually or let a set of them run unattended.</p>
+      <p className="lede">Spawn an agent CLI session in a project directory. Pick the provider (Gemini, Claude, Codex, Grok or OpenCode), then approve tool calls individually or let a set of them run unattended.</p>
 
       <div className="form-card">
         <div className="form-section">
@@ -355,18 +354,7 @@ export function NewSessionView() {
           <div className="form-row">
             <label>Model</label>
             <div className="ctrl">
-              <div className="model-segment" role="radiogroup" aria-label="Model">
-                {modelIdsForProvider(provider).map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    role="radio"
-                    aria-checked={model === m}
-                    className={model === m ? "on" : ""}
-                    onClick={() => setModel(m)}
-                  >{m}</button>
-                ))}
-              </div>
+              <ModelPicker provider={provider} model={model} onModel={setModel} />
             </div>
           </div>
           <div className="form-row">

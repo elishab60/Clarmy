@@ -1,0 +1,41 @@
+{
+  "character": "anni",
+  "rows": [
+    {
+      "direction": "down",
+      "frames": [
+        { "index": 0, "pose": "walk_a", "action": "mid-stride walking, LEFT leg forward and right leg back, legs clearly apart, arms swinging" },
+        { "index": 1, "pose": "walk_n", "action": "standing neutral, feet together, arms relaxed at sides" },
+        { "index": 2, "pose": "walk_b", "action": "mid-stride walking, RIGHT leg forward and left leg back, legs clearly apart, arms swinging" },
+        { "index": 3, "pose": "type_0", "action": "seated typing pose, knees bent, both hands raised forward as if on an invisible keyboard" },
+        { "index": 4, "pose": "type_1", "action": "seated typing pose, knees bent, hands forward mid-keystroke, fingers spread" },
+        { "index": 5, "pose": "read_0", "action": "standing, holding a small open book in both hands, looking down reading" },
+        { "index": 6, "pose": "read_1", "action": "standing, holding a small open book, glancing up from the page" }
+      ]
+    },
+    {
+      "direction": "up",
+      "frames": [
+        { "index": 7, "pose": "walk_a", "action": "back view, mid-stride walking away, LEFT leg forward, legs apart" },
+        { "index": 8, "pose": "walk_n", "action": "back view, standing neutral, feet together" },
+        { "index": 9, "pose": "walk_b", "action": "back view, mid-stride walking away, RIGHT leg forward, legs apart" },
+        { "index": 10, "pose": "type_0", "action": "back view, seated typing pose, knees bent, hands raised forward" },
+        { "index": 11, "pose": "type_1", "action": "back view, seated typing pose, hands forward mid-keystroke" },
+        { "index": 12, "pose": "read_0", "action": "back view, standing, holding a small book, head down reading" },
+        { "index": 13, "pose": "read_1", "action": "back view, standing reading, slight head tilt" }
+      ]
+    },
+    {
+      "direction": "right",
+      "frames": [
+        { "index": 14, "pose": "walk_a", "action": "right profile, mid-stride walking right, LEFT leg forward, legs apart" },
+        { "index": 15, "pose": "walk_n", "action": "right profile, standing neutral, feet together" },
+        { "index": 16, "pose": "walk_b", "action": "right profile, mid-stride walking right, RIGHT leg forward, legs apart" },
+        { "index": 17, "pose": "type_0", "action": "right profile, seated typing pose, knees bent, hands forward as if on a keyboard" },
+        { "index": 18, "pose": "type_1", "action": "right profile, seated typing pose, hands forward mid-keystroke" },
+        { "index": 19, "pose": "read_0", "action": "right profile, standing, holding a small book, reading" },
+        { "index": 20, "pose": "read_1", "action": "right profile, standing reading, glancing up" }
+      ]
+    }
+  ]
+}

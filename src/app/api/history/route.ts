@@ -10,7 +10,9 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const limit = Math.min(Math.max(Number(url.searchParams.get("limit")) || 300, 1), 2000);
   const cwd = url.searchParams.get("cwd");
-  let { sessions } = await getMetricsIndex().sessions();
+  const provider = url.searchParams.get("provider");
+  let { sessions } = await getMetricsIndex().history();
   if (cwd) sessions = sessions.filter((s) => s.cwd === cwd);
+  if (provider) sessions = sessions.filter((s) => s.provider === provider);
   return NextResponse.json({ sessions: sessions.slice(0, limit) });
 }

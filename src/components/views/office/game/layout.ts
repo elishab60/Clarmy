@@ -1,9 +1,11 @@
 import type { ProviderId } from "@/lib/shared/types";
 import { TILE, key, type Desk, type Spot } from "./types";
 
-// AI Headquarters: four themed zones around a central desk cluster.
-// Grok = gothic corner (NW), Claude = library (NE), Gemini = knight hall (SW),
-// Codex/Copilot = spectator lounge with Chinese-AI posters (SE).
+// AI Headquarters: FOUR self-contained provider bases, one per quadrant, split
+// by central aisles. No shared desks — each provider spawns, works and idles
+// only inside its own base, so nobody encroaches on another's territory.
+// Grok = gothic (NW), Claude = library (NE), Gemini = knight hall (SW),
+// Codex/Copilot = spectator lounge (SE).
 
 export const COLS = 40;
 export const ROWS = 24;
@@ -16,69 +18,45 @@ export interface Decor {
   readonly row: number;
   readonly block?: boolean;
   readonly tall?: boolean;
-  readonly floor?: boolean;   // 16x16 tile drawn at ground level
+  readonly floor?: boolean;
 }
 
-// 8 desks in two pods, slightly wider spacing for the themed perimeter.
-function desks(): Desk[] {
+// A desk pod: 3 columns × 2 rows = 6 desks. Seat sits one tile below the PC.
+function pod(cols: readonly number[], rows: readonly number[], start: number): Desk[] {
   const out: Desk[] = [];
-  const podCols = [14, 19, 24, 29];
-  const podRows = [9, 15];
-  let id = 0;
-  for (const r of podRows) {
-    for (const c of podCols) {
-      out.push({ id: id++, seat: { col: c, row: r + 1, face: "up" }, pcCol: c, pcRow: r });
-    }
+  let id = start;
+  for (const r of rows) for (const c of cols) {
+    out.push({ id: id++, seat: { col: c, row: r + 1, face: "up" }, pcCol: c, pcRow: r });
   }
   return out;
 }
 
-export const DESKS: Desk[] = desks();
+// Only the four themed bases have desks. Providers without a base (e.g. opencode)
+// fall back to the shared DESKS pool + claude visuals at the call sites, so this
+// stays Partial rather than inventing a fifth quadrant.
+export const DESKS_BY_PROVIDER: Partial<Record<ProviderId, Desk[]>> = {
+  grok: pod([4, 9, 14], [4, 7], 0),
+  claude: pod([24, 29, 34], [4, 7], 100),
+  gemini: pod([4, 9, 14], [15, 18], 200),
+  codex: pod([24, 29, 34], [15, 18], 300),
+};
 
-export const TOOL_SPOTS: Spot[] = [
-  { col: 33, row: 5, face: "up" },
-  { col: 34, row: 5, face: "up" },
-  { col: 35, row: 5, face: "up" },
-];
+export const DESKS: Desk[] = Object.values(DESKS_BY_PROVIDER).flat();
 
-export const COFFEE_SPOTS: Spot[] = [
-  { col: 5, row: 5, face: "up" },
-  { col: 6, row: 5, face: "up" },
-];
+// Idle: stand facing the camera (down), at the front of the provider's base.
+export const IDLE_SPOTS: Partial<Record<ProviderId, Spot[]>> = {
+  grok: [{ col: 4, row: 10, face: "down" }, { col: 9, row: 10, face: "down" }, { col: 14, row: 10, face: "down" }],
+  claude: [{ col: 24, row: 10, face: "down" }, { col: 29, row: 10, face: "down" }, { col: 34, row: 10, face: "down" }],
+  gemini: [{ col: 4, row: 21, face: "down" }, { col: 9, row: 21, face: "down" }, { col: 14, row: 21, face: "down" }],
+  codex: [{ col: 24, row: 21, face: "down" }, { col: 29, row: 21, face: "down" }, { col: 34, row: 21, face: "down" }],
+};
 
-export const LOUNGE_SEATS: Spot[] = [
-  { col: 32, row: 19, face: "down" },
-  { col: 33, row: 19, face: "down" },
-  { col: 35, row: 19, face: "down" },
-  { col: 32, row: 21, face: "down" },
-];
-
-// Codex watches the Chinese-AI poster wall when idle.
-export const SPECTATOR_SPOTS: Spot[] = [
-  { col: 34, row: 17, face: "left" },
-  { col: 35, row: 17, face: "left" },
-  { col: 33, row: 18, face: "left" },
-];
-
-// Grok broods in the gothic corner between tasks.
-export const GOTH_SPOTS: Spot[] = [
-  { col: 3, row: 4, face: "up" },
-  { col: 4, row: 4, face: "up" },
-  { col: 2, row: 5, face: "right" },
-];
-
-// Gemini meditates in the knight hall when idle.
-export const KNIGHT_SPOTS: Spot[] = [
-  { col: 3, row: 19, face: "up" },
-  { col: 2, row: 20, face: "up" },
-];
-
-// Each provider walks in from their themed zone.
-export const SPAWN_BY_PROVIDER: Record<ProviderId, Spot> = {
-  grok: { col: 3, row: 5, face: "down" },
-  claude: { col: 35, row: 5, face: "down" },
-  gemini: { col: 3, row: 20, face: "up" },
-  codex: { col: 34, row: 16, face: "down" },
+// Each provider walks in from the aisle edge of its own base.
+export const SPAWN_BY_PROVIDER: Partial<Record<ProviderId, Spot>> = {
+  grok: { col: 9, row: 10, face: "down" },
+  claude: { col: 29, row: 10, face: "down" },
+  gemini: { col: 9, row: 13, face: "down" },
+  codex: { col: 29, row: 13, face: "down" },
 };
 
 export interface ZoneLabel {
@@ -90,56 +68,49 @@ export interface ZoneLabel {
 
 export const ZONE_LABELS: readonly ZoneLabel[] = [
   { text: "NÉCROPOLIS", col: 2, row: 1, color: "#9B7CFF" },
-  { text: "BIBLIOTHÈQUE", col: 33, row: 1, color: "#D97757" },
-  { text: "GRAND SALON", col: 1, row: 16, color: "#4796E3" },
-  { text: "ZONE DÉGOUT", col: 31, row: 14, color: "#10A37F" },
+  { text: "BIBLIOTHÈQUE", col: 30, row: 1, color: "#D97757" },
+  { text: "GRAND SALON", col: 2, row: 12, color: "#4796E3" },
+  { text: "ZONE DÉGOUT", col: 30, row: 12, color: "#10A37F" },
 ];
 
+// Themed decor on each base's back wall (row 2 for top bases, row 13 for bottom),
+// kept off desk/seat/idle/spawn cells.
 export const DECOR: Decor[] = [
-  // ── Grok gothic corner (top-left) ──
-  { frame: "GOTHIC_RUG", col: 2, row: 3, floor: true },
-  { frame: "GOTHIC_RUG", col: 3, row: 3, floor: true },
-  { frame: "GOTHIC_RUG", col: 4, row: 3, floor: true },
-  { frame: "GOTHIC_ALTAR", col: 3, row: 2, block: true, tall: true },
-  { frame: "SKULL_CANDLE", col: 2, row: 2, block: true, tall: true },
-  { frame: "SKULL_CANDLE", col: 5, row: 2, block: true, tall: true },
-  { frame: "PLANT", col: 1, row: 3, block: true, tall: true },
-  { frame: "COFFEE", col: 6, row: 3, block: true, tall: true },
-  { frame: "SMALL_TABLE", col: 7, row: 3, block: true },
+  // ── Grok gothic base (NW) ──
+  { frame: "GOTHIC_RUG", col: 8, row: 6, floor: true },
+  { frame: "GOTHIC_RUG", col: 9, row: 6, floor: true },
+  { frame: "GOTHIC_ALTAR", col: 2, row: 2, block: true, tall: true },
+  { frame: "SKULL_CANDLE", col: 6, row: 2, block: true, tall: true },
+  { frame: "SKULL_CANDLE", col: 11, row: 2, block: true, tall: true },
+  { frame: "PLANT", col: 16, row: 2, block: true, tall: true },
+  { frame: "SMALL_TABLE", col: 17, row: 5, block: true },
 
-  // ── Claude library (top-right) ──
-  { frame: "RUG_WOOD", col: 32, row: 2, floor: true },
-  { frame: "RUG_WOOD", col: 33, row: 2, floor: true },
-  { frame: "RUG_WOOD", col: 34, row: 2, floor: true },
-  { frame: "BOOKSHELF_FANCY", col: 36, row: 2, block: true, tall: true },
-  { frame: "DOUBLE_BOOKSHELF", col: 37, row: 2, block: true, tall: true },
-  { frame: "LIBRARY_LAMP", col: 35, row: 3, block: true, tall: true },
-  { frame: "WHITEBOARD", col: 33, row: 4, block: true, tall: true },
-  { frame: "CLOCK", col: 38, row: 3, block: true, tall: true },
+  // ── Claude library base (NE) ──
+  { frame: "RUG_WOOD", col: 28, row: 6, floor: true },
+  { frame: "RUG_WOOD", col: 29, row: 6, floor: true },
+  { frame: "DOUBLE_BOOKSHELF", col: 22, row: 2, block: true, tall: true },
+  { frame: "BOOKSHELF_FANCY", col: 26, row: 2, block: true, tall: true },
+  { frame: "WHITEBOARD", col: 31, row: 2, block: true, tall: true },
+  { frame: "CLOCK", col: 36, row: 2, block: true, tall: true },
+  { frame: "LIBRARY_LAMP", col: 37, row: 5, block: true, tall: true },
 
-  // ── Gemini knight hall (bottom-left) ──
-  { frame: "STONE_FLOOR", col: 2, row: 18, floor: true },
-  { frame: "STONE_FLOOR", col: 3, row: 18, floor: true },
-  { frame: "STONE_FLOOR", col: 4, row: 18, floor: true },
-  { frame: "STONE_FLOOR", col: 2, row: 19, floor: true },
-  { frame: "STONE_FLOOR", col: 3, row: 19, floor: true },
-  { frame: "KNIGHT_BANNER", col: 1, row: 17, block: true, tall: true },
-  { frame: "ARMOR_STAND", col: 4, row: 17, block: true, tall: true },
-  { frame: "KNIGHT_BANNER", col: 6, row: 17, block: true, tall: true },
-  { frame: "CUSHIONED_BENCH", col: 2, row: 20, block: true },
-  { frame: "COFFEE_TABLE", col: 4, row: 21, block: true },
+  // ── Gemini knight base (SW) ──
+  { frame: "STONE_FLOOR", col: 8, row: 16, floor: true },
+  { frame: "STONE_FLOOR", col: 9, row: 16, floor: true },
+  { frame: "KNIGHT_BANNER", col: 2, row: 13, block: true, tall: true },
+  { frame: "ARMOR_STAND", col: 6, row: 13, block: true, tall: true },
+  { frame: "KNIGHT_BANNER", col: 11, row: 13, block: true, tall: true },
+  { frame: "CUSHIONED_BENCH", col: 16, row: 14, block: true },
+  { frame: "COFFEE_TABLE", col: 17, row: 17, block: true },
 
-  // ── Codex spectator lounge + Chinese-AI posters (bottom-right) ──
-  { frame: "TV_SCREEN", col: 31, row: 14, block: true, tall: true },
-  { frame: "POSTER_DEEPSEEK", col: 32, row: 15, block: true, tall: true },
-  { frame: "POSTER_QWEN", col: 34, row: 15, block: true, tall: true },
-  { frame: "POSTER_KIMI", col: 36, row: 15, block: true, tall: true },
-  { frame: "SPECTATOR_CHAIR", col: 33, row: 18, block: true, tall: true },
-  { frame: "SPECTATOR_CHAIR", col: 35, row: 18, block: true, tall: true },
-  { frame: "POPCORN", col: 37, row: 20, block: true },
-  { frame: "CUSHIONED_BENCH", col: 32, row: 20, block: true },
-  { frame: "CUSHIONED_BENCH", col: 35, row: 20, block: true },
-  { frame: "LARGE_PLANT", col: 38, row: 19, block: true, tall: true },
+  // ── Codex spectator lounge base (SE) ──
+  { frame: "TV_SCREEN", col: 22, row: 13, block: true, tall: true },
+  { frame: "POSTER_DEEPSEEK", col: 26, row: 13, block: true, tall: true },
+  { frame: "POSTER_QWEN", col: 31, row: 13, block: true, tall: true },
+  { frame: "POSTER_KIMI", col: 36, row: 13, block: true, tall: true },
+  { frame: "SPECTATOR_CHAIR", col: 22, row: 16, block: true, tall: true },
+  { frame: "POPCORN", col: 37, row: 17, block: true },
+  { frame: "LARGE_PLANT", col: 37, row: 14, block: true, tall: true },
 ];
 
 export function buildBlocked(): Set<string> {

@@ -1579,6 +1579,57 @@ kbd, code, .mono { font-family: var(--font-mono); font-feature-settings: 'zero',
   box-shadow: inset 0 -2px 0 var(--brand);
 }
 
+/* ---- OpenCode searchable model picker (large, dynamic model list) ---- */
+.oc-model-picker { display: flex; flex-direction: column; gap: 6px; }
+.oc-model-search {
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 0 10px;
+}
+.oc-model-search:focus { outline: none; border-color: color-mix(in srgb, var(--brand) 70%, var(--border)); }
+.oc-model-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 196px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+.oc-model-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  padding: 7px 10px;
+  transition: background 0.1s, color 0.1s;
+}
+.oc-model-row:last-child { border-bottom: 0; }
+.oc-model-row:hover { color: var(--fg); background: var(--bg-elev); }
+.oc-model-row.on {
+  color: var(--fg);
+  background: var(--bg-elev);
+  box-shadow: inset 2px 0 0 var(--brand);
+}
+.oc-model-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.oc-model-provider { color: var(--fg-muted); font-size: 10.5px; flex: none; opacity: 0.8; }
+.oc-model-empty { padding: 10px; color: var(--fg-muted); font-size: 11.5px; }
+.oc-model-selected { font-size: 10.5px; color: var(--fg-muted); }
+.oc-model-selected code { color: var(--fg-dim); }
+
 /* ---- Effort slider ---- */
 .effort-slider-wrap {
   display: flex;

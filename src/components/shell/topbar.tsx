@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useCockpit } from "@/lib/client/store";
-import { ClaudeIcon, CodexIcon, AntigravityIcon, GrokIcon, type ProviderIcon } from "./provider-icons";
+import { ClaudeIcon, CodexIcon, AntigravityIcon, GrokIcon, OpenCodeIcon, type ProviderIcon } from "./provider-icons";
 import { PROVIDERS } from "@/lib/shared/providers";
 import type { ProviderId } from "@/lib/shared/types";
 
@@ -14,6 +14,7 @@ const PROVIDER_ICON: Record<ProviderId, ProviderIcon> = {
   codex: CodexIcon,
   gemini: AntigravityIcon,
   grok: GrokIcon,
+  opencode: OpenCodeIcon,
 };
 
 function titleFor(pathname: string): string {

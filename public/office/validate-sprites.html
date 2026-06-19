@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Office · validation sprites</title>
+<style>
+  :root { --bg: #14110e; --panel: #1d1916; --ink: #e8e1d6; --muted: #9b9183; --line: #2c2620; --accent: #d97757; }
+  [data-bg="light"] { --bg: #efe9df; --panel: #fbf7f0; --ink: #2a241d; --muted: #6a6155; --line: #ddd3c4; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.4 ui-sans-serif, system-ui, sans-serif; background: var(--bg); color: var(--ink); }
+  header { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 14px; align-items: center;
+    padding: 12px 18px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  h1 { font-size: 15px; margin: 0; font-weight: 700; letter-spacing: .3px; }
+  .agents { display: flex; gap: 6px; }
+  .agents button { cursor: pointer; border: 1px solid var(--line); background: transparent; color: var(--ink);
+    padding: 5px 12px; border-radius: 999px; font-weight: 600; }
+  .agents button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .ctl { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+  .ctl input[type=range] { width: 160px; accent-color: var(--accent); }
+  .tagline { color: var(--muted); font-size: 13px; }
+  main { padding: 18px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
+  .stage {
+    display: flex; align-items: flex-end; justify-content: center; height: 210px; border-radius: 8px;
+    background-color: #2a2a2a;
+    background-image: linear-gradient(45deg,#333 25%,transparent 25%),linear-gradient(-45deg,#333 25%,transparent 25%),
+      linear-gradient(45deg,transparent 75%,#333 75%),linear-gradient(-45deg,transparent 75%,#333 75%);
+    background-size: 16px 16px; background-position: 0 0,0 8px,8px -8px,-8px 0; overflow: hidden;
+  }
+  [data-bg="light"] .stage { background-color: #d9d2c6; background-image:
+    linear-gradient(45deg,#cabfad 25%,transparent 25%),linear-gradient(-45deg,#cabfad 25%,transparent 25%),
+    linear-gradient(45deg,transparent 75%,#cabfad 75%),linear-gradient(-45deg,transparent 75%,#cabfad 75%); }
+  .sprite { image-rendering: pixelated; background-repeat: no-repeat; }
+  .meta { display: flex; justify-content: space-between; align-items: baseline; margin-top: 8px; }
+  .name { font-weight: 700; font-size: 13px; }
+  .fps { color: var(--muted); font-size: 11px; }
+  .verdict { display: flex; gap: 6px; margin-top: 8px; }
+  .verdict button { flex: 1; cursor: pointer; border: 1px solid var(--line); background: transparent; color: var(--muted);
+    padding: 4px 0; border-radius: 6px; font-weight: 700; font-size: 12px; }
+  .verdict button.ok[aria-pressed="true"] { background: #2e7d4f; border-color: #2e7d4f; color: #fff; }
+  .verdict button.no[aria-pressed="true"] { background: #b3402f; border-color: #b3402f; color: #fff; }
+  .note { width: 100%; margin-top: 6px; background: var(--bg); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 6px; padding: 4px 6px; font: inherit; font-size: 12px; }
+  .hint { color: var(--muted); font-size: 12px; margin: 0 0 14px; }
+  .section { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted);
+    margin: 22px 0 8px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+</style>
+</head>
+<body data-bg="dark">
+<header>
+  <h1>Office · validation sprites</h1>
+  <div class="agents" id="agents"></div>
+  <span class="tagline" id="tagline"></span>
+  <span style="flex:1"></span>
+  <label class="ctl">vitesse <input id="speed" type="range" min="0.1" max="3" step="0.1" value="1" /><span id="speedval">1.0×</span></label>
+  <button class="ctl" id="bgtoggle" style="cursor:pointer;border:1px solid var(--line);background:transparent;color:var(--ink);padding:5px 10px;border-radius:6px;">fond clair</button>
+</header>
+<main>
+  <p class="hint">Animations rejouées avec les mêmes frames + framerate que le runtime Phaser (scene.ts). Coche ✓/✗ par anim, note libre. Verdicts gardés en localStorage. <code>?cb</code> auto pour rafraîchir après regen.</p>
+  <div id="sections"></div>
+</main>
+<script>
+  // Mirrors src/components/views/office/game/agents.ts (AGENT_SHEET) + scene.ts (createAnims).
+  const SHEET = {
+    claude: { frameW: 48, frameH: 48, label: "Claude", tagline: "Clawd, blob orange, design validé" },
+    gemini: { frameW: 16, frameH: 32, label: "Gemini", tagline: "chevalier poète, ne parle qu'en vers" },
+    codex:  { frameW: 16, frameH: 32, label: "Copilot", tagline: "regarde les IA chinoises le fumer" },
+    grok:   { frameW: 44, frameH: 88, label: "Grok", tagline: "Anni, gothique élancée, regard dominateur" },
+  };
+  const ORDER = ["claude", "grok", "gemini", "codex"];
+  const STAGE_H = 192; // max on-stage sprite height
+  const STAGE_W = 130; // max on-stage sprite width (wide blobs must fit the card)
+  const CB = Date.now();
+
+  // base frame per direction: down=0, up=7, right=14. left = right flipped.
+  function animsFor() {
+    const dirs = [["down", 0], ["up", 7], ["right", 14]];
+    const out = [];
+    for (const [dir, b] of dirs) {
+      out.push({ group: "walk", name: `walk-${dir}`, frames: [b, b + 1, b + 2, b + 1], fps: 7, flip: false });
+      out.push({ group: "type", name: `type-${dir}`, frames: [b + 3, b + 4], fps: 3.3, flip: false });
+      out.push({ group: "read", name: `read-${dir}`, frames: [b + 5, b + 6], fps: 1.6, flip: false });
+      out.push({ group: "idle", name: `idle-${dir}`, frames: [b + 1], fps: 0, flip: false });
+    }
+    // left = right view mirrored (runtime uses setFlipX on the right frames)
+    out.push({ group: "walk", name: "walk-left", frames: [14, 15, 16, 15], fps: 7, flip: true });
+    out.push({ group: "type", name: "type-left", frames: [17, 18], fps: 3.3, flip: true });
+    out.push({ group: "read", name: "read-left", frames: [19, 20], fps: 1.6, flip: true });
+    out.push({ group: "idle", name: "idle-left", frames: [15], fps: 0, flip: true });
+    return out;
+  }
+  const GROUPS = [["walk", "Marche"], ["type", "Typing"], ["read", "Lecture"], ["idle", "Idle / stand"]];
+
+  let agent = new URLSearchParams(location.search).get("agent") || "claude";
+  if (!SHEET[agent]) agent = "claude";
+  let speed = 1;
+  const cards = []; // { el, frames, fps, cols, scale, frameW, frameH }
+
+  function buildAgents() {
+    const host = document.getElementById("agents");
+    host.innerHTML = "";
+    for (const id of ORDER) {
+      const b = document.createElement("button");
+      b.textContent = SHEET[id].label;
+      b.setAttribute("aria-pressed", String(id === agent));
+      b.onclick = () => { agent = id; render(); };
+      host.appendChild(b);
+    }
+    document.getElementById("tagline").textContent = SHEET[agent].tagline;
+  }
+
+  function vkey(name) { return `office-sprite-verdict:${agent}:${name}`; }
+
+  function makeCard(a, img, cols) {
+    const meta = SHEET[agent];
+    const scale = Math.min(STAGE_H / meta.frameH, STAGE_W / meta.frameW);
+    const card = document.createElement("div");
+    card.className = "card";
+    const stage = document.createElement("div");
+    stage.className = "stage";
+    const sp = document.createElement("div");
+    sp.className = "sprite";
+    sp.style.width = (meta.frameW * scale) + "px";
+    sp.style.height = (meta.frameH * scale) + "px";
+    sp.style.backgroundImage = `url(/characters/agent_${agent}.png?cb=${CB})`;
+    sp.style.backgroundSize = (img.naturalWidth * scale) + "px " + (img.naturalHeight * scale) + "px";
+    if (a.flip) sp.style.transform = "scaleX(-1)";
+    stage.appendChild(sp);
+    card.appendChild(stage);
+
+    const m = document.createElement("div");
+    m.className = "meta";
+    m.innerHTML = `<span class="name">${a.name}</span><span class="fps">${a.fps ? a.fps + " fps" : "static"}</span>`;
+    card.appendChild(m);
+
+    const v = document.createElement("div");
+    v.className = "verdict";
+    const ok = document.createElement("button"); ok.className = "ok"; ok.textContent = "✓ ok";
+    const no = document.createElement("button"); no.className = "no"; no.textContent = "✗ refait";
+    const saved = JSON.parse(localStorage.getItem(vkey(a.name)) || "null");
+    const setV = (val) => {
+      ok.setAttribute("aria-pressed", String(val === "ok"));
+      no.setAttribute("aria-pressed", String(val === "no"));
+      const note = card.querySelector(".note").value;
+      localStorage.setItem(vkey(a.name), JSON.stringify({ v: val, note }));
+    };
+    ok.onclick = () => setV("ok");
+    no.onclick = () => setV("no");
+    v.appendChild(ok); v.appendChild(no);
+    card.appendChild(v);
+
+    const note = document.createElement("input");
+    note.className = "note"; note.placeholder = "note (ce qui cloche)";
+    note.value = saved?.note || "";
+    note.oninput = () => { const cur = JSON.parse(localStorage.getItem(vkey(a.name)) || "null"); localStorage.setItem(vkey(a.name), JSON.stringify({ v: cur?.v || null, note: note.value })); };
+    card.appendChild(note);
+    if (saved?.v) { ok.setAttribute("aria-pressed", String(saved.v === "ok")); no.setAttribute("aria-pressed", String(saved.v === "no")); }
+
+    cards.push({ sp, frames: a.frames, fps: a.fps, cols, scale, frameW: meta.frameW, frameH: meta.frameH });
+    return card;
+  }
+
+  function render() {
+    buildAgents();
+    cards.length = 0;
+    const host = document.getElementById("sections");
+    host.innerHTML = "loading…";
+    const img = new Image();
+    img.onload = () => {
+      const meta = SHEET[agent];
+      const cols = Math.max(1, Math.round(img.naturalWidth / meta.frameW));
+      host.innerHTML = "";
+      const list = animsFor();
+      for (const [g, label] of GROUPS) {
+        const h = document.createElement("div"); h.className = "section"; h.textContent = label; host.appendChild(h);
+        const grid = document.createElement("div"); grid.className = "grid"; host.appendChild(grid);
+        for (const a of list.filter((x) => x.group === g)) grid.appendChild(makeCard(a, img, cols));
+      }
+    };
+    img.onerror = () => { host.innerHTML = `<p class="hint">agent_${agent}.png introuvable.</p>`; };
+    img.src = `/characters/agent_${agent}.png?cb=${CB}`;
+  }
+
+  function tick(t) {
+    for (const c of cards) {
+      const n = c.frames.length;
+      const idx = (c.fps > 0) ? Math.floor((t / 1000) * c.fps * speed) % n : 0;
+      const f = c.frames[idx];
+      const col = f % c.cols, row = Math.floor(f / c.cols);
+      c.sp.style.backgroundPosition = `${-col * c.frameW * c.scale}px ${-row * c.frameH * c.scale}px`;
+    }
+    requestAnimationFrame(tick);
+  }
+
+  document.getElementById("speed").oninput = (e) => {
+    speed = Number(e.target.value);
+    document.getElementById("speedval").textContent = speed.toFixed(1) + "×";
+  };
+  document.getElementById("bgtoggle").onclick = (e) => {
+    const light = document.body.getAttribute("data-bg") === "light";
+    document.body.setAttribute("data-bg", light ? "dark" : "light");
+    e.target.textContent = light ? "fond clair" : "fond sombre";
+  };
+  render();
+  requestAnimationFrame(tick);
+</script>
+</body>
+</html>

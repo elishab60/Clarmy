@@ -1,13 +1,34 @@
 import type * as PhaserNamespace from "phaser";
+import type { ProviderId } from "@/lib/shared/types";
 import { AGENT_SHEET, type AgentSprite } from "./agents";
 import {
-  buildBlocked, DECOR, DESKS, SPAWN_BY_PROVIDER, WORLD_H, WORLD_W, ZONE_LABELS,
+  buildBlocked, DECOR, DESKS, DESKS_BY_PROVIDER, SPAWN_BY_PROVIDER, WORLD_H, WORLD_W, ZONE_LABELS,
 } from "./layout";
 import { Character } from "./character";
 import { applyState, hash } from "./behavior";
 import { TILE, type Desk, type SessionLite } from "./types";
 
 const AGENT_SPRITES: readonly AgentSprite[] = ["grok", "claude", "gemini", "codex"];
+
+/**
+ * Pre-HD on-grid width (px at TILE=16) each décor frame must occupy: the
+ * Josseaume/last-pull look. The working-tree atlas ships the same art at 2-16×
+ * resolution for crisp pixels, with mixed ratios per frame, so a single scale
+ * cannot fit them all. We scale each frame down to this width at render time,
+ * reading its real frame size from the texture (aspect ratio is preserved).
+ */
+const DECOR_W: Record<string, number> = {
+  DESK_FRONT: 48, DESK_SIDE: 16,
+  PC_FRONT_OFF: 16, PC_FRONT_ON_1: 16, PC_FRONT_ON_2: 16, PC_FRONT_ON_3: 16,
+  GOTHIC_RUG: 16, GOTHIC_ALTAR: 16, SKULL_CANDLE: 16, PLANT: 16, COFFEE: 16,
+  SMALL_TABLE: 32, RUG_WOOD: 16, BOOKSHELF: 32, BOOKSHELF_FANCY: 16,
+  DOUBLE_BOOKSHELF: 32, LIBRARY_LAMP: 16, WHITEBOARD: 32, CLOCK: 16, CACTUS: 16,
+  STONE_FLOOR: 16, KNIGHT_BANNER: 16, ARMOR_STAND: 16, CUSHIONED_BENCH: 16,
+  CUSHIONED_CHAIR_BACK: 16, CUSHIONED_CHAIR_FRONT: 16, WOODEN_CHAIR_FRONT: 16,
+  COFFEE_TABLE: 32, SOFA_FRONT: 32, TV_SCREEN: 16, BIN: 16, POPCORN: 16,
+  LARGE_PLANT: 32, SPECTATOR_CHAIR: 16,
+  POSTER_DEEPSEEK: 16, POSTER_QWEN: 16, POSTER_KIMI: 16,
+};
 
 // The office scene. Sessions flow in one direction: the React bridge calls
 // setSessions(); the scene converges characters toward that truth. Clicking a
@@ -17,7 +38,10 @@ export function createOfficeScene(P: typeof import("phaser")) {
   private chars = new Map<string, Character>();
   private minis = new Map<string, Character[]>();
   private deskOf = new Map<string, Desk>();
-  private freeDesks: Desk[] = [...DESKS];
+  private freeDesks: Partial<Record<ProviderId, Desk[]>> = {
+    grok: [...(DESKS_BY_PROVIDER.grok ?? [])], claude: [...(DESKS_BY_PROVIDER.claude ?? [])],
+    gemini: [...(DESKS_BY_PROVIDER.gemini ?? [])], codex: [...(DESKS_BY_PROVIDER.codex ?? [])],
+  };
   private pcs = new Map<number, PhaserNamespace.GameObjects.Sprite>();
   private blocked = buildBlocked();
   private pending: SessionLite[] | null = null;
@@ -139,9 +163,10 @@ export function createOfficeScene(P: typeof import("phaser")) {
   }
 
   private spawn(s: SessionLite): void {
-    const desk = this.freeDesks.shift() ?? DESKS[hash(s.id) % DESKS.length]!;
+    const own = DESKS_BY_PROVIDER[s.provider] ?? DESKS;
+    const desk = (this.freeDesks[s.provider] ?? []).shift() ?? own[hash(s.id) % own.length]!;
     this.deskOf.set(s.id, desk);
-    const door = SPAWN_BY_PROVIDER[s.provider] ?? SPAWN_BY_PROVIDER.claude;
+    const door = SPAWN_BY_PROVIDER[s.provider] ?? SPAWN_BY_PROVIDER.claude!;
     const ch = new Character(this, s, door, () => this.blocked);
     ch.sprite.setInteractive({ useHandCursor: true });
     ch.sprite.on("pointerdown", () => { this.charClicked = true; this.game.events.emit("select", s.id); });
@@ -157,7 +182,7 @@ export function createOfficeScene(P: typeof import("phaser")) {
   private despawn(id: string, ch: Character): void {
     this.chars.delete(id);
     const desk = this.deskOf.get(id);
-    if (desk) { this.freeDesks.unshift(desk); this.deskOf.delete(id); this.setPc(desk, false); }
+    if (desk) { (this.freeDesks[ch.session.provider] ?? []).unshift(desk); this.deskOf.delete(id); this.setPc(desk, false); }
     for (const m of this.minis.get(id) ?? []) m.fadeOutAndDestroy(() => { /* gone */ });
     this.minis.delete(id);
     ch.fadeOutAndDestroy(() => { /* gone */ });
@@ -169,9 +194,11 @@ export function createOfficeScene(P: typeof import("phaser")) {
     applyState(ch, s.state, desk, Math.random);
   }
 
-  // Subagents render as mini characters loitering next to the parent's desk.
+  // Subagents used to render as a pile of mini characters next to the parent;
+  // that stacked 3+ duplicate sprites on one desk and read as a mess, so it is
+  // disabled — one clean sprite per session. (Re-enable by raising the cap.)
   private syncMinis(parent: Character, s: SessionLite): void {
-    const want = Math.min(s.subagents ?? 0, 3);
+    const want = 0;
     const list = this.minis.get(s.id) ?? [];
     while (list.length < want) {
       const desk = this.deskOf.get(s.id)!;
@@ -222,21 +249,31 @@ export function createOfficeScene(P: typeof import("phaser")) {
     });
   }
 
+  /** Scale that brings an HD atlas frame back to its pre-HD on-grid width. */
+  private decorScale(frame: string): number {
+    const target = DECOR_W[frame] ?? TILE;
+    const real = this.textures.getFrame("decor", frame)?.width || target;
+    return target / real;
+  }
+
+  private addDecor(x: number, y: number, frame: string, depth: number): PhaserNamespace.GameObjects.Image {
+    return this.add.image(x, y, "decor", frame).setOrigin(0).setScale(this.decorScale(frame)).setDepth(depth);
+  }
+
   private drawRoom(): void {
     const dark = typeof document !== "undefined" && document.documentElement.dataset.theme !== "light";
     this.add.image(0, 0, dark ? "office-bg-dark" : "office-bg-light").setOrigin(0).setDepth(-12);
     for (const d of DECOR) {
       const y = d.floor ? d.row * TILE : (d.tall ? d.row * TILE - TILE : d.row * TILE);
       const depth = d.floor ? -9.5 : d.row * TILE + TILE - 0.1;
-      this.add.image(d.col * TILE, y, "decor", d.frame).setOrigin(0).setDepth(depth);
+      this.addDecor(d.col * TILE, y, d.frame, depth);
     }
     for (const desk of DESKS) {
-      this.add.image(desk.pcCol * TILE, desk.pcRow * TILE, "decor", "DESK_FRONT").setOrigin(0).setDepth(desk.pcRow * TILE + TILE - 0.2);
+      this.addDecor(desk.pcCol * TILE, desk.pcRow * TILE, "DESK_FRONT", desk.pcRow * TILE + TILE - 0.2);
       const pc = this.add.sprite(desk.pcCol * TILE, desk.pcRow * TILE - TILE, "decor", "PC_FRONT_OFF")
-        .setOrigin(0).setDepth(desk.pcRow * TILE + TILE - 0.1);
+        .setOrigin(0).setScale(this.decorScale("PC_FRONT_OFF")).setDepth(desk.pcRow * TILE + TILE - 0.1);
       this.pcs.set(desk.id, pc);
-      this.add.image(desk.seat.col * TILE, desk.seat.row * TILE, "decor", "CUSHIONED_CHAIR_BACK")
-        .setOrigin(0).setDepth(desk.seat.row * TILE + TILE - 0.2);
+      this.addDecor(desk.seat.col * TILE, desk.seat.row * TILE, "CUSHIONED_CHAIR_BACK", desk.seat.row * TILE + TILE - 0.2);
     }
   }
 

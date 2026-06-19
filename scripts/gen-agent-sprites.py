@@ -6,7 +6,7 @@ type x2, read x2 — same contract as the legacy clawd sheets so scene.ts stays
 compatible. Original pixel art personas, MIT like the repo.
 
 Personas (French brief):
-  Grok   — Ani (Desktop/Ani.png) : blonde couettes, yeux bleus, lingerie noire HD 32×64
+  Grok   — Anni (Desktop/anni/) : waifu gothique busty, corset or, jupe volants HD 32×64
   Claude — nerd classe, lunettes, cravate orange serrée
   Gemini — chevalier poète, heaume, cape bleue, joyau doré, épée
   Codex  — spectateur défait, hoodie vert Copilot, cernes, posture affaissée
@@ -138,19 +138,20 @@ def draw(
                 put(ox + rx, y, col)
 
 
-# ── Grok: Ani — blonde couettes, yeux bleus, lingerie noire, filet, jarretelles ─
-# HD 32×64 (2×) so lace, eyes, heart pendant stay readable in the office.
+# ── Grok: Anni — waifu gothique, couettes blondes, corset or, jupe volants, filet ─
+# HD 32×64 (2×) — refs Desktop/anni/ref{1,2,3}.png
 
 GROK = {
     "name": "grok",
     "width": 32,
     "frame_h": 64,
-    "max_rows": 28,
+    "max_rows": 30,
     "colors": {
-        "H": "#E8C848", "h": "#FFF0A0", "t": "#1A1018", "E": "#F8FCFF", "B": "#3A88E8",
-        "S": "#F8D0C0", "F": "#E8B0A0", "M": "#E87898", "T": "#141018", "L": "#2A2838",
-        "K": "#9B7CFF", "J": "#C84868", "n": "#4A4068", "b": "#141018", "P": "#EDE9E0",
-        "d": "#0A0810", "l": "#0A0810", "W": "#9B7CFF",
+        "H": "#E8C848", "h": "#FFF0A0", "E": "#F8FCFF", "B": "#3A88E8",
+        "S": "#F8D0C0", "F": "#E8B0A0", "T": "#141018", "t": "#1A1018",
+        "L": "#2A2838", "R": "#3A3048", "K": "#9B7CFF", "J": "#C84868",
+        "n": "#4A4068", "b": "#141018", "W": "#C9A84C", "G": "#A07830",
+        "C": "#EDE9E0", "P": "#EDE9E0", "d": "#0A0810", "l": "#0A0810",
     },
     "base": [
         "..ttHH....................HHtt..",
@@ -159,19 +160,20 @@ GROK = {
         "...hhhhEEEEEEEEEEEEEEEEEEhhhh...",
         "..hhhEEBBBBBBBBBBBBBBBBEEhhh....",
         "..hhhEEBBBBBBBBBBBBBBBBEEhhh....",
-        "...hhHSFFFFFFMFFFFFFShhh........",
-        "...hhHTTKKKLLLLKKKTTHhhh........",
-        "..ddhhHTTTLLLLLLLLTTThhdd.......",
-        "...hhHTTTTTJJJJTTTTThhhh........",
-        "...hhHTTTTTTTTTTTTTThhhh........",
-        "...hhHTnn........nnTTThh........",
-        "..ddhhHTTTTTTTTTTTTThhdd........",
-        "...hhHTTTLLLLLLLLTTThhhh........",
-        "...hhHTTTTTTTTTTTTTThhhh........",
-        "...hhHTLb.......bLTThhhh........",
-        "...hhHnnL.......LnnThhhh........",
-        "...ddLL..............LLdd.......",
-        "....ll................ll........",
+        "...hhHSFFFFFFFFFFFFFFShhh.......",
+        "...hhHKKKTTTTTTTTTTKKKhh........",
+        "..ddhhHTTTGGGGWWGGGTTThhdd......",
+        "...hhHTTTTTTTTTTTTTTTThhhh......",
+        "...hhHTTTTTTTTTTTTTTTThhhh......",
+        "...hhHTLLLLLLLLLLLLLLTThh.......",
+        "...hhHTLJJJJJJJJJJJJLTThh.......",
+        "...hhHTLJJJJJJJJJJJJLTThh.......",
+        "..ddhhHTTTTTTTTTTTTTTThhdd......",
+        "...hhHTnn...........nnTThh......",
+        "...hhHTnn...........nnTThh......",
+        "...hhHTLb...........bLTThh......",
+        "...ddLL................LLdd.....",
+        "....ll..................ll......",
     ],
     "side": [
         ".........tt.....................",
@@ -180,19 +182,20 @@ GROK = {
         ".....hhhEEEEEEEEEEEEhh..........",
         ".....hhEEBBBBBBBBBBEhh..........",
         ".....hhEEBBBBBBBBBBEhh..........",
-        "......hHSFFFFFFMFShh............",
-        "......hHTTKKKKKKTTHh............",
-        ".....ddhHTTTLLLLTTThdd..........",
-        "......hHTTTTJJJTTTThh...........",
-        "......hHTTTTTTTTTTThh...........",
-        "......hHTnn.....nnTThh..........",
-        ".....ddhHTTTTTTTTTThdd..........",
-        "......hHTTTLLLLTTTThh...........",
-        "......hHTTTTTTTTTTThh...........",
-        "......hHTLb.....bLTThh..........",
-        "......hHnnL.....LnnThh..........",
-        "......ddLL.........LLdd.........",
-        ".......ll...........ll..........",
+        "......hHSFFFFFFFFFShh...........",
+        "......hHKKKTTTTTTKKKh...........",
+        ".....ddhHTTTGGWGGTTThdd.........",
+        "......hHTTTTTTTTTTTThh..........",
+        "......hHTTTTTTTTTTTThh..........",
+        "......hHTLLLLLLLLLLTThh.........",
+        "......hHTLJJJJJJJJLTThh.........",
+        "......hHTLJJJJJJJJLTThh.........",
+        ".....ddhHTTTTTTTTTTThdd.........",
+        "......hHTnn........nnThh........",
+        "......hHTnn........nnThh........",
+        "......hHTLb........bLTThh.......",
+        "......ddLL..........LLdd........",
+        ".......ll............ll.........",
     ],
     "back": [
         "........tt.............tt.......",
@@ -205,12 +208,14 @@ GROK = {
         "..ddhhHTTTTTTTTTTTTTTThhdd......",
         "...hhHTTTTTTTTTTTTTTTThhhh......",
         "...hhHTTTTTTTTTTTTTTTThhhh......",
-        "...hhHTTTLLLLLLLLTTThhhh........",
-        "...hhHTTTTTTTTTTTTTThhhh........",
-        "...hhHTLb.......bLTThhhh........",
-        "...hhHnnL.......LnnThhhh........",
-        "...ddLL..............LLdd.......",
-        "....ll................ll........",
+        "...hhHTLLLLLLLLLLLLLLTThhh......",
+        "...hhHTLJJJJJJJJJJJJLTThhh......",
+        "...hhHTLJJJJJJJJJJJJLTThhh......",
+        "..ddhhHTTTTTTTTTTTTTTThhdd......",
+        "...hhHTnn...........nnTThh......",
+        "...hhHTLb...........bLTThh......",
+        "...ddLL................LLdd.....",
+        "....ll..................ll......",
     ],
     "type_extra": [
         ["................................", "................................"],

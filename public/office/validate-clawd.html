@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clawd — validation animations</title>
+<style>
+  :root{ --body:#d87050; --eye:#1a1a1a; --bg:#ffffff; --px:13px; --spd:1; }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:ui-monospace,Menlo,monospace;background:var(--bg);color:#222;padding:0 0 60px;}
+  [data-theme="dark"]{--bg:#14110e;color:#e8e1d6;}
+  header{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;align-items:center;gap:18px;
+    padding:14px 22px;background:var(--bg);border-bottom:1px solid #eee;}
+  [data-theme="dark"] header{border-color:#2c2620;}
+  h1{font-size:16px;letter-spacing:1px;margin:0;}
+  .ctl{display:flex;align-items:center;gap:8px;font-size:13px;color:#888;}
+  [data-theme="dark"] .ctl{color:#9b9183;}
+  input[type=range]{accent-color:var(--body);}
+  button.tg{font-family:inherit;font-size:13px;padding:7px 13px;border:1px solid #ddd;border-radius:8px;background:transparent;color:inherit;cursor:pointer;}
+  [data-theme="dark"] button.tg{border-color:#2c2620;}
+  .note-top{font-size:12px;color:#999;padding:14px 22px 0;max-width:780px;line-height:1.5;}
+  main{padding:22px;display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:18px;}
+  .card{border:1px solid #eee;border-radius:12px;padding:14px;background:var(--bg);}
+  [data-theme="dark"] .card{border-color:#2c2620;}
+  .stage{display:flex;justify-content:center;align-items:flex-end;min-height:200px;padding:18px;}
+  .wrap{transform-origin:center bottom;}
+  .clawd{display:grid;grid-template-columns:repeat(12,var(--px));grid-template-rows:repeat(8,var(--px));
+    image-rendering:pixelated;}
+  .px{width:var(--px);height:var(--px)}
+  .b{background:var(--body)}
+  .e{background:var(--eye)}
+
+  /* transform global par anim (le mouvement pixel est géré en JS) */
+  .wrap.idle{animation:breathe calc(1.7s / var(--spd)) ease-in-out infinite}
+  .wrap.walk{animation:walkrock calc(.46s / var(--spd)) ease-in-out infinite}
+  .wrap.jump{animation:jumparc calc(.9s / var(--spd)) ease-in-out infinite}
+  .wrap.type{animation:typebob calc(.22s / var(--spd)) ease-in-out infinite}
+  .wrap.read{animation:readsway calc(3s / var(--spd)) ease-in-out infinite}
+  .wrap.alert{animation:alertshake calc(.36s / var(--spd)) ease-in-out infinite}
+  .wrap.error{animation:errwobble calc(.8s / var(--spd)) ease-in-out infinite}
+  .wrap.celebrate{animation:celbounce calc(.6s / var(--spd)) ease-in-out infinite}
+  @keyframes breathe{0%,100%{transform:translateY(0) scaleY(1)}50%{transform:translateY(-3px) scaleY(1.025)}}
+  @keyframes walkrock{0%{transform:translateX(-2px) rotate(-2deg)}50%{transform:translateY(-2px)}100%{transform:translateX(2px) rotate(2deg)}}
+  @keyframes jumparc{0%,100%{transform:translateY(0) scaleY(1)}18%{transform:translateY(2px) scaleY(.9)}50%{transform:translateY(-38px) scaleY(1.1)}82%{transform:translateY(2px) scaleY(.92)}}
+  @keyframes typebob{0%,100%{transform:translateY(0)}50%{transform:translateY(-1px)}}
+  @keyframes readsway{0%{transform:rotate(-2deg)}50%{transform:rotate(2deg)}100%{transform:rotate(-2deg)}}
+  @keyframes alertshake{0%,100%{transform:translateX(0)}20%{transform:translateX(-3px)}40%{transform:translateX(3px)}60%{transform:translateX(-2px)}80%{transform:translateX(2px)}}
+  @keyframes errwobble{0%,100%{transform:rotate(0) translateY(0)}25%{transform:rotate(-10deg)}50%{transform:translateY(1px)}75%{transform:rotate(10deg)}}
+  @keyframes celbounce{0%,100%{transform:translateY(0) scaleY(1)}40%{transform:translateY(-16px) scaleY(1.08)}70%{transform:translateY(0) scaleY(.92)}}
+
+  .meta{display:flex;justify-content:space-between;align-items:baseline;margin-top:4px;}
+  .name{font-weight:700;font-size:13px;}
+  .sub{font-size:11px;color:#999;}
+  .verdict{display:flex;gap:6px;margin-top:8px;}
+  .verdict button{flex:1;cursor:pointer;border:1px solid #ddd;background:transparent;color:#999;padding:5px 0;border-radius:6px;font-weight:700;font-size:12px;font-family:inherit;}
+  [data-theme="dark"] .verdict button{border-color:#2c2620;}
+  .verdict button.ok[aria-pressed="true"]{background:#2e7d4f;border-color:#2e7d4f;color:#fff;}
+  .verdict button.no[aria-pressed="true"]{background:#b3402f;border-color:#b3402f;color:#fff;}
+  .vnote{width:100%;margin-top:6px;background:transparent;color:inherit;border:1px solid #ddd;border-radius:6px;padding:5px 7px;font:inherit;font-size:12px;}
+  [data-theme="dark"] .vnote{border-color:#2c2620;}
+</style>
+</head>
+<body data-theme="light">
+<header>
+  <h1>CLAWD · validation</h1>
+  <span style="flex:1"></span>
+  <label class="ctl">vitesse <input id="speed" type="range" min="0.2" max="3" step="0.1" value="1"><span id="spv">1.0×</span></label>
+  <label class="ctl">taille <input id="size" type="range" min="7" max="30" step="1" value="13"></label>
+  <button class="tg" id="theme">fond sombre</button>
+</header>
+<p class="note-top">Design de base exact (corps #d87050, grille 12×8). Cette fois les <b>pixels eux-mêmes changent</b> par image (pattes, mains, yeux, bras) + transform global par-dessus. Coche ✓/✗ + note par anim.</p>
+<main id="grid"></main>
+<script>
+  // ── grilles de base (12×8) : '.' vide · 'b' corps · 'e' œil ───────────────
+  const REST = [
+    "..bbbbbbbb..",
+    "..bebbbbeb..",
+    "bbbbbbbbbbbb",
+    "bbbbbbbbbbbb",
+    "..bbbbbbbb..",
+    "..bbbbbbbb..",
+    "..b.b..b.b..",
+    "..b.b..b.b..",
+  ];
+  // remplace une ligne de REST par i->valeur
+  function variant(over){ const g=REST.slice(); for(const k in over) g[k]=over[k]; return g; }
+
+  const BLINK   = variant({1:"..bbbbbbbb.."});                 // yeux fermés
+  const WALK_A  = variant({7:"..b....b...."});                 // pattes 2 & 7 au sol
+  const WALK_B  = variant({7:"....b....b.."});                 // pattes 4 & 9 au sol
+  const TUCK    = variant({6:"...bb..bb...",7:"............"}); // pattes repliées (saut)
+  const TYPE_A  = variant({4:".bbbbbbbbbb."});                 // mains sorties (tape)
+  const TYPE_B  = REST;                                        // mains rentrées
+  const READ_D  = variant({1:"..bbbbbbbb..",2:"bbbebbbbebbb"});// yeux baissés
+  const READ_B  = variant({1:"..bbbbbbbb..",2:"bbbbbbbbbbbb"});// yeux baissés fermés
+  const ALERT_W = variant({2:"bbbebbbbebbb"});                 // yeux écarquillés (2px)
+  const ERR_A   = variant({1:"..ebbbbebb.."});                // yeux roulent gauche
+  const ERR_B   = variant({1:"..bbebbbbe.."});                // yeux roulent droite
+  const CELEB_A = variant({0:"b.bbbbbbbb.b"});                // bras levés
+  const CELEB_B = REST;                                        // bras baissés
+
+  // ── anims : transform CSS (wrapClass) + frames pixel (g + durée ms) ───────
+  const ANIMS = [
+    { id:"idle", label:"Idle (respire)", role:"stand / idle", wrap:"idle",
+      frames:[{g:REST,ms:1600},{g:BLINK,ms:130}] },
+    { id:"walk", label:"Marche", role:"walk", wrap:"walk",
+      frames:[{g:WALK_A,ms:230},{g:WALK_B,ms:230}] },
+    { id:"jump", label:"Saut", role:"bonus", wrap:"jump",
+      frames:[{g:REST,ms:150},{g:TUCK,ms:560},{g:REST,ms:190}] },
+    { id:"type", label:"Typing", role:"sit_type", wrap:"type",
+      frames:[{g:TYPE_A,ms:110},{g:TYPE_B,ms:110}] },
+    { id:"read", label:"Lecture", role:"sit_read / lounge", wrap:"read",
+      frames:[{g:READ_D,ms:1500},{g:READ_B,ms:150},{g:READ_D,ms:1200},{g:READ_B,ms:150}] },
+    { id:"alert", label:"Alerte", role:"approval", wrap:"alert",
+      frames:[{g:ALERT_W,ms:180},{g:REST,ms:180}] },
+    { id:"error", label:"Erreur (dizzy)", role:"error", wrap:"error",
+      frames:[{g:ERR_A,ms:160},{g:ERR_B,ms:160}] },
+    { id:"celebrate", label:"Terminé", role:"done / celebrate", wrap:"celebrate",
+      frames:[{g:CELEB_A,ms:300},{g:CELEB_B,ms:300}] },
+  ];
+
+  function gridHTML(g){
+    let h="";
+    for(const row of g) for(const ch of row){
+      h += ch==='b' ? '<div class="px b"></div>' : ch==='e' ? '<div class="px e"></div>' : '<div class="px"></div>';
+    }
+    return h;
+  }
+  function vkey(id){ return `clawd-verdict:${id}`; }
+
+  const grid=document.getElementById('grid');
+  const players=[]; // { clawd, frames, idx, acc }
+  for(const a of ANIMS){
+    const card=document.createElement('div');card.className='card';
+    const stage=document.createElement('div');stage.className='stage';
+    const wrap=document.createElement('div');wrap.className='wrap '+a.wrap;
+    const clawd=document.createElement('div');clawd.className='clawd';
+    clawd.innerHTML=gridHTML(a.frames[0].g);
+    wrap.appendChild(clawd);stage.appendChild(wrap);card.appendChild(stage);
+
+    const meta=document.createElement('div');meta.className='meta';
+    meta.innerHTML=`<span class="name">${a.label}</span><span class="sub">${a.role}</span>`;
+    card.appendChild(meta);
+
+    const v=document.createElement('div');v.className='verdict';
+    const ok=document.createElement('button');ok.className='ok';ok.textContent='✓ ok';
+    const no=document.createElement('button');no.className='no';no.textContent='✗ refait';
+    const note=document.createElement('input');note.className='vnote';note.placeholder='note';
+    const saved=JSON.parse(localStorage.getItem(vkey(a.id))||'null');
+    if(saved){ok.setAttribute('aria-pressed',String(saved.v==='ok'));no.setAttribute('aria-pressed',String(saved.v==='no'));note.value=saved.note||'';}
+    const save=(val)=>{ok.setAttribute('aria-pressed',String(val==='ok'));no.setAttribute('aria-pressed',String(val==='no'));localStorage.setItem(vkey(a.id),JSON.stringify({v:val,note:note.value}));};
+    ok.onclick=()=>save('ok');no.onclick=()=>save('no');
+    note.oninput=()=>{const cur=JSON.parse(localStorage.getItem(vkey(a.id))||'null');localStorage.setItem(vkey(a.id),JSON.stringify({v:cur?.v||null,note:note.value}));};
+    v.appendChild(ok);v.appendChild(no);card.appendChild(v);card.appendChild(note);
+    grid.appendChild(card);
+
+    players.push({ clawd, frames:a.frames, idx:0, acc:0 });
+  }
+
+  // moteur frames pixel (rAF, respecte la vitesse)
+  let speed=1, last=null;
+  function loop(t){
+    if(last==null) last=t;
+    const dt=(t-last)*speed; last=t;
+    for(const p of players){
+      if(p.frames.length<2) continue;
+      p.acc+=dt;
+      let cur=p.frames[p.idx];
+      while(p.acc>=cur.ms){
+        p.acc-=cur.ms; p.idx=(p.idx+1)%p.frames.length; cur=p.frames[p.idx];
+        p.clawd.innerHTML=gridHTML(cur.g);
+      }
+    }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  const root=document.documentElement;
+  document.getElementById('speed').oninput=e=>{speed=Number(e.target.value);root.style.setProperty('--spd',e.target.value);document.getElementById('spv').textContent=speed.toFixed(1)+'×';};
+  document.getElementById('size').oninput=e=>root.style.setProperty('--px',e.target.value+'px');
+  document.getElementById('theme').onclick=e=>{const dark=document.body.getAttribute('data-theme')==='dark';document.body.setAttribute('data-theme',dark?'light':'dark');e.target.textContent=dark?'fond sombre':'fond clair';};
+</script>
+</body>
+</html>

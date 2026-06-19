@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 import { getControl } from "@/lib/orchestrator/control";
 import { getDriver } from "@/lib/providers/registry";
 import type { ApprovalMode, Effort, ModelId, ProviderId } from "@/lib/shared/types";
-import { isModelId, MODEL_IDS, ALL_EFFORTS, providerOfModel } from "@/lib/shared/models";
+import { ALL_EFFORTS, modelBelongsToProvider } from "@/lib/shared/models";
 import { PROVIDER_IDS } from "@/lib/shared/providers";
 
 export const runtime = "nodejs";
@@ -17,7 +17,7 @@ const SpawnSchema = z.object({
   project: z.string().min(1).max(200),
   cwd: z.string().min(1).max(500),
   name: z.string().min(1).max(200),
-  model: z.string().refine(isModelId, { message: `model must be one of: ${MODEL_IDS.join(", ")}` }),
+  model: z.string().min(1).max(120),
   prompt: z.string().max(50_000),
   allowedTools: z.array(z.string().min(1).max(60)).max(40),
   approvalMode: z.enum(["auto", "prompt", "strict"]),
@@ -28,7 +28,7 @@ const SpawnSchema = z.object({
 }).refine((v) => v.prompt.length > 0 || !!v.resumeSessionId, {
   message: "prompt is required unless resumeSessionId is set",
   path: ["prompt"],
-}).refine((v) => providerOfModel(v.model) === v.provider, {
+}).refine((v) => modelBelongsToProvider(v.provider, v.model), {
   message: "model does not belong to the selected provider",
   path: ["model"],
 });

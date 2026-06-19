@@ -1,5 +1,5 @@
 import type Phaser from "phaser";
-import { AGENT_PERSONAS, AGENT_SHEET, quipFor, quipStyle, spriteForProvider } from "./agents";
+import { AGENT_PERSONAS, AGENT_SHEET, quipFor, quipStyle, spriteForProvider, type AgentSprite } from "./agents";
 import { findPath } from "./pathfind";
 import { codexSlouchTween, PersonaFxController } from "./persona-fx";
 import { STATE_TINT, TILE, type CharMode, type Dir, type SessionLite, type Spot } from "./types";
@@ -60,14 +60,16 @@ export class Character {
     this.sprite = scene.add.sprite(0, 0, this.spriteKey, FRAME.down + 1)
       .setOrigin(0.5, 1).setScale(mini ? sheetMeta.displayScale * 0.58 : sheetMeta.displayScale);
     const dark = typeof document !== "undefined" && document.documentElement.dataset.theme !== "light";
-    const tagY = agent === "grok" ? -44 : -26;
+    const tagY = Math.round(-sheetMeta.frameHeight * sheetMeta.displayScale - 10);
     this.tag = scene.add.text(0, tagY, displayName(session), {
       fontFamily: "monospace", fontSize: "6.5px",
       color: dark ? "#EDE9E0" : "#2B2926",
       backgroundColor: dark ? "rgba(31,30,28,0.78)" : "rgba(245,242,236,0.82)",
       padding: { x: 3, y: 1 },
     }).setOrigin(0.5, 1).setResolution(4);
-    this.dot = scene.add.circle(0, -18, 2, 0x8a857c, 1);
+    // State is shown via the aura + label; the on-body dot read as an ugly grey
+    // spot on the sprite, so it stays hidden.
+    this.dot = scene.add.circle(0, -18, 2, 0x8a857c, 1).setVisible(false);
     this.aura = scene.add.ellipse(0, -1, 18, 8, 0x8a857c, 0).setVisible(false);
     this.halo = scene.add.ellipse(0, -2, 22, 10, 0xd97757, 0.0).setVisible(false);
     this.container.setPosition(spawn.col * TILE + TILE / 2, spawn.row * TILE + TILE);
@@ -196,7 +198,9 @@ export class Character {
   setLabelVisible(visible: boolean): void { this.tag.setVisible(visible || this.hovered); }
   setHovered(h: boolean): void { this.hovered = h; if (h) this.tag.setVisible(true); }
   setTagOffset(extra: number): void {
-    const base = spriteForProvider(this.session.provider) === "grok" ? -44 : -26;
+    const agent: AgentSprite = spriteForProvider(this.session.provider);
+    const meta = AGENT_SHEET[agent];
+    const base = Math.round(-meta.frameHeight * meta.displayScale - 10);
     this.tag.setY(base - extra);
     if (this.quip) this.quip.setY(base - 16 - extra);
   }

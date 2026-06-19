@@ -57,6 +57,7 @@ export function OfficeCanvas({
         });
         gameRef.current = game;
         sceneRef.current = scene;
+        (window as unknown as { __officeScene?: unknown }).__officeScene = scene;
 
         const push = () => {
           const { sessions } = useCockpit.getState();

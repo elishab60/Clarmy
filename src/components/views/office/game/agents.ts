@@ -9,10 +9,14 @@ export interface AgentSheetMeta {
   readonly displayScale: number;
 }
 
-/** Grok uses a 2× HD sheet (Ani-inspired); other agents stay 16×32. */
+/** Grok/Anni native 128×256; displayScale = legacy 32×1.35 / 256 ≈ same footprint as 16×32 agents. */
 export const AGENT_SHEET: Record<AgentSprite, AgentSheetMeta> = {
-  grok: { frameWidth: 32, frameHeight: 64, displayScale: 1.12 },
-  claude: { frameWidth: 16, frameHeight: 32, displayScale: 1.35 },
+  // Anni: 512px HD master kept as agent_grok_hd.png; in-game sheet downsampled
+  // (LANCZOS) to 44×88 so she renders crisp at the other agents' footprint.
+  grok: { frameWidth: 44, frameHeight: 88, displayScale: 0.5 },
+  // Claude = Clawd blob, baked square (48×48, blob bottom-anchored with top margin)
+  // by scripts/gen-clawd-sprite.py so it always displays clean, never cut by desks.
+  claude: { frameWidth: 48, frameHeight: 48, displayScale: 0.7 },
   gemini: { frameWidth: 16, frameHeight: 32, displayScale: 1.35 },
   codex: { frameWidth: 16, frameHeight: 32, displayScale: 1.35 },
 };
@@ -27,7 +31,7 @@ export const AGENT_PERSONAS: Record<AgentSprite, AgentPersona> = {
   grok: {
     sprite: "grok",
     label: "Grok",
-    tagline: "Ani — blonde aux couettes, lingerie noire",
+    tagline: "Anni — gothique élancée, regard dominateur",
   },
   claude: {
     sprite: "claude",
@@ -46,7 +50,9 @@ export const AGENT_PERSONAS: Record<AgentSprite, AgentPersona> = {
   },
 };
 
-const PROVIDER_SPRITE: Record<ProviderId, AgentSprite> = {
+// opencode has no dedicated sprite yet, so spriteForProvider falls it back to the
+// claude persona below; keep this Partial rather than forcing a placeholder.
+const PROVIDER_SPRITE: Partial<Record<ProviderId, AgentSprite>> = {
   grok: "grok",
   claude: "claude",
   gemini: "gemini",

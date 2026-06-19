@@ -8,9 +8,11 @@ import { projectsDir } from "../claude-code/paths.ts";
 import { codexSessionsDir } from "./codex/paths.ts";
 import { geminiHome } from "./gemini/paths.ts";
 import { computeRows, type MetricsRow } from "./metrics-rows.ts";
+import { mergeHistory, type HistorySession } from "./history-merge.ts";
 import { createLogger } from "../util/logger.ts";
 
 export type { MetricsRow } from "./metrics-rows.ts";
+export type { HistorySession } from "./history-merge.ts";
 
 // Claude session minus its usage records: enough for the history and projects
 // pages, cheap to structured-clone out of the worker.
@@ -28,6 +30,7 @@ const WORKER_TIMEOUT_MS = 120_000;
 class MetricsIndex {
   private rows: MetricsRow[] | null = null;
   private light: LightSession[] | null = null;
+  private historyRows: HistorySession[] = [];
   private perCwd: PerCwdEntry[] = [];
   private generatedAt = 0;
   private dirty = true;
@@ -61,6 +64,13 @@ class MetricsIndex {
   async sessions(): Promise<{ generatedAt: number; sessions: LightSession[]; perCwd: PerCwdEntry[] }> {
     await this.payload();
     return { generatedAt: this.generatedAt, sessions: this.light ?? [], perCwd: this.perCwd };
+  }
+
+  // Cross-provider history rows for /api/history (claude + grok + codex +
+  // gemini), same stale-while-revalidate lifecycle as payload().
+  async history(): Promise<{ generatedAt: number; sessions: HistorySession[] }> {
+    await this.payload();
+    return { generatedAt: this.generatedAt, sessions: this.historyRows };
   }
 
   // Notify when the index went dirty (debounced); ws-server fans this out so
@@ -116,12 +126,14 @@ class MetricsIndex {
     const t0 = Date.now();
     let rows: MetricsRow[];
     let light: LightSession[];
+    let history: HistorySession[];
     let perCwd: PerCwdEntry[];
     let via = "worker";
     try {
       const r = await buildInWorker();
       rows = r.rows;
       light = r.sessions;
+      history = r.history;
       perCwd = r.perCwd;
     } catch (err) {
       // The scanners are synchronous; this blocks the loop for the duration of
@@ -130,13 +142,16 @@ class MetricsIndex {
       via = "sync";
       log.warn("worker build failed; building inline", { err: String(err) });
       await refreshPricing().catch(() => { /* fallback table */ });
-      rows = computeRows(scanAllProviders());
+      const providerSessions = scanAllProviders();
+      rows = computeRows(providerSessions);
       const full = scanAll();
       light = full.map(({ usage: _usage, ...rest }) => rest);
+      history = mergeHistory(full, providerSessions);
       perCwd = [...aggregateUsage(full).perCwd.entries()];
     }
     this.rows = rows;
     this.light = light;
+    this.historyRows = history;
     this.perCwd = perCwd;
     this.generatedAt = Date.now();
     this.dirty = false;
@@ -153,7 +168,7 @@ class MetricsIndex {
 // server.ts / bin/clarmy), not via import.meta.url, which would point inside
 // Next's compiled bundle. A crashed or timed-out worker is dropped and
 // respawned on the next build.
-interface BuildResult { readonly rows: MetricsRow[]; readonly sessions: LightSession[]; readonly perCwd: PerCwdEntry[] }
+interface BuildResult { readonly rows: MetricsRow[]; readonly sessions: LightSession[]; readonly history: HistorySession[]; readonly perCwd: PerCwdEntry[] }
 
 interface PendingBuild {
   readonly resolve: (r: BuildResult) => void;
@@ -181,12 +196,12 @@ function ensureWorker(): Worker {
   if (!existsSync(entry)) throw new Error(`worker entry missing: ${entry}`);
   const w = new Worker(entry);
   w.unref(); // never hold the process open
-  w.on("message", (msg: { seq: number; ok: boolean; rows?: MetricsRow[]; sessions?: LightSession[]; perCwd?: PerCwdEntry[]; error?: string }) => {
+  w.on("message", (msg: { seq: number; ok: boolean; rows?: MetricsRow[]; sessions?: LightSession[]; history?: HistorySession[]; perCwd?: PerCwdEntry[]; error?: string }) => {
     const p = pending.get(msg.seq);
     if (!p) return;
     pending.delete(msg.seq);
     clearTimeout(p.timer);
-    if (msg.ok && msg.rows) p.resolve({ rows: msg.rows, sessions: msg.sessions ?? [], perCwd: msg.perCwd ?? [] });
+    if (msg.ok && msg.rows) p.resolve({ rows: msg.rows, sessions: msg.sessions ?? [], history: msg.history ?? [], perCwd: msg.perCwd ?? [] });
     else p.reject(new Error(msg.error ?? "worker build failed"));
   });
   w.on("error", (err) => { failAll(err instanceof Error ? err : new Error(String(err))); worker = null; });
