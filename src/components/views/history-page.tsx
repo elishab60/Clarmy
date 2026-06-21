@@ -78,7 +78,7 @@ export function HistoryPage() {
   const refresh = async () => {
     setRefreshing(true);
     try {
-      const res = await fetch(`/api/history?limit=1000`, { cache: "no-store" });
+      const res = await fetch(`/api/history?limit=all`, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const j = (await res.json()) as { sessions: CCSessionRow[] };
       setRows(j.sessions); setErr(null); setFlashKey((k) => k + 1);
