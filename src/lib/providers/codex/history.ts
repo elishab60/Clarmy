@@ -41,6 +41,7 @@ function parseRolloutFile(path: string): ProviderSession | null {
   let lastTs = 0;
   let messageCount = 0;
   let toolUses = 0;
+  let firstPrompt = "";
   let sawError = false;
   let lastUsage: CodexTokenUsage | null = null;
   let lastUsageTs = 0;
@@ -57,7 +58,10 @@ function parseRolloutFile(path: string): ProviderSession | null {
       id ??= sessionMetaId(line) ?? undefined;
       const m = turnContextModel(line);
       if (m) model = m;
-      if (isMessage(line)) messageCount++;
+      if (isMessage(line)) {
+        messageCount++;
+        if (!firstPrompt) firstPrompt = userMessageText(line.payload);
+      }
       if (isFunctionCall(line)) toolUses++;
       if (isError(line)) sawError = true;
       const usage = tokenUsageFrom(line.payload);
@@ -85,11 +89,29 @@ function parseRolloutFile(path: string): ProviderSession | null {
     startedAt: firstTs,
     endedAt,
     model,
+    firstPrompt: firstPrompt.slice(0, 300),
     messageCount,
     toolUses,
     state: sawError ? "error" : "done",
     usage,
   };
+}
+
+// Best-effort first user prompt from a response_item/message payload. Codex
+// stores content either as a plain string or an array of {type, text} parts.
+function userMessageText(payload: Record<string, unknown>): string {
+  if (payload.role !== "user") return "";
+  const content = payload.content;
+  if (typeof content === "string") return content.trim();
+  if (!Array.isArray(content)) return "";
+  const parts: string[] = [];
+  for (const c of content) {
+    if (c && typeof c === "object") {
+      const t = (c as { text?: unknown }).text;
+      if (typeof t === "string") parts.push(t);
+    }
+  }
+  return parts.join(" ").trim();
 }
 
 // total_token_usage is cumulative; map it to the cache-aware fields the cost

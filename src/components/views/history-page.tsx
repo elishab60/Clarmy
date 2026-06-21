@@ -3,9 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ModelId } from "@/lib/shared/types";
-import { modelFromApiId, DEFAULT_MODEL_ID } from "@/lib/shared/models";
+import { modelFromApiId, defaultModelFor, providerOfModel, isOpenCodeModelId } from "@/lib/shared/models";
+import { PROVIDERS, providerMeta, type ProviderId } from "@/lib/shared/providers";
 
 interface CCSessionRow {
+  provider: ProviderId;
   id: string; file: string; cwd: string; project: string; branch?: string;
   startedAt: number; endedAt: number; durationMs: number;
   model?: string; firstPrompt: string; messageCount: number; toolUses: number;
@@ -15,7 +17,14 @@ interface CCSessionRow {
 
 type Filter = "all" | "done" | "error";
 
-const COLS = "minmax(280px, 2fr) 120px 110px 60px 80px 80px 70px 90px";
+// A row is resumable only when we know a real working directory to launch the
+// CLI in. Gemini's logs.json carries no cwd (we synthesise "gemini:<hash>"), so
+// those rows cannot be resumed; everything with an absolute/home path can.
+function canResume(cwd: string): boolean {
+  return cwd.startsWith("/") || cwd.startsWith("~");
+}
+
+const COLS = "76px minmax(240px, 2fr) 120px 100px 56px 76px 76px 66px 90px";
 const CHIP: React.CSSProperties = { fontFamily: "var(--font-mono)", fontSize: 10.5, transition: "color .25s, text-shadow .25s" };
 const ERR_CHIP: React.CSSProperties = { color: "var(--state-error)", background: "rgba(239,68,68,0.08)", boxShadow: "inset 0 0 0 1px rgba(239,68,68,0.2)", transition: "filter .2s" };
 
@@ -27,6 +36,7 @@ export function HistoryPage() {
   const [err, setErr] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
+  const [providerFilter, setProviderFilter] = useState<ProviderId | "all">("all");
   const [project, setProject] = useState<string | null>(null);
   const [resumingId, setResumingId] = useState<string | null>(null);
   const [resumeErr, setResumeErr] = useState<string | null>(null);
@@ -36,12 +46,22 @@ export function HistoryPage() {
   const resume = async (r: CCSessionRow) => {
     setResumingId(r.id); setResumeErr(null);
     try {
-      const model: ModelId = (r.model ? modelFromApiId(r.model) : null) ?? DEFAULT_MODEL_ID;
+      // The spawn API requires a model that belongs to the row's provider; fall
+      // back to that provider's default when the transcript model is unknown or
+      // (for cross-provider rows) belongs to a different vendor.
+      const fromApi = r.model ? modelFromApiId(r.model) : null;
+      // opencode routes to uncatalogued "provider/model" ids that modelFromApiId
+      // can't map; keep the raw id so the resumed session stays on its model
+      // instead of snapping to the opencode default.
+      const model: ModelId = (r.provider === "opencode" && r.model && isOpenCodeModelId(r.model))
+        ? (r.model as ModelId)
+        : (fromApi && providerOfModel(fromApi) === r.provider)
+          ? fromApi : defaultModelFor(r.provider);
       const res = await fetch("/api/sessions", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          project: r.project, cwd: r.cwd,
+          provider: r.provider, project: r.project, cwd: r.cwd,
           name: `resume · ${r.firstPrompt.slice(0, 60) || r.id}`,
           model, prompt: "", allowedTools: [], approvalMode: "prompt",
           branch: r.branch, resumeSessionId: r.id,
@@ -74,8 +94,15 @@ export function HistoryPage() {
     return Array.from(s).sort();
   }, [rows]);
 
+  const providerCounts = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const r of rows) m[r.provider] = (m[r.provider] ?? 0) + 1;
+    return m;
+  }, [rows]);
+
   const filtered = rows.filter((r) => {
     if (filter !== "all" && r.state !== filter) return false;
+    if (providerFilter !== "all" && r.provider !== providerFilter) return false;
     if (project && r.project !== project) return false;
     if (!q) return true;
     const qq = q.toLowerCase();
@@ -103,7 +130,7 @@ export function HistoryPage() {
         <div>
           <h1>History</h1>
           <p className="sub">
-            {rows.length} sessions from your Claude Code plan (Max x20). Sourced from <code>~/.claude/projects/*/*.jsonl</code>.
+            {rows.length} sessions across Claude, Grok, Codex &amp; Gemini. Sourced from each CLI&apos;s local history (<code>~/.claude</code>, <code>~/.grok</code>, <code>~/.codex</code>, <code>~/.gemini</code>).
           </p>
         </div>
         <div className="right">
@@ -138,6 +165,14 @@ export function HistoryPage() {
           <span className="filter-sep" aria-hidden>·</span>
           <FilterToken label="error" count={counts.error} active={filter === "error"} onClick={() => setFilter("error")} />
         </div>
+        <span className="filter-sep" aria-hidden>·</span>
+        <div className="filter-tokens" role="group" aria-label="Filter by agent">
+          <ProviderToken label="all agents" active={providerFilter === "all"} onClick={() => setProviderFilter("all")} count={rows.length} />
+          {PROVIDERS.filter((p) => providerCounts[p.id]).map((p) => (
+            <ProviderToken key={p.id} label={p.label} accent={p.accent} count={providerCounts[p.id] ?? 0}
+              active={providerFilter === p.id} onClick={() => setProviderFilter(providerFilter === p.id ? "all" : p.id)} />
+          ))}
+        </div>
         <select className="filter-project-dd" value={project ?? ""} onChange={(e) => setProject(e.target.value || null)} aria-label="Filter by project">
           <option value="">all projects</option>
           {projects.map((p) => <option key={p} value={p}>{p}</option>)}
@@ -154,6 +189,7 @@ export function HistoryPage() {
       <div className="table-scroll">
         <div className="tools-table" style={{ minWidth: 960 }}>
           <div className="trow head" style={{ gridTemplateColumns: COLS }}>
+            <span>agent</span>
             <span>prompt · project</span>
             <span>model</span>
             <span data-col="branch">branch</span>
@@ -178,6 +214,7 @@ export function HistoryPage() {
                 onMouseEnter={() => setHoverRow(r.file)}
                 onMouseLeave={() => setHoverRow((h) => (h === r.file ? null : h))}
                 style={{ gridTemplateColumns: COLS, animation: "metric-rise .45s cubic-bezier(.2,.7,.2,1) both", animationDelay: `${Math.min(i, 10) * 30}ms` }}>
+                <ProviderBadge provider={r.provider} />
                 <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0, maxWidth: 400 }}>
                   <span className="tname cell-ellipsis" title={r.firstPrompt}>{r.firstPrompt}</span>
                   <span className="tdesc cell-ellipsis" style={{ fontFamily: "var(--font-mono)", fontSize: 10 }} title={`${r.project} · ${r.cwd}`}>{r.project} · {fmtDuration(r.durationMs)}</span>
@@ -195,9 +232,9 @@ export function HistoryPage() {
                   style={r.state === "error" ? { ...ERR_CHIP, filter: isHov ? "brightness(1.15)" : undefined } : { transition: "filter .2s", filter: isHov ? "brightness(1.15)" : undefined }}>
                   {r.state}
                 </span>
-                <button className="btn" disabled={busy} onClick={(e) => { e.stopPropagation(); void resume(r); }}
-                  title={`claude --resume ${r.id}`}
-                  style={{ justifySelf: "end", padding: "3px 10px", fontSize: 10.5, opacity: busy ? 0.5 : 1, transition: "border-color .2s, color .2s" }}>
+                <button className="btn" disabled={busy || !canResume(r.cwd)} onClick={(e) => { e.stopPropagation(); void resume(r); }}
+                  title={canResume(r.cwd) ? `${r.provider} resume ${r.id}` : "cannot resume: no known working directory for this session"}
+                  style={{ justifySelf: "end", padding: "3px 10px", fontSize: 10.5, opacity: (busy || !canResume(r.cwd)) ? 0.4 : 1, transition: "border-color .2s, color .2s" }}>
                   {busy ? "…" : "↺ resume"}
                 </button>
               </div>
@@ -226,6 +263,32 @@ function StatCard({ label, value, format, foot, accent = false, flashKey }: { la
       <div className="mc-value"><AnimatedNumber value={value} format={format} /></div>
       <div className="mc-foot" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{foot}</div>
     </div>
+  );
+}
+
+function ProviderBadge({ provider }: { provider: ProviderId }) {
+  const meta = providerMeta(provider);
+  return (
+    <span title={`${meta.label} · ${meta.vendor}`} style={{
+      justifySelf: "start", alignSelf: "center", display: "inline-flex", alignItems: "center", gap: 5,
+      padding: "2px 8px", borderRadius: 999, fontFamily: "var(--font-mono)", fontSize: 9.5, lineHeight: 1.4,
+      color: meta.accent, background: `color-mix(in srgb, ${meta.accent} 13%, transparent)`,
+      boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${meta.accent} 34%, transparent)`, whiteSpace: "nowrap",
+    }}>
+      <span style={{ width: 6, height: 6, borderRadius: "50%", background: meta.accent, boxShadow: `0 0 5px ${meta.accent}` }} />
+      {meta.label}
+    </span>
+  );
+}
+
+function ProviderToken({ active, label, count, accent, onClick }: { active: boolean; label: string; count: number; accent?: string; onClick: () => void }) {
+  return (
+    <button className={`filter-token${active ? " is-active" : ""}`} onClick={onClick} aria-pressed={active} title={`${label} · ${count}`}
+      style={active && accent ? { color: accent, borderColor: `color-mix(in srgb, ${accent} 45%, transparent)` } : undefined}>
+      {accent && <span style={{ width: 6, height: 6, borderRadius: "50%", background: accent, marginRight: 5, display: "inline-block" }} />}
+      <span className="filter-count">{count}</span>
+      <span className="filter-label">{label}</span>
+    </button>
   );
 }
 

@@ -14,7 +14,15 @@
     "lint": "next lint",
     "postinstall": "node scripts/fix-node-pty-perms.mjs && node scripts/sync-phaser.mjs",
     "clarmy": "node bin/clarmy.mjs",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "office:gallery": "node scripts/serve-office-gallery.mjs",
+    "office:rebuild-hd": "python3 scripts/gen-office-hd-atlas.py",
+    "office:anni": "python3 scripts/build-anni-sheet.py",
+    "office:sprite:prepare": "python3 scripts/sprite/gen_batch.py prepare --character anni --start 0",
+    "office:sprite:process": "python3 scripts/sprite/gen_batch.py process --character anni --start 0",
+    "office:sprite:assemble": "bash scripts/sprite/gen_office_sheet.sh anni",
+    "office:sprite:scale": "python3 scripts/sprite/display_scale.py --ts",
+    "office:sprite:grok": "python3 scripts/sprite/gen_grok.py"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.1.10",

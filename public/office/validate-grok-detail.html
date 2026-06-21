@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anni — détail frames</title>
+<style>
+  :root{ --bg:#15120f; --ink:#ece5d9; --muted:#9b9183; --line:#2c2620; }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:ui-monospace,Menlo,monospace;background:var(--bg);color:var(--ink);padding:0 0 60px;}
+  header{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;align-items:center;gap:18px;
+    padding:14px 22px;background:var(--bg);border-bottom:1px solid var(--line);}
+  h1{font-size:15px;letter-spacing:.5px;margin:0;}
+  .ctl{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);}
+  input[type=range]{accent-color:#9b7cff;}
+  .note{font-size:12px;color:var(--muted);padding:14px 22px 0;max-width:820px;line-height:1.5;}
+  main{padding:22px;display:grid;grid-template-columns:repeat(auto-fill,minmax(440px,1fr));gap:20px;}
+  .card{border:1px solid var(--line);border-radius:12px;padding:14px;}
+  .pair{display:flex;gap:14px;justify-content:center;}
+  .cell{display:flex;flex-direction:column;align-items:center;gap:6px;}
+  .lbl{font-size:11px;color:var(--muted);}
+  .holder{
+    border-radius:8px;overflow:hidden;
+    background-color:#2a2a2a;
+    background-image:linear-gradient(45deg,#3a3a3a 25%,transparent 25%),linear-gradient(-45deg,#3a3a3a 25%,transparent 25%),
+      linear-gradient(45deg,transparent 75%,#3a3a3a 75%),linear-gradient(-45deg,transparent 75%,#3a3a3a 75%);
+    background-size:18px 18px;background-position:0 0,0 9px,9px -9px,-9px 0;
+  }
+  .holder.raw{background:#00b140;}
+  img{display:block;height:var(--h,360px);width:auto;image-rendering:auto;}
+  .title{font-weight:700;font-size:13px;margin:0 0 10px;}
+</style>
+</head>
+<body>
+<header>
+  <h1>ANNI · détail frames (raw vs processée)</h1>
+  <span style="flex:1"></span>
+  <label class="ctl">zoom <input id="zoom" type="range" min="180" max="640" step="20" value="360"></label>
+</header>
+<p class="note">Gauche = sortie brute Grok (fond vert). Droite = après post-process (key doux + bouche-trous + 256×512), fond damier pour repérer trous/transparence. Régénère via <code>python3 scripts/sprite/reprocess.py</code> (sans rappeler Grok).</p>
+<main id="grid"></main>
+<script>
+  const POSES = {0:"walk A",1:"neutral",2:"walk B",3:"typing 0",4:"typing 1",5:"read 0",6:"read 1",
+    7:"up walk A",8:"up neutral",9:"up walk B",10:"up type 0",11:"up type 1",12:"up read 0",13:"up read 1",
+    14:"side walk A",15:"side neutral",16:"side walk B",17:"side type 0",18:"side type 1",19:"side read 0",20:"side read 1"};
+  const CB = Date.now();
+  const grid = document.getElementById("grid");
+
+  function card(idx){
+    const c = document.createElement("div"); c.className = "card";
+    c.innerHTML = `<p class="title">#${String(idx).padStart(3,"0")} · ${POSES[idx]||""}</p>
+      <div class="pair">
+        <div class="cell"><div class="holder raw"><img src="/anni-detail/raw-${String(idx).padStart(3,"0")}.png?cb=${CB}"></div><span class="lbl">raw Grok</span></div>
+        <div class="cell"><div class="holder"><img src="/anni-detail/frame-${String(idx).padStart(3,"0")}.png?cb=${CB}"></div><span class="lbl">processée</span></div>
+      </div>`;
+    return c;
+  }
+
+  // Probe indices 0..20, show the ones that exist.
+  let pending = 21;
+  for (let i = 0; i <= 20; i++) {
+    const probe = new Image();
+    probe.onload = () => { grid.appendChild(card(i)); if (--pending === 0) reorder(); };
+    probe.onerror = () => { if (--pending === 0) reorder(); };
+    probe.src = `/anni-detail/frame-${String(i).padStart(3,"0")}.png?cb=${CB}`;
+  }
+  function reorder(){
+    [...grid.children].sort((a,b)=>(+a.querySelector(".title").textContent.match(/\d+/)[0])-(+b.querySelector(".title").textContent.match(/\d+/)[0]))
+      .forEach(n=>grid.appendChild(n));
+  }
+  document.getElementById("zoom").oninput = e =>
+    document.documentElement.style.setProperty("--h", e.target.value + "px");
+</script>
+</body>
+</html>

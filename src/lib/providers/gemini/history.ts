@@ -6,6 +6,7 @@ interface Acc {
   startedAt: number;
   endedAt: number;
   messageCount: number;
+  firstPrompt: string;
 }
 
 // Historical Gemini sessions, reconstructed from ~/.gemini/tmp/<hash>/logs.json.
@@ -23,8 +24,9 @@ export function scanGemini(): ProviderSession[] {
     for (const r of records) {
       const sid = r.sessionId ?? dir.hash;
       const ts = r.timestamp ? Date.parse(r.timestamp) : NaN;
-      const acc = bySession.get(sid) ?? { startedAt: Number.POSITIVE_INFINITY, endedAt: 0, messageCount: 0 };
+      const acc = bySession.get(sid) ?? { startedAt: Number.POSITIVE_INFINITY, endedAt: 0, messageCount: 0, firstPrompt: "" };
       acc.messageCount++;
+      if (!acc.firstPrompt && r.message) acc.firstPrompt = r.message.trim();
       if (!Number.isNaN(ts)) {
         if (ts < acc.startedAt) acc.startedAt = ts;
         if (ts > acc.endedAt) acc.endedAt = ts;
@@ -41,6 +43,7 @@ export function scanGemini(): ProviderSession[] {
         project: `gemini ${short}`,
         startedAt,
         endedAt: acc.endedAt || startedAt,
+        firstPrompt: acc.firstPrompt,
         messageCount: acc.messageCount,
         toolUses: 0,
         state: "done",

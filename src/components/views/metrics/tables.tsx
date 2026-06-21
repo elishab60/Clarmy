@@ -13,7 +13,7 @@ export function GroupTable({
   onToggle,
 }: {
   rows: readonly GroupRow[];
-  kind: "project" | "model";
+  kind: "project" | "model" | "provider";
   activeKeys?: ReadonlySet<string>;
   onToggle?: (key: string) => void;
 }) {
@@ -21,7 +21,9 @@ export function GroupTable({
   const [dir, setDir] = useState<1 | -1>(-1); // -1 = descending
   const sorted = [...rows].sort((a, b) => ((a[sortKey] as number) - (b[sortKey] as number)) * dir);
   const maxCost = Math.max(1e-9, ...rows.map((r) => r.cost));
-  const clickable = kind === "project" && !!onToggle;
+  const clickable = kind !== "model" && !!onToggle;
+  // project and provider tables show "last run"; model keeps "cache".
+  const lastIsRun = kind !== "model";
 
   const clickTh = (k: SortKey) => {
     if (k === sortKey) setDir((d) => (d === -1 ? 1 : -1));
@@ -40,13 +42,13 @@ export function GroupTable({
     </button>
   );
 
-  const cols = kind === "project"
+  const cols = lastIsRun
     ? "minmax(180px,1fr) 70px 78px 78px 64px 110px 78px"
     : "minmax(180px,1fr) 70px 78px 78px 64px 110px 96px";
 
   return (
     <div className="mx-table-scroll">
-      <div className="mx-table" style={{ minWidth: kind === "project" ? 740 : 660 }}>
+      <div className="mx-table" style={{ minWidth: lastIsRun ? 740 : 660 }}>
         <div className="mx-trow mx-thead" style={{ gridTemplateColumns: cols }}>
           <Th first>{kind}</Th>
           <Th k="sessions">sessions</Th>
@@ -54,7 +56,7 @@ export function GroupTable({
           <Th k="output">output</Th>
           <Th k="toolUses">tools</Th>
           <Th k="cost">cost</Th>
-          {kind === "project" ? <Th k="lastRunAt">last run</Th> : <Th k="cacheRead">cache</Th>}
+          {lastIsRun ? <Th k="lastRunAt">last run</Th> : <Th k="cacheRead">cache</Th>}
         </div>
         {sorted.length === 0 && <div className="mx-trow mx-empty"><span>no data in range</span></div>}
         {sorted.map((g) => {
@@ -65,7 +67,7 @@ export function GroupTable({
               className={`mx-trow mx-drow${clickable ? " clickable" : ""}${on ? " on" : ""}`}
               style={{ gridTemplateColumns: cols }}
               onClick={clickable ? () => onToggle!(g.key) : undefined}
-              title={clickable ? (on ? "remove filter" : "filter to this project") : undefined}
+              title={clickable ? (on ? "remove filter" : `filter to this ${kind}`) : undefined}
             >
               <span className="mx-name">
                 <span className="t" title={g.label}>{g.label}</span>
@@ -80,7 +82,7 @@ export function GroupTable({
                   <span>{fmtCost(g.cost)}</span>
                 </span>
               </span>
-              <span className="mx-num">{kind === "project" ? fmtRel(g.lastRunAt) : fmtTokens(g.cacheRead)}</span>
+              <span className="mx-num">{lastIsRun ? fmtRel(g.lastRunAt) : fmtTokens(g.cacheRead)}</span>
             </div>
           );
         })}

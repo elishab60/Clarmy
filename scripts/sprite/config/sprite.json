@@ -1,0 +1,28 @@
+{
+  "nativeWidth": 256,
+  "nativeHeight": 512,
+  "framesPerGen": 2,
+  "targetRatio": 0.88,
+  "chromaKey": "#00ff00",
+  "chroma": {
+    "tolerancePass1": 28,
+    "tolerancePass2": 16
+  },
+  "sheetCols": 7,
+  "sheetRows": 3,
+  "legacyFrame": {
+    "width": 16,
+    "height": 32,
+    "displayScale": 1.35
+  },
+  "characters": {
+    "anni": {
+      "label": "Anni",
+      "seed": "refs/anni/seed-front.png",
+      "paletteFrom": "refs/anni/seed-front.png",
+      "paletteColors": 48,
+      "sheetOut": "public/office/characters/agent_grok.png",
+      "style": "mature pixel art sprite entre-deux, tall slender dominant gothic woman, noticeably busty refined hourglass not oversized, long legs narrow waist, cold smirk chin up blue eyes, blonde twin pigtails, black corset gold buckle short skirt lace choker fishnets, crisp pixels limited palette"
+    }
+  }
+}

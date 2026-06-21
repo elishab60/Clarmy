@@ -148,9 +148,7 @@ THEMED: list[tuple[str, tuple[int, int], callable]] = [
     ("GOTHIC_ALTAR", (16, 32), draw_gothic_altar),
     ("KNIGHT_BANNER", (16, 32), draw_knight_banner),
     ("ARMOR_STAND", (16, 32), draw_armor_stand),
-    ("POSTER_DEEPSEEK", (16, 32), lambda im, x, y: draw_poster(im, x, y, "#4796E3", "DSK")),
-    ("POSTER_QWEN", (16, 32), lambda im, x, y: draw_poster(im, x, y, "#D97757", "QWN")),
-    ("POSTER_KIMI", (16, 32), lambda im, x, y: draw_poster(im, x, y, "#7C9A6E", "KMI")),
+    # Posters: refs/posters/*.png via scripts/gen-office-posters.py (32×64)
     ("TV_SCREEN", (16, 32), draw_tv_screen),
     ("SPECTATOR_CHAIR", (16, 32), draw_spectator_chair),
     ("BOOKSHELF_FANCY", (16, 32), draw_bookshelf_fancy),

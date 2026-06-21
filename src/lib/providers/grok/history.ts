@@ -62,6 +62,7 @@ function buildSession(
     startedAt,
     endedAt,
     model,
+    firstPrompt: s?.title ?? "",
     messageCount: s?.messageCount ?? 0,
     toolUses: sig?.toolUses ?? readEventStats(d.path).toolUses,
     state: active.has(id) ? "ongoing" : "done",

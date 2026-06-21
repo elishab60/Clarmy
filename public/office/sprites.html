@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <title>Anni Sprite - Latest Viewer (Green Key Fixed)</title>
+  <style>
+    :root {
+      --bg: #141210;
+      --panel: #1f1e1c;
+      --fg: #ede9e0;
+      --dim: #8a857c;
+      --accent: #d97757;
+      --grok: #9b7cff;
+      --green: #00ff00;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+      background: var(--bg);
+      color: var(--fg);
+    }
+    header {
+      position: sticky; top: 0; z-index: 2;
+      padding: 12px 20px;
+      background: color-mix(in srgb, var(--bg) 92%, transparent);
+      border-bottom: 1px solid #2b2926;
+      backdrop-filter: blur(6px);
+    }
+    header h1 { margin: 0 0 2px; font-size: 15px; font-weight: 600; }
+    header .sub { color: var(--dim); font-size: 11px; }
+    main { padding: 16px 20px 40px; max-width: 1100px; margin: 0 auto; }
+    section { margin-bottom: 28px; }
+    h2 {
+      margin: 0 0 8px;
+      font-size: 13px;
+      color: var(--accent);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .hint { color: var(--dim); font-size: 11px; margin-bottom: 10px; }
+    .card {
+      background: var(--panel);
+      border: 1px solid #2b2926;
+      border-radius: 6px;
+      padding: 10px;
+      margin-bottom: 12px;
+    }
+    img.sheet, canvas {
+      display: block;
+      image-rendering: pixelated;
+      background:
+        repeating-conic-gradient(#262421 0% 25%, #1a1816 0% 50%) 50% / 12px 12px;
+      border-radius: 4px;
+      max-width: 100%;
+    }
+    .full-sheet { max-width: 896px; }
+    .label { margin-top: 6px; font-size: 11px; color: var(--dim); }
+    .frames-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 6px;
+    }
+    .frame {
+      background: var(--panel);
+      border: 1px solid #2b2926;
+      border-radius: 4px;
+      padding: 4px;
+      text-align: center;
+    }
+    .frame img {
+      width: 100%;
+      image-rendering: pixelated;
+      background: #0f0e0d;
+    }
+    .frame .lab {
+      font-size: 9px;
+      color: var(--dim);
+      margin-top: 3px;
+      line-height: 1.1;
+    }
+    .row-label {
+      font-size: 11px;
+      color: var(--accent);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .compare { display: flex; gap: 16px; flex-wrap: wrap; }
+    .compare .card { flex: 1; min-width: 260px; }
+    .footer-note {
+      font-size: 11px;
+      color: var(--dim);
+      border-top: 1px solid #2b2926;
+      padding-top: 12px;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Anni Sprite — Latest Only (D5 Clean)</h1>
+    <div class="sub">Green chroma #00ff00 perfectly removed • exact 896×768 (7×3 @ 128×256) • desk-ready for office scene • <span style="color:#9b7cff">skill: office-anni-sprite</span></div>
+  </header>
+
+  <main>
+    <section>
+      <h2>Latest Clean Sheet (green key fixed)</h2>
+      <p class="hint">Full production sheet. No green bleed, clean alpha, consistent identity, seated poses ready for the bureau/desk composite.</p>
+      <div class="card">
+        <img class="sheet full-sheet" src="variants/latest-sheet.png" alt="latest clean sheet" />
+        <div class="label">D5-clean • 896×768 native • promoted to agent_grok.png</div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Bureau Test (on actual desk)</h2>
+      <p class="hint">Idle (left) + typing (right) composited on real desk slice. Check leg position and scale for the office scene.</p>
+      <div class="compare">
+        <div class="card">
+          <img class="sheet" src="variants/latest-bureau.png" alt="latest bureau test" />
+          <div class="label">Latest D5 on bureau</div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>All 21 Frames (latest only)</h2>
+      <p class="hint">Down / Up / Right • walk A/N/B • type 0/1 • read 0/1. Clean, no green artifacts.</p>
+
+      <div class="row-label">DOWN (front)</div>
+      <div class="frames-grid" id="frames-down"></div>
+
+      <div class="row-label" style="margin-top:12px">UP (back)</div>
+      <div class="frames-grid" id="frames-up"></div>
+
+      <div class="row-label" style="margin-top:12px">RIGHT (profile)</div>
+      <div class="frames-grid" id="frames-right"></div>
+    </section>
+
+    <div class="footer-note">
+      Only the absolute latest generation is shown (D5 after final green-key fix pass on the chosen D fullgrid ref).<br>
+      All previous variants and other office assets (clawd, posters, atlas, old pipeline...) are hidden for readability.<br>
+      To iterate: use the saved skill <code>office-anni-sprite</code> (full-grid + iterative image_edit on best + refs + defect list).<br>
+      Refresh after new gen. Test in scene: <code>COCKPIT_MOCK=1 pnpm dev</code> → /office
+    </div>
+  </main>
+
+  <script>
+    const DOWN = ["walk A", "walk N", "walk B", "type 0", "type 1", "read 0", "read 1"];
+    const UP   = ["walk A", "walk N", "walk B", "type 0", "type 1", "read 0", "read 1"];
+    const RIGHT= ["walk A", "walk N", "walk B", "type 0", "type 1", "read 0", "read 1"];
+
+    function mountFrames(rowId, labels, startIdx) {
+      const host = document.getElementById(rowId);
+      host.innerHTML = "";
+      for (let i = 0; i < 7; i++) {
+        const div = document.createElement("div");
+        div.className = "frame";
+        const img = document.createElement("img");
+        img.src = `variants/frame-${(startIdx + i).toString().padStart(3,"0")}.png`;
+        div.appendChild(img);
+        const lab = document.createElement("div");
+        lab.className = "lab";
+        lab.textContent = labels[i];
+        div.appendChild(lab);
+        host.appendChild(div);
+      }
+    }
+
+    // mount only latest
+    mountFrames("frames-down", DOWN, 0);
+    mountFrames("frames-up", UP, 7);
+    mountFrames("frames-right", RIGHT, 14);
+  </script>
+</body>
+</html>

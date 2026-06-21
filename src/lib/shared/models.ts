@@ -214,6 +214,65 @@ export const MODELS: readonly ModelSpec[] = [
     effortLevels: [],
     defaultEffort: null,
   },
+
+  // ---- SST / opencode -----------------------------------------------------
+  // opencode is model-agnostic: `-m provider/model` routes to whatever the user
+  // has authed plus opencode's own free "zen" tier. The model id IS the `-m`
+  // arg (id === apiId === "provider/model"), so dynamically discovered models
+  // (see opencode/models.ts + modelBelongsToProvider) spawn without a catalog
+  // entry. The stable zen models below give a valid default + history aliasing
+  // before discovery runs. No reasoning-effort flag we drive (opencode exposes
+  // --variant; left as future work), so effortLevels stays empty.
+  {
+    id: "opencode/north-mini-code-free",
+    provider: "opencode",
+    apiId: "opencode/north-mini-code-free",
+    label: "North Mini Code (free)",
+    tagline: "opencode zen, coding-tuned, no auth",
+    aliasFrom: ["opencode/north-mini-code-free"],
+    effortLevels: [],
+    defaultEffort: null,
+  },
+  {
+    id: "opencode/deepseek-v4-flash-free",
+    provider: "opencode",
+    apiId: "opencode/deepseek-v4-flash-free",
+    label: "DeepSeek V4 Flash (free)",
+    tagline: "opencode zen, fast, no auth",
+    aliasFrom: ["opencode/deepseek-v4-flash-free"],
+    effortLevels: [],
+    defaultEffort: null,
+  },
+  {
+    id: "opencode/mimo-v2.5-free",
+    provider: "opencode",
+    apiId: "opencode/mimo-v2.5-free",
+    label: "MiMo v2.5 (free)",
+    tagline: "opencode zen, no auth",
+    aliasFrom: ["opencode/mimo-v2.5-free"],
+    effortLevels: [],
+    defaultEffort: null,
+  },
+  {
+    id: "opencode/nemotron-3-ultra-free",
+    provider: "opencode",
+    apiId: "opencode/nemotron-3-ultra-free",
+    label: "Nemotron 3 Ultra (free)",
+    tagline: "opencode zen, no auth",
+    aliasFrom: ["opencode/nemotron-3-ultra-free"],
+    effortLevels: [],
+    defaultEffort: null,
+  },
+  {
+    id: "opencode/big-pickle",
+    provider: "opencode",
+    apiId: "opencode/big-pickle",
+    label: "Big Pickle",
+    tagline: "opencode zen flagship",
+    aliasFrom: ["opencode/big-pickle"],
+    effortLevels: [],
+    defaultEffort: null,
+  },
 ];
 
 export type ModelId = string;
@@ -249,6 +308,24 @@ export function defaultModelFor(provider: ProviderId): string {
 export function providerOfModel(id: string | null | undefined): ProviderId | null {
   if (!id) return null;
   return BY_ID.get(id)?.provider ?? null;
+}
+
+// opencode model ids are "provider/model" strings routed by the opencode CLI,
+// most of which are discovered at runtime (see opencode/models.ts) and never
+// land in the static catalog. Accept any single-slash "a/b" id for opencode.
+const OPENCODE_MODEL_RE = /^[^/\s]+\/[^/\s]+$/;
+
+export function isOpenCodeModelId(id: string | null | undefined): boolean {
+  return typeof id === "string" && OPENCODE_MODEL_RE.test(id);
+}
+
+// True when `modelId` is a legal choice for `provider`: either a static catalog
+// model whose provider matches, or (for opencode) any "provider/model" id, since
+// opencode's selectable models are dynamic and not all catalogued.
+export function modelBelongsToProvider(provider: ProviderId, modelId: string): boolean {
+  const known = providerOfModel(modelId);
+  if (known) return known === provider;
+  return provider === "opencode" && isOpenCodeModelId(modelId);
 }
 
 export const DEFAULT_MODEL_ID: string = defaultModelFor(DEFAULT_PROVIDER);

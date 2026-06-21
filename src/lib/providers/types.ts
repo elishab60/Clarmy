@@ -53,6 +53,8 @@ export interface ProviderSession {
   readonly startedAt: number;
   readonly endedAt: number;
   readonly model?: string;
+  // Best-effort first user prompt / session title, used as the history label.
+  readonly firstPrompt?: string;
   readonly messageCount: number;
   readonly toolUses: number;
   readonly state: "done" | "error" | "ongoing";
