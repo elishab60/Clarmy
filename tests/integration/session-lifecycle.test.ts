@@ -19,7 +19,7 @@ describe("session state machine", () => {
     provider: "claude",
     project: "test",
     name: "spec walk",
-    model: "sonnet-4.6",
+    model: "sonnet-5",
     startedAt: 0,
   });
 

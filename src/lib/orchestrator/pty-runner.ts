@@ -76,6 +76,18 @@ export class PtyRunner {
     this.tailer = driver.createTailer(config.cwd, startedAt, (p) => this.applyTailPatch(p));
 
     log.info("pty spawn", { id, provider: config.provider, cli, cwd: config.cwd, args });
+    // When the cockpit server itself was started from inside a Claude Code
+    // session (npm start via the Bash tool), process.env carries that session's
+    // markers. Claude Code >= 2.1.x treats CLAUDE_CODE_CHILD_SESSION as "I am a
+    // subagent" and disables transcript persistence entirely, which silently
+    // kills history/metrics/cost for every session cockpit spawns. Strip all
+    // inherited session markers so children start as top-level sessions.
+    const baseEnv = { ...process.env };
+    delete baseEnv.CLAUDE_CODE_CHILD_SESSION;
+    delete baseEnv.CLAUDE_CODE_SESSION_ID;
+    delete baseEnv.CLAUDE_CODE_ENTRYPOINT;
+    delete baseEnv.CLAUDECODE;
+    delete baseEnv.CLAUDE_EFFORT;
     let spawned: IPty;
     try {
       spawned = ptySpawn(cli, args, {
@@ -84,7 +96,7 @@ export class PtyRunner {
         rows: this.rows,
         cwd: config.cwd,
         env: {
-          ...process.env,
+          ...baseEnv,
           PATH: childPath,
           TERM: "xterm-256color",
           FORCE_COLOR: "3",

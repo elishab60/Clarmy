@@ -67,11 +67,11 @@ describe("modelBelongsToProvider", () => {
     expect(modelBelongsToProvider("opencode", "opencode/big-pickle")).toBe(true);
   });
   it("rejects a non opencode-shaped id for opencode", () => {
-    expect(modelBelongsToProvider("opencode", "sonnet-4.6")).toBe(false);
+    expect(modelBelongsToProvider("opencode", "sonnet-5")).toBe(false);
   });
   it("still enforces the static catalog for other providers", () => {
-    expect(modelBelongsToProvider("claude", "sonnet-4.6")).toBe(true);
-    expect(modelBelongsToProvider("codex", "sonnet-4.6")).toBe(false);
+    expect(modelBelongsToProvider("claude", "sonnet-5")).toBe(true);
+    expect(modelBelongsToProvider("codex", "sonnet-5")).toBe(false);
   });
 });
 

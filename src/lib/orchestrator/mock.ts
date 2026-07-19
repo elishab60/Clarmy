@@ -143,7 +143,7 @@ function loadOne(dir: string, name: string): MockFixture {
     provider: init?.provider ?? "claude",
     project: init?.project ?? "fixture",
     name: init?.name ?? name,
-    model: init?.model ?? "sonnet-4.6",
+    model: init?.model ?? "sonnet-5",
     script: envelopes,
   };
 }
@@ -154,7 +154,7 @@ function defaultFixture(name: string): MockFixture {
     provider: "claude",
     project: "fixture",
     name,
-    model: "sonnet-4.6",
+    model: "sonnet-5",
     script: [],
   };
 }

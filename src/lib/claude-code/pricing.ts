@@ -1,4 +1,5 @@
 import { createLogger } from "../util/logger.ts";
+import { apiIdFor } from "../shared/models.ts";
 
 const log = createLogger("cc-pricing");
 
@@ -30,6 +31,9 @@ const FALLBACK_PER_TOKEN: Record<string, Pricing> = {
   "claude-opus-4-5-20251101":   { input: 5e-6,    output: 25e-6,   cacheRead: 5e-7,    cacheCreate5m: 6.25e-6,  cacheCreate1h: 10e-6 },
   "claude-opus-4-1":            { input: 15e-6,   output: 75e-6,   cacheRead: 1.5e-6,  cacheCreate5m: 18.75e-6, cacheCreate1h: 30e-6 },
   "claude-opus-4":              { input: 15e-6,   output: 75e-6,   cacheRead: 1.5e-6,  cacheCreate5m: 18.75e-6, cacheCreate1h: 30e-6 },
+  // Sonnet 5 sticker rate ($3/$15); a lower intro rate runs through 2026-08-31,
+  // but litellm overrides this fallback at runtime so the durable price stays here.
+  "claude-sonnet-5":            { input: 3e-6,    output: 15e-6,   cacheRead: 3e-7,    cacheCreate5m: 3.75e-6,  cacheCreate1h: 6e-6  },
   "claude-sonnet-4-6":          { input: 3e-6,    output: 15e-6,   cacheRead: 3e-7,    cacheCreate5m: 3.75e-6,  cacheCreate1h: 6e-6  },
   "claude-sonnet-4-5":          { input: 3e-6,    output: 15e-6,   cacheRead: 3e-7,    cacheCreate5m: 3.75e-6,  cacheCreate1h: 6e-6  },
   "claude-sonnet-4-5-20250929": { input: 3e-6,    output: 15e-6,   cacheRead: 3e-7,    cacheCreate5m: 3.75e-6,  cacheCreate1h: 6e-6  },
@@ -118,15 +122,22 @@ export async function refreshPricing(force = false): Promise<Record<string, Pric
 function pricingSync(model: string | undefined | null): Pricing {
   const table = cachedPricing ?? FALLBACK_PER_TOKEN;
   if (!model) return UNKNOWN;
-  if (table[model]) return table[model];
-  const lower = model.toLowerCase();
-  const match = Object.keys(table).find((k) => lower.includes(k) || k.includes(lower));
+  // Cockpit catalog ids ("mythos", "opus-4.8", "sonnet-5") are vanity labels;
+  // resolve them to the real API model id before any table lookup.
+  const canonical = apiIdFor(model) ?? model;
+  // Litellm carries zero-priced placeholder entries (e.g. claude-mythos-preview
+  // at $0/$0); skip those on exact and fuzzy lookups so they never shadow a
+  // real price.
+  const priced = (k: string) => { const p = table[k]; return !!p && (p.input > 0 || p.output > 0); };
+  if (priced(canonical)) return table[canonical]!;
+  const lower = canonical.toLowerCase();
+  const match = Object.keys(table).find((k) => (lower.includes(k) || k.includes(lower)) && priced(k));
   if (match) return table[match]!;
-  if (lower.includes("fable")) return table["claude-fable-5"] ?? UNKNOWN;
+  if (lower.includes("fable") || lower.includes("mythos")) return table["claude-fable-5"] ?? UNKNOWN;
   if (lower.includes("opus-4-8")) return table["claude-opus-4-8"] ?? UNKNOWN;
   if (lower.includes("opus-4-7") || lower.includes("opus-4-6")) return table["claude-opus-4-7"] ?? UNKNOWN;
   if (lower.includes("opus")) return table["claude-opus-4-1"] ?? UNKNOWN;
-  if (lower.includes("sonnet")) return table["claude-sonnet-4-6"] ?? UNKNOWN;
+  if (lower.includes("sonnet")) return table["claude-sonnet-5"] ?? UNKNOWN;
   if (lower.includes("haiku")) return table["claude-haiku-4-5"] ?? UNKNOWN;
   if (lower.includes("flash-lite")) return table["gemini-2.5-flash-lite"] ?? UNKNOWN;
   if (lower.includes("flash")) return table["gemini-2.5-flash"] ?? UNKNOWN;

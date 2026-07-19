@@ -37,7 +37,18 @@ function num(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
-function toWindow(label: string, raw: RateWindowRaw | null | undefined, now: number): QuotaWindow | null {
+// Codex's window positions are not fixed: since codex-cli v0.14x a single
+// weekly limit can land in `primary` with `secondary` null, so the label must
+// come from `window_minutes`, not the slot. 300 -> "5h", 10080 -> "Weekly".
+function windowLabel(minutes: number, fallback: string): string {
+  if (minutes <= 0) return fallback;
+  if (minutes % 10080 === 0) { const w = minutes / 10080; return w === 1 ? "Weekly" : `${w}w`; }
+  if (minutes % 1440 === 0) { const d = minutes / 1440; return d === 1 ? "Daily" : `${d}d`; }
+  if (minutes % 60 === 0) return `${minutes / 60}h`;
+  return `${minutes}m`;
+}
+
+function toWindow(fallbackLabel: string, raw: RateWindowRaw | null | undefined, now: number): QuotaWindow | null {
   if (!raw) return null;
   const used = num(raw.used_percent);
   if (used === null) return null;
@@ -46,7 +57,7 @@ function toWindow(label: string, raw: RateWindowRaw | null | undefined, now: num
   // Past reset means the window already rolled over: treat as freshly empty.
   const usedPercent = resetsAt !== null && resetsAt < now ? 0 : Math.min(100, Math.max(0, used));
   const windowMinutes = num(raw.window_minutes) ?? 0;
-  return { label, usedPercent, windowMinutes, resetsAt };
+  return { label: windowLabel(windowMinutes, fallbackLabel), usedPercent, windowMinutes, resetsAt };
 }
 
 // Returns null whenever there is no rate-limit reading to show, so the sidebar
@@ -93,6 +104,8 @@ export function getCodexQuota(): ProviderQuota | null {
   if (primary) windows.push(primary);
   if (secondary) windows.push(secondary);
   if (windows.length === 0) return null;
+  // Slots are not order-stable across codex versions; show shortest window first.
+  windows.sort((a, b) => a.windowMinutes - b.windowMinutes);
 
   const headline = windows.reduce((m, w) => Math.max(m, w.usedPercent), 0);
   const plan = typeof bestRate.plan_type === "string" && bestRate.plan_type

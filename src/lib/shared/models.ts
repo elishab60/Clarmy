@@ -1,6 +1,9 @@
 import { DEFAULT_PROVIDER, type ProviderId } from "./providers.ts";
 
-export const ALL_EFFORTS = ["low", "medium", "high", "xhigh", "max", "ultracode"] as const;
+// "ultra" is Codex's top reasoning tier (max reasoning + automatic task
+// delegation); "ultracode" is cockpit's runtime-only Claude equivalent. Both
+// coexist so each vendor's real ladder maps 1:1.
+export const ALL_EFFORTS = ["low", "medium", "high", "xhigh", "max", "ultra", "ultracode"] as const;
 export type Effort = typeof ALL_EFFORTS[number];
 
 export interface ModelSpec {
@@ -51,18 +54,22 @@ export const MODELS: readonly ModelSpec[] = [
     defaultEffort: "xhigh",
   },
   {
-    id: "sonnet-4.6",
+    id: "sonnet-5",
     provider: "claude",
-    apiId: "claude-sonnet-4-6",
-    label: "Sonnet 4.6",
+    apiId: "claude-sonnet-5",
+    label: "Sonnet 5",
     tagline: "balanced",
     aliasFrom: [
+      "claude-sonnet-5",
+      // Folded in from the retired Sonnet 4.6 entry so older sessions and
+      // history that reference these api ids still resolve to the current Sonnet.
       "claude-sonnet-4-6",
       "claude-sonnet-4-5",
       "claude-sonnet-4-5-20250929",
       "claude-sonnet-4",
     ],
-    effortLevels: ["low", "medium", "high", "max"],
+    // Sonnet 5 is the first Sonnet tier with xhigh; default stays high.
+    effortLevels: ["low", "medium", "high", "xhigh", "max"],
     defaultEffort: "high",
   },
   {
@@ -136,14 +143,46 @@ export const MODELS: readonly ModelSpec[] = [
   // ---- OpenAI / Codex -----------------------------------------------------
   // Codex exposes reasoning effort via `-c model_reasoning_effort=<level>`. The
   // selectable models + their effort ladder are taken verbatim from
-  // `codex debug models` (visibility:list) on codex-cli v0.135.
+  // `codex debug models` (visibility:list) on codex-cli v0.144. The GPT-5.6
+  // line (sol/terra/luna) adds the "max" and "ultra" tiers; 5.5/5.4/5.4-mini
+  // top out at xhigh.
+  {
+    id: "gpt-5.6-sol",
+    provider: "codex",
+    apiId: "gpt-5.6-sol",
+    label: "GPT-5.6 Sol",
+    tagline: "newest, frontier agentic coding",
+    aliasFrom: ["gpt-5.6-sol", "gpt-5.6", "gpt-5-codex"],
+    effortLevels: ["low", "medium", "high", "xhigh", "max", "ultra"],
+    defaultEffort: "low",
+  },
+  {
+    id: "gpt-5.6-terra",
+    provider: "codex",
+    apiId: "gpt-5.6-terra",
+    label: "GPT-5.6 Terra",
+    tagline: "balanced, everyday agentic coding",
+    aliasFrom: ["gpt-5.6-terra", "gpt-5.3-codex"],
+    effortLevels: ["low", "medium", "high", "xhigh", "max", "ultra"],
+    defaultEffort: "medium",
+  },
+  {
+    id: "gpt-5.6-luna",
+    provider: "codex",
+    apiId: "gpt-5.6-luna",
+    label: "GPT-5.6 Luna",
+    tagline: "fast, affordable agentic coding",
+    aliasFrom: ["gpt-5.6-luna"],
+    effortLevels: ["low", "medium", "high", "xhigh", "max"],
+    defaultEffort: "medium",
+  },
   {
     id: "gpt-5.5",
     provider: "codex",
     apiId: "gpt-5.5",
     label: "GPT-5.5",
-    tagline: "newest, strongest agentic coding",
-    aliasFrom: ["gpt-5.5", "gpt-5-codex"],
+    tagline: "frontier, complex coding + research",
+    aliasFrom: ["gpt-5.5"],
     effortLevels: ["low", "medium", "high", "xhigh"],
     defaultEffort: "medium",
   },
@@ -152,8 +191,8 @@ export const MODELS: readonly ModelSpec[] = [
     provider: "codex",
     apiId: "gpt-5.4",
     label: "GPT-5.4",
-    tagline: "strong reasoning + agentic",
-    aliasFrom: ["gpt-5.4", "gpt-5"],
+    tagline: "strong, everyday coding",
+    aliasFrom: ["gpt-5.4", "gpt-5", "gpt-5.2"],
     effortLevels: ["low", "medium", "high", "xhigh"],
     defaultEffort: "medium",
   },
@@ -162,28 +201,8 @@ export const MODELS: readonly ModelSpec[] = [
     provider: "codex",
     apiId: "gpt-5.4-mini",
     label: "GPT-5.4 Mini",
-    tagline: "fast, efficient",
+    tagline: "small, fast, cost-efficient",
     aliasFrom: ["gpt-5.4-mini", "o4-mini"],
-    effortLevels: ["low", "medium", "high", "xhigh"],
-    defaultEffort: "medium",
-  },
-  {
-    id: "gpt-5.3-codex",
-    provider: "codex",
-    apiId: "gpt-5.3-codex",
-    label: "GPT-5.3 Codex",
-    tagline: "coding-tuned",
-    aliasFrom: ["gpt-5.3-codex"],
-    effortLevels: ["low", "medium", "high", "xhigh"],
-    defaultEffort: "medium",
-  },
-  {
-    id: "gpt-5.2",
-    provider: "codex",
-    apiId: "gpt-5.2",
-    label: "GPT-5.2",
-    tagline: "prior generation",
-    aliasFrom: ["gpt-5.2"],
     effortLevels: ["low", "medium", "high", "xhigh"],
     defaultEffort: "medium",
   },
@@ -382,7 +401,7 @@ export function modelSupportsEffortFor(id: string): boolean {
 const CONTEXT_WINDOWS: Record<string, number> = {
   "mythos": 1_000_000,
   "opus-4.8": 1_000_000,
-  "sonnet-4.6": 1_000_000,
+  "sonnet-5": 1_000_000,
   "haiku-4.5": 200_000,
   "gemini-3-flash-preview": 1_000_000,
   "gemini-3.1-pro-preview": 1_000_000,
